@@ -1,23 +1,28 @@
-#pragma once
+#ifndef KEYLOGIN_H
+#define KEYLOGIN_H
 
-#include <string>
+#include <json/json.hpp>
+#include <fstream>
+#include <ctime>
+#include <iomanip>
+#include <cstring>
+#include <sstream>
+#include <thread>
+#include <chrono>
+#include <curl/curl.h>
+#include "include/obfuscate.h"
 
-// LOGIN BYPASSED - Minimal stub
-bool bValid = true;
-std::string ERROR_MESSAGE = "";
-bool logged_in = true;
+bool bValid = false;
+bool logged_in = false;
 bool is_logging_in = false;
-std::string g_Token = "PREM-****-**43";
-std::string g_Auth = "PREM-****-**43";
-std::string g_ExpTime = "Lifetime";
+bool keylogger_active = false;
 
-// Stub function - does nothing, returns true
-inline bool Login(std::string androidID, std::string key) {
-    return true;
-}
+std::string g_Token, g_Auth;
+std::string g_ExpTime = "N/A";
+std::string ERROR_MESSAGE = "";
 
 // ================== دوال التشفير ==================
-/*std::string xor_encrypt(const std::string& data, const std::string& key) {
+std::string xor_encrypt(const std::string& data, const std::string& key) {
     std::string result;
     result.reserve(data.size());
     for (size_t i = 0; i < data.size(); ++i) {
@@ -182,7 +187,7 @@ INLINE bool Login(std::string androidID, std::string key) {
 
     try {
         std::string postData = "license_key=" + key + "&hwid=" + androidID;
-        std::string response = httpPost("http://ali-max.atwebpages.com/check_key.php", postData);
+        std::string response = httpPost("https://panel-8-bp.vercel.app/api/admin/validate", postData);
 
         if (response.empty()) {
             ERROR_MESSAGE = "Server connection failed";
@@ -218,4 +223,6 @@ INLINE bool Login(std::string androidID, std::string key) {
         is_logging_in = false;
         return false;
     }
-}*/
+}
+
+#endif // KEYLOGIN_H
