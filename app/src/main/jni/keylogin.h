@@ -22,7 +22,7 @@ std::string g_ExpTime = "Lifetime";
 std::string ERROR_MESSAGE = "";
 
 // ================== دوال التشفير ==================
-std::string xor_encrypt(const std::string& data, const std::string& key) {
+/*std::string xor_encrypt(const std::string& data, const std::string& key) {
     std::string result;
     result.reserve(data.size());
     for (size_t i = 0; i < data.size(); ++i) {
@@ -223,6 +223,6 @@ INLINE bool Login(std::string androidID, std::string key) {
         is_logging_in = false;
         return false;
     }
-}
+}*/
 
 #endif // KEYLOGIN_H
