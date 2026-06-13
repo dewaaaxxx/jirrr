@@ -635,12 +635,11 @@ INLINE void DrawESP(ImDrawList* draw) {
     if (!sharedGameManager) return;
     if (!gPrediction) return;
     
-    auto stateMgr = sharedGameManager.mStateManager();
-    if (!stateMgr) return;
-    int stateId = stateMgr.getCurrentStateId();
+    auto safe_stateMgr = sharedGameManager.mStateManager();
+    if (!safe_stateMgr) return;
+    int safe_stateId = safe_stateMgr.getCurrentStateId();  // ← BEDA NAMA
     
-    // HANYA JALAN SAAT DI DALAM MATCH (4,6,7,8)
-    if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
+    if (safe_stateId != 4 && safe_stateId != 6 && safe_stateId != 7 && safe_stateId != 8) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
