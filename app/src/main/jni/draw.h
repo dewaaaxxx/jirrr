@@ -788,7 +788,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (persistent_bool[O("bAutoPlay")]) {
             bool approvalOn = persistent_bool[O("bAutoApproval")];
             if (!approvalOn || ShotApprovalGate(stateId))
-                AutoPlay::Update();
+            //    AutoPlay::Update();
         }
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
 
