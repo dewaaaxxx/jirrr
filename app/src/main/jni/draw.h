@@ -630,7 +630,8 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 
 INLINE void DrawESP(ImDrawList* draw) {
-    if (g_menu.hideForCapture) return; 
+    return;
+   /* if (g_menu.hideForCapture) return; 
  //  if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
@@ -837,7 +838,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
                 }
             }
-      }
+      }*/
 }
 
 #include "ButtonClicker.h"
@@ -1095,7 +1096,8 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
 
 
 INLINE void DrawMenu(ImGuiIO& io) {
-    if (g_menu.hideForCapture) return; 
+    return ;
+   /* if (g_menu.hideForCapture) return; 
    // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (is_segv_handler_active()) {
             jump_buffer_active = 1;
@@ -1137,7 +1139,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
             PopStyleVar(4);
             PopStyleColor();
-        }
+        }*/
 }
 
 
