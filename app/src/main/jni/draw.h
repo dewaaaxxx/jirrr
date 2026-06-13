@@ -448,7 +448,7 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
-   // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+    //if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
@@ -499,7 +499,6 @@ INLINE void DrawAutoQueue() {
         }
         PopStyleVar(); PopStyleColor();
     }
-}
 
 
 
@@ -632,7 +631,7 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 INLINE void DrawESP(ImDrawList* draw) {
     if (g_menu.hideForCapture) return; 
-   // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+ //  if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
@@ -838,8 +837,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
                 }
             }
-        }
-    }
+      }
 }
 
 #include "ButtonClicker.h"
@@ -1140,7 +1138,6 @@ INLINE void DrawMenu(ImGuiIO& io) {
             PopStyleVar(4);
             PopStyleColor();
         }
-    }
 }
 
 
