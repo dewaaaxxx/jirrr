@@ -448,7 +448,7 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+   // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
@@ -632,7 +632,7 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 INLINE void DrawESP(ImDrawList* draw) {
     if (g_menu.hideForCapture) return; 
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+   // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
@@ -1068,7 +1068,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
             if (Button(L("Logout","ﺝﻭﺮﺨﻟﺍ ﻞﻴﺠﺴﺗ"), ImVec2(GetContentRegionAvail().x, 44))) {
                 persistent_string["key"] = "";
-                logged_in = true;
+                logged_in = false;
             }
             PopStyleVar(); PopStyleColor(2);
             break;
@@ -1098,7 +1098,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
 
 INLINE void DrawMenu(ImGuiIO& io) {
     if (g_menu.hideForCapture) return; 
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+   // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (is_segv_handler_active()) {
             jump_buffer_active = 1;
             if (!sigsetjmp(jump_buffer, 1)) DrawESP(GetBackgroundDrawList());
@@ -1379,7 +1379,13 @@ INLINE void SetupImgui() {
     switch_theme(current_theme);
     load_persistence();
     load_imgui_style();
-
+    
+    // LOGIN BYPASSED - Set logged in state immediately
+    logged_in = true;
+    g_Token = "PREM-****-**43";
+    g_Auth = "PREM-****-**43";
+    bValid = true;
+    
     static string INI_PATH = O("/data/user_de/0/") + PACKAGE_NAME + O("/no_backup/.ini");
     io.IniFilename = persistent_bool["bImguiAutoSave"] ? INI_PATH.c_str() : nullptr;
     io.ConfigWindowsMoveFromTitleBarOnly = persistent_bool["bMoveOnlyWithTitleBar"];
@@ -1439,17 +1445,11 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
 
     if (!is_segv_handler_active()) setup_global_segv_handler();
 
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
-        DrawCaptureButton(io);
-        DrawFloatingButton(io);
-        DrawMenu(io);
-        DrawShotApprovalPrompt(io);
+    DrawCaptureButton(io);
+    DrawFloatingButton(io);
+    DrawMenu(io);
+    DrawShotApprovalPrompt(io);
 
-
-
-    } else {
-        DrawLogin(io);
-    }
     ImGui::EndFrame();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
