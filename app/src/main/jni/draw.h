@@ -632,21 +632,19 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 INLINE void DrawESP(ImDrawList* draw) {
        if (g_menu.hideForCapture) return; 
  //  if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
-        if (!sharedGameManager) return;
+    if (!sharedGameManager) return;
     if (!gPrediction) return;
     
-    auto stateMgr = sharedGameManager.mStateManager();
-    if (!stateMgr) return;
-    int stateId = stateMgr.getCurrentStateId();
+    auto safe_stateMgr = sharedGameManager.mStateManager();
+    if (!safe_stateMgr) return;
+    int safe_stateId = safe_stateMgr.getCurrentStateId();
+    if (safe_stateId != 4 && safe_stateId != 6 && safe_stateId != 7 && safe_stateId != 8) return;
     
-    // HANYA jalan saat game active di dalam match (4,6,7,8)
-    if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
-    
-    auto table = sharedGameManager.mTable();
-    if (!table) return;
-    auto tableProperties = table.mTableProperties();
-    if (!tableProperties) return;
-    auto& pockets = tableProperties.mPockets();
+    auto safe_table = sharedGameManager.mTable();
+    if (!safe_table) return;
+    auto safe_tableProperties = safe_table.mTableProperties();
+    if (!safe_tableProperties) return;
+    auto& safe_pockets = safe_tableProperties.mPockets();
     if (pockets.empty()) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
