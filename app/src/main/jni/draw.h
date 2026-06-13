@@ -20,11 +20,6 @@ using namespace std;
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 
-#include "PhysicsModel.h"
-#include "GameSpeedControl.h"
-
-
-
 static const char* L(const char* en, const char* ar);
 
 
