@@ -37,6 +37,15 @@ enum BallType {
     INVALID = -1
 };
 
+constexpr double maxAngle = 360.0 / (180.0 / M_PI);
+
+double normalizeAngle(double angle) {
+    double newAngle = angle;
+    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
+    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    return newAngle;
+}
+
 Candidate g_CurrentCandidate = { -1 };
 extern void DrawEightBallLoading(ImDrawList*);
 
