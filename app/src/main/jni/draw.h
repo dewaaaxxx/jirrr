@@ -785,11 +785,11 @@ INLINE void DrawESP(ImDrawList* draw) {
 
 
 
-        if (persistent_bool[O("bAutoPlay")]) {
+        /*if (persistent_bool[O("bAutoPlay")]) {
             bool approvalOn = persistent_bool[O("bAutoApproval")];
             if (!approvalOn || ShotApprovalGate(stateId))
             //    AutoPlay::Update();
-        }
+        }*/
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
