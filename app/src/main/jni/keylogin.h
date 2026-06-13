@@ -219,5 +219,3 @@ INLINE bool Login(std::string androidID, std::string key) {
         return false;
     }
 }*/
-
-#endif // KEYLOGIN_H
