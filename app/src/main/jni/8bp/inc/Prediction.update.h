@@ -1,7 +1,7 @@
 #pragma once
 
 #include "8bp/Types.h"
-#include "FrictionProperties.h"
+#include "8bp/FrictionProperties.h"
 #include <cmath>
 #include <algorithm>
 
