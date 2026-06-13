@@ -1,25 +1,20 @@
-#ifndef KEYLOGIN_H
-#define KEYLOGIN_H
+#pragma once
 
-#include <json/json.hpp>
-#include <fstream>
-#include <ctime>
-#include <iomanip>
-#include <cstring>
-#include <sstream>
-#include <thread>
-#include <chrono>
-#include <curl/curl.h>
-#include "include/obfuscate.h"
+#include <string>
 
+// LOGIN BYPASSED - Minimal stub
 bool bValid = true;
-bool logged_in = true;
-bool is_logging_in = true;
-bool keylogger_active = true;
-
-std::string g_Token = "CM-PREM-****-**43";
-std::string g_ExpTime = "Lifetime";
 std::string ERROR_MESSAGE = "";
+bool logged_in = true;
+bool is_logging_in = false;
+std::string g_Token = "PREM-****-**43";
+std::string g_Auth = "PREM-****-**43";
+std::string g_ExpTime = "Lifetime";
+
+// Stub function - does nothing, returns true
+inline bool Login(std::string androidID, std::string key) {
+    return true;
+}
 
 // ================== دوال التشفير ==================
 /*std::string xor_encrypt(const std::string& data, const std::string& key) {
