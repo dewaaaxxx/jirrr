@@ -9,7 +9,7 @@
 #include "ScreenTable.h"
 #include "PhysicsModel.h"
 #include "GameSpeedControl.h"
-#include "FrictionProperties.h"
+#include "8bp/FrictionProperties.h"
 #include "ButtonClicker.h"
 
 using namespace ImGui;
