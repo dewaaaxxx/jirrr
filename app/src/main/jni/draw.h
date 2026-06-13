@@ -640,16 +640,11 @@ INLINE void DrawESP(ImDrawList* draw) {
     int safe_stateId = safe_stateMgr.getCurrentStateId();
     if (safe_stateId != 4 && safe_stateId != 6 && safe_stateId != 7 && safe_stateId != 8) return;
     
-    // Cek table dan pockets
     auto safe_table = sharedGameManager.mTable();
     if (!safe_table) return;
     auto safe_tableProperties = safe_table.mTableProperties();
     if (!safe_tableProperties) return;
     auto& safe_pockets = safe_tableProperties.mPockets();
-    if (safe_pockets.empty()) return;
-    
-    // Cek data bola
-    if (gPrediction->guiData.ballsCount < 2) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
