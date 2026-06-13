@@ -17,7 +17,7 @@ bool logged_in = true;
 bool is_logging_in = true;
 bool keylogger_active = true;
 
-std::string g_Token = "CM-PREM-****-**43;
+std::string g_Token = "CM-PREM-****-**43";
 std::string g_ExpTime = "Lifetime";
 std::string ERROR_MESSAGE = "";
 
