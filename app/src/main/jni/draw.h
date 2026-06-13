@@ -637,7 +637,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
-        F(bool, sharedUserInfo + 0x340) = true;
+    //  F(bool, sharedUserInfo + 0x340) = true;
         sharedMainManager = F(ptr, libmain + O(0x4dde3e0));if (!sharedMainManager) return;
         sharedMenuManager = F(ptr, libmain + O(0x4dfe838));if (!sharedMenuManager) return;
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
@@ -785,11 +785,11 @@ INLINE void DrawESP(ImDrawList* draw) {
 
 
 
-        /*if (persistent_bool[O("bAutoPlay")]) {
+        if (persistent_bool[O("bAutoPlay")]) {
             bool approvalOn = persistent_bool[O("bAutoApproval")];
             if (!approvalOn || ShotApprovalGate(stateId))
             //    AutoPlay::Update();
-        }*/
+        }
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
