@@ -633,6 +633,21 @@ INLINE void DrawESP(ImDrawList* draw) {
        if (g_menu.hideForCapture) return; 
  //  if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
+    if (!gPrediction) return;
+    
+    auto stateMgr = sharedGameManager.mStateManager();
+    if (!stateMgr) return;
+    int stateId = stateMgr.getCurrentStateId();
+    
+    // HANYA jalan saat game active di dalam match (4,6,7,8)
+    if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
+    
+    auto table = sharedGameManager.mTable();
+    if (!table) return;
+    auto tableProperties = table.mTableProperties();
+    if (!tableProperties) return;
+    auto& pockets = tableProperties.mPockets();
+    if (pockets.empty()) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
@@ -1099,7 +1114,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
    // if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (is_segv_handler_active()) {
             jump_buffer_active = 1;
-           // if (!sigsetjmp(jump_buffer, 1)) DrawESP(GetBackgroundDrawList());
+            if (!sigsetjmp(jump_buffer, 1)) DrawESP(GetBackgroundDrawList());
             jump_buffer_active = 0;
         }
 
