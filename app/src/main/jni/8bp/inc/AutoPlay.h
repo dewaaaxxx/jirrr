@@ -385,6 +385,7 @@ namespace AutoPlay {
 
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
+        bool isOpenTable = (playerClass == Ball::Classification::ANY);
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
         std::vector<Candidate> candidates;
@@ -399,15 +400,14 @@ namespace AutoPlay {
             if (!ball.originalOnTable) continue;
             
             BallType ballType = getBallType(i);
-            bool isMyBall = (ballType == myBallType) && (ballType != EIGHT_BALL);
-            
-            // Candidate check: try MY balls first, then opponent balls
-            bool isCandidate = false;
-            if (isMyBall) {
-                isCandidate = true;  // Always try MY balls first
-            } else if (ballType != EIGHT_BALL && ballType != CUE_BALL) {
-                isCandidate = true;  // Opponent balls as fallback
-            }
+bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
+
+bool isCandidate = false;
+if (isMyBall) {
+    isCandidate = true;
+} else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+    isCandidate = true;
+}
             
             if (!isCandidate) continue;
 
@@ -522,6 +522,7 @@ namespace AutoPlay {
 
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
+        bool isOpenTable = (playerClass == Ball::Classification::ANY);
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
         
@@ -537,8 +538,8 @@ namespace AutoPlay {
             steps++;
 
             // Strategic power levels for testing
-            std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
-            
+           // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
+            std::vector<double> powers = {666.0, 350.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
@@ -554,10 +555,10 @@ namespace AutoPlay {
                     if (!ball.originalOnTable || ball.onTable) continue;
 
                     BallType ballType = getBallType(i);
-                    bool isMyBall = (ballType == myBallType) && (ballType != EIGHT_BALL);
-                    
-                    bool isValid = isMyBall || (ballType != EIGHT_BALL && ballType != CUE_BALL);
-                    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+bool isMyBall = (ballType == myBallType);
+
+bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
                     
                     if (isValid) { targetIdx = i; break; }
                 }
