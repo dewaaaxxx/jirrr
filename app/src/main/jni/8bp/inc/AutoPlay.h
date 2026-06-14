@@ -377,6 +377,7 @@ namespace AutoPlay {
     // ========================================================================
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
+        g_shotApproval.active = true;
         setShotPower(power);
         gPrediction->determineShotResult(false, angle, power);
 
