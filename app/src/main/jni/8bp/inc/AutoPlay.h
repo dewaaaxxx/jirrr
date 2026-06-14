@@ -245,12 +245,18 @@ struct PhysicsEngine {
         } else if (firstHit->index >= 9 && firstHit->index <= 15) {
             hitType = STRIPES;
         }
+
+        // SEKARANG
+       if (hitType == EIGHT_BALL) {
+            return myBallType == EIGHT_BALL; // boleh kalau memang giliran nembak bola 8
+        }
+        return hitType == targetBallType; // bola pertama yang ketabrak HARUS sesuai target
         
         // For Solids/Stripes: can hit any ball except 8-ball
-        if (myBallType == SOLIDS || myBallType == STRIPES) {
+     /*   if (myBallType == SOLIDS || myBallType == STRIPES) {
             if (hitType == EIGHT_BALL) return false;  // Can't hit 8-ball first
             return true;
-        }
+        }*/
         
         return true;
     }
@@ -281,8 +287,9 @@ BallType getBallType(int ballIndex) {
 }
 
 BallType getPlayerBallType(Ball::Classification classification) {
-    if (classification == Ball::Classification::ANY) return SOLIDS;
+    if (classification == Ball::Classification::STRIPE) return STRIPES;
     if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
+    // SOLID atau ANY (open table) → default ke SOLIDS
     return SOLIDS;
 }
 
