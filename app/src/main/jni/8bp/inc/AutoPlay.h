@@ -24,8 +24,8 @@ using namespace ImGui;
 const double TWO_PI = 2.0 * PI;
 const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
 const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
-const double MIN_POCKET_DIST = 40.0;      // Minimum distance to pocket
-const double MAX_POCKET_DIST = 120.0;     // Maximum distance to pocket
+const double MIN_POCKET_DIST = 5.0;       // Minimum distance to pocket (was 40 — rejected easy tap-ins)
+const double MAX_POCKET_DIST = 300.0;     // Maximum distance to pocket (was 120 — table diagonal ~280+)
 const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
 
 // Ball type classifications
@@ -44,14 +44,6 @@ double normalizeAngle(double angle) {
     if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
     else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
     return newAngle;
-}
-
-int GetLowestNumberedBallOnTable() {
-    for (int i = 1; i <= 9; i++) {
-        if (i >= gPrediction->guiData.ballsCount) break;
-        if (gPrediction->guiData.balls[i].originalOnTable) return i;
-    }
-    return -1;
 }
 
 Candidate g_CurrentCandidate = { -1 };
@@ -106,45 +98,57 @@ struct PhysicsEngine {
     }
     
     // ========================================================================
-    // EQUATION 2: Calculate angle for cue to hit target at POCKET ANGLE
-    // Physics: Cue -> Target -> Pocket (straight line from target to pocket)
+    // GHOST BALL POSITION: where the CUE BALL's center must be at the moment
+    // of contact so the target ball travels toward the pocket. This is
+    // BALL_DIAMETER (2 * radius) away from the target ball's center, along
+    // the line from the pocket through the target ball.
+    // ========================================================================
+    static Point2D calculateGhostBallPosition(
+        const Point2D& targetBallPos,
+        const Point2D& pocketPos
+    ) {
+        Point2D toPocket = pocketPos - targetBallPos;
+        double distance = std::sqrt(toPocket.square());
+        if (distance < 0.1) return targetBallPos;
+
+        Point2D direction = toPocket * (1.0 / distance);
+        return targetBallPos - direction * BALL_DIAMETER;
+    }
+
+    // ========================================================================
+    // EQUATION 2: Calculate the AIM ANGLE for the cue ball.
+    //
+    // FIX: previously this returned atan2(pocket - targetBall) — the
+    // direction the TARGET ball needs to travel, completely ignoring where
+    // the CUE BALL actually is. That's only correct by coincidence (cue,
+    // target, and pocket happen to be collinear). The real aim angle is the
+    // direction from the CUE BALL to the GHOST BALL position.
     // ========================================================================
     static double calculateAngleToPocket(
         const Point2D& cueBallPos,
         const Point2D& targetBallPos,
         const Point2D& pocketPos
     ) {
-        // CORRECTED: Calculate angle FROM TARGET BALL TO POCKET
-        // This is what matters - where the ball GOES after being hit
-        Point2D ballToPocket = pocketPos - targetBallPos;
-        double angle = std::atan2(ballToPocket.y, ballToPocket.x);
-        
-        // Normalize to [0, 2π)
+        Point2D ghostBallPos = calculateGhostBallPosition(targetBallPos, pocketPos);
+
+        Point2D cueToGhost = ghostBallPos - cueBallPos;
+        double angle = std::atan2(cueToGhost.y, cueToGhost.x);
+
         if (angle < 0) angle += TWO_PI;
-        
         return angle;
     }
     
     // ========================================================================
-    // EQUATION 3: Calculate collision point (where cue hits target ball)
-    // Physics: For ball to go toward pocket, cue hits opposite side
-    // Collision point = target_center - (direction_to_pocket * radius)
+    // EQUATION 3: Collision point == ghost ball position (kept for backward
+    // compatibility with call sites that use it for distance calculations).
+    // FIX: now uses BALL_DIAMETER via calculateGhostBallPosition (was
+    // BALL_RADIUS — half the correct distance).
     // ========================================================================
     static Point2D calculateCollisionPoint(
         const Point2D& targetBallPos,
         const Point2D& pocketPos
     ) {
-        Point2D toPocket = pocketPos - targetBallPos;
-        double distance = std::sqrt(toPocket.square());
-        
-        if (distance < 0.1) return targetBallPos;
-        
-        // Normalize direction
-        Point2D direction = toPocket * (1.0 / distance);
-        
-        // Collision point: Hit the OPPOSITE side to propel toward pocket
-        // This is where the cue ball should aim
-        return targetBallPos - direction * Physics::BALL_RADIUS;
+        return calculateGhostBallPosition(targetBallPos, pocketPos);
     }
     
     // ========================================================================
@@ -301,6 +305,21 @@ BallType getPlayerBallType(Ball::Classification classification) {
     return SOLIDS;
 }
 
+// Cek apakah game mode 9-ball
+bool isNineBallGame() {
+    return sharedGameManager.getPlayerClassification() == Ball::Classification::NINE_BALL_RULE;
+}
+
+// Cari indeks bola terendah yang masih di meja (untuk 9-ball)
+int getLowestBallOnTable() {
+    for (int i = 1; i <= 9; i++) {
+        if (i >= gPrediction->guiData.ballsCount) break;
+        auto& ball = gPrediction->guiData.balls[i];
+        if (ball.originalOnTable) return i;
+    }
+    return -1;
+}
+
 // ============================================================================
 // AUTOPLAY NAMESPACE
 // ============================================================================
@@ -367,7 +386,15 @@ namespace AutoPlay {
         
         if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || 
             (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+            // FIX: guard against safety-shot candidates (idx=-2,
+            // pocketIndex=-1, set by ScanSlow's fallback). Without these
+            // extra checks, `getNominatedPocket() != -1` is almost always
+            // true, so `nominating` becomes true and
+            // GetPocketScreenPos(-1) reads pockets[-1] — out of bounds —
+            // producing a garbage screen position that buttonClicker then
+            // clicks on.
+            if (g_CurrentCandidate.idx > 0 && g_CurrentCandidate.pocketIndex >= 0
+                && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
                 nominating = true;
             }
         }
@@ -394,6 +421,8 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
+        bool nineBall = isNineBallGame();
+        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
         std::vector<Candidate> candidates;
@@ -408,16 +437,20 @@ namespace AutoPlay {
             if (!ball.originalOnTable) continue;
             
             BallType ballType = getBallType(i);
-bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
 
-bool isCandidate = false;
-if (isMyBall) {
-    isCandidate = true;
-} else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
-    isCandidate = true;
-}
-            
-            if (!isCandidate) continue;
+            // 9-ball: hanya bola terendah yang boleh jadi kandidat
+            if (nineBall) {
+                if (i != lowestBall) continue;
+            } else {
+                bool isMyBall = (ballType == myBallType);
+                bool isCandidate = false;
+                if (isMyBall) {
+                    isCandidate = true;
+                } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+                    isCandidate = true;
+                }
+                if (!isCandidate) continue;
+            }
 
             // ================================================================
             // ITERATE: All pockets
@@ -487,19 +520,19 @@ if (isMyBall) {
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
-            
-            int GetLowestBallOnTable() {
-    for (int i = 1; i <= 9; i++) {
-        if (i >= gPrediction->guiData.ballsCount) break;
-        if (gPrediction->guiData.balls[i].originalOnTable) return i;
-    }
-    return -1;
-}
-            
+                     
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
             if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+
+            // 9-ball: first hit HARUS bola terendah
+            if (nineBall) {
+                auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                if (!firstHit || firstHit->index != lowestBall) continue;
+            } else {
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+            }
+
             if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
             
             // Verify target ball is in correct pocket
@@ -527,17 +560,28 @@ if (isMyBall) {
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
 
+        // Safety fallback: first angle/power found during this scan that
+        // legally hits OUR ball first (doesn't scratch, doesn't pot the
+        // 8-ball prematurely), even if nothing actually goes in a pocket.
+        // Used so the bot ALWAYS shoots something rather than freezing.
+        static bool   foundSafety  = false;
+        static double safetyAngle  = 0.0;
+        static double safetyPower  = 0.0;
+
         if (g_CurrentCandidate.idx != -1) return;
         
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
             currentScanAngle = 0.0;
             isScanning = true;
+            foundSafety = false;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
         }
 
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
+        bool nineBall = isNineBallGame();
+        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
         
@@ -552,8 +596,6 @@ if (isMyBall) {
             currentScanAngle += angleStep;
             steps++;
 
-            // Strategic power levels for testing
-           // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
             std::vector<double> powers = {666.0, 350.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
@@ -561,7 +603,20 @@ if (isMyBall) {
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+
+                // 9-ball: first hit HARUS bola terendah
+                if (nineBall) {
+                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                    if (!firstHit || firstHit->index != lowestBall) continue;
+                } else {
+                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+                }
+
+                if (!foundSafety) {
+                    foundSafety = true;
+                    safetyAngle = angle;
+                    safetyPower = power;
+                }
                 
                 // Find what was potted
                 int targetIdx = -1;
@@ -569,13 +624,19 @@ if (isMyBall) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (!ball.originalOnTable || ball.onTable) continue;
 
-                    BallType ballType = getBallType(i);
-bool isMyBall = (ballType == myBallType);
-
-bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                    
-                    if (isValid) { targetIdx = i; break; }
+                    // 9-ball: bola yang masuk harus bola yang legal (bola terendah atau bola 9)
+                    if (nineBall) {
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                        // Prioritas bola 9, fallback ke bola lain yang masuk
+                        if (i == 9) { targetIdx = 9; break; }
+                        if (targetIdx == -1) targetIdx = i;
+                    } else {
+                        BallType ballType = getBallType(i);
+                        bool isMyBall = (ballType == myBallType);
+                        bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                        if (isValid) { targetIdx = i; break; }
+                    }
                 }
 
                 if (targetIdx == -1) continue;
@@ -585,16 +646,39 @@ if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
                 g_CurrentCandidate.angle = angle;
                 g_CurrentCandidate.power = power;
                 g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
+                isScanning = false;
+                currentScanAngle = 0.0;
+                foundSafety = false;
                 Shoot(angle, power);
                 return;
             }
         }
 
         if (currentScanAngle >= maxAngle) {
-            LOGI("AutoPlaySlow: Exhaustive scan complete, no shot found");
+            LOGI("AutoPlaySlow: Exhaustive scan complete, no potting shot found");
             isScanning = false;
             currentScanAngle = 0.0;
-            state = IDLE;
+
+            if (foundSafety) {
+                // No shot pots a ball, but we found a LEGAL safety shot
+                // (hits our own ball first, no scratch, no premature 8-ball).
+                // Take it instead of freezing — this is what a human would
+                // do when stuck: play a safety rather than do nothing.
+                LOGI("AutoPlaySlow: No pot found, taking SAFETY shot angle %f power %f", safetyAngle, safetyPower);
+                g_CurrentCandidate.idx = -2; // sentinel: safety shot, no specific target ball
+                g_CurrentCandidate.angle = safetyAngle;
+                g_CurrentCandidate.power = safetyPower;
+                g_CurrentCandidate.pocketIndex = -1;
+                foundSafety = false;
+                Shoot(safetyAngle, safetyPower);
+            } else {
+                // Genuinely no legal shot found anywhere (extremely rare —
+                // would mean every angle either scratches, fouls the
+                // 8-ball, or hits the opponent's ball first from every
+                // direction). Go back to IDLE; next frame will retry from
+                // scratch since isScanning was reset above.
+                state = IDLE;
+            }
         }
     }
 
