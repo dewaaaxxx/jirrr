@@ -230,7 +230,7 @@ struct PhysicsEngine {
     // ========================================================================
     // Validate first ball hit matches player's ball type
     // ========================================================================
-    static bool validateFirstHit(const Prediction& pred, BallType myBallType) {
+    static bool validateFirstHit(const Prediction& pred, BallType myBallType, BallType targetBallType) {
         auto firstHit = pred.guiData.collision.firstHitBall;
         if (!firstHit) return false;
         
