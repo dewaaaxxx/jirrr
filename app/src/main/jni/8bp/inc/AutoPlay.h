@@ -566,14 +566,12 @@ namespace AutoPlay {
         // legally hits OUR ball first (doesn't scratch, doesn't pot the
         // 8-ball prematurely), even if nothing actually goes in a pocket.
         // Used so the bot ALWAYS shoots something rather than freezing.
-        static bool   foundSafety  = false;
 
         if (g_CurrentCandidate.idx != -1) return;
         
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
             currentScanAngle = 0.0;
             isScanning = true;
-            foundSafety = false;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
         }
 
@@ -611,10 +609,6 @@ namespace AutoPlay {
                 } else {
                     if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
                 }
-
-                if (!foundSafety) {
-                    foundSafety = true;
-                }
                 
                 // Find what was potted
                 int targetIdx = -1;
@@ -646,7 +640,6 @@ namespace AutoPlay {
                 g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
                 isScanning = false;
                 currentScanAngle = 0.0;
-                foundSafety = false;
                 Shoot(angle, power);
                 return;
             }
@@ -656,7 +649,6 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Exhaustive scan complete, no potting shot found");
             isScanning = false;
             currentScanAngle = 0.0;
-            foundSafety = false;
             state = IDLE;
         }
     }
