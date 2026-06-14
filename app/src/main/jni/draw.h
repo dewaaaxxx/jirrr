@@ -665,7 +665,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         auto stateId = gameStateManager.getCurrentStateId();
 
 
-        if (stateId == 4) {
+        if (stateId == 4 && persistent_bool[O("bAutoApproval")]) {
             int aiSpeed = persistent_int["iAutoPlaySpeed"];
             int reviewPasses = (aiSpeed == 0) ? 4 : (aiSpeed == 1) ? 6 : 10;
             for (int p = 0; p < reviewPasses; p++)
@@ -804,6 +804,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         int lineStyle = persistent_int["iLineStyle"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            gPrediction->determineShotResult(false);
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
                 if (ball.initialPosition != ball.predictedPosition) {
