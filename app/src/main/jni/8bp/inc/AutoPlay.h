@@ -46,6 +46,14 @@ double normalizeAngle(double angle) {
     return newAngle;
 }
 
+int GetLowestBallOnTable() {
+    for (int i = 1; i <= 9; i++) {
+        if (i >= gPrediction->guiData.ballsCount) break;
+        if (gPrediction->guiData.balls[i].originalOnTable) return i;
+    }
+    return -1;
+}
+
 Candidate g_CurrentCandidate = { -1 };
 extern void DrawEightBallLoading(ImDrawList*);
 
@@ -291,14 +299,6 @@ BallType getPlayerBallType(Ball::Classification classification) {
     if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
     // SOLID atau ANY (open table) → default ke SOLIDS
     return SOLIDS;
-}
-
-int GetLowestBallOnTable() {
-    for (int i = 1; i <= 9; i++) {
-        if (i >= gPrediction->guiData.ballsCount) break;
-        if (gPrediction->guiData.balls[i].originalOnTable) return i;
-    }
-    return -1;
 }
 
 // ============================================================================
