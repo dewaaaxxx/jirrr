@@ -484,7 +484,7 @@ namespace AutoPlay {
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
             if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType)) continue;
+            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
             if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
             
             // Verify target ball is in correct pocket
@@ -545,7 +545,7 @@ namespace AutoPlay {
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType)) continue;
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
                 
                 // Find what was potted
                 int targetIdx = -1;
