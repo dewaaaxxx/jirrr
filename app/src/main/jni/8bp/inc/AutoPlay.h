@@ -595,7 +595,7 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            std::vector<double> powers = {666.0, 350.0};
+            std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
