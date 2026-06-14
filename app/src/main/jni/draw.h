@@ -998,7 +998,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,8));
 
             int curSpeed = persistent_int["iAutoPlaySpeed"];
-            const char* names[3] = { "ﻊﻳﺮﺳ", "ﻂﺳﻮﺘﻣ", "ﺀﻲﻄﺑ" };
+            const char* names[3] = { "Fast", "Medium", "Slow" };
             float bw = (GetContentRegionAvail().x - 16) / 3.0f;
             PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
             for (int i = 0; i < 3; i++) {
@@ -1049,19 +1049,19 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         }
         case 3: { 
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("License Information","ﺺﻴﺧﺮﺘﻟﺍ ﺕﺎﻣﻮﻠﻌﻣ"));
+            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Mod Information","تفصيل ما يقولونه"));
             Dummy(ImVec2(0,14));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Developer: ","ﺭﻮﻄﻤﻟﺍ: "));
+            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Developer: ","DewaaPrtamaa: "));
             SameLine();
-            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "ﻢﺳﺎﻗ ﻲﻠﻋ");
+            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "DewaaPrtamaa");
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Server: ","ﺮﻓﺮﻴﺴﻟﺍ: "));
+            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Server: ","Rafisla: "));
             SameLine();
-            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "ﻂﻘﻓ ﻦﻴﻛﺮﺘﺸﻤﻠﻟ ﻖﻠﻐﻣ");
+            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "Premium");
             Dummy(ImVec2(0,10));
             TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Telegram: ","ﻡﺍﺮﺠﻴﻠﻴﺗ: "));
             SameLine();
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", "@Qst_30");
+            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", "@xabi666");
             Dummy(ImVec2(0,20));
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
             PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f,0.22f,0.22f,1.0f));
@@ -1080,11 +1080,11 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         }
         case 5: {
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", "QP ENGINE  v2.0  -  Gold Edition");
+            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", "CM ENGINE  v2.0  -  Gold Edition");
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium 8 Ball Pool Assistant","https://t.me/R2hak ﺎﻫﻮﻌﺑﺎﺗ ﻲﻠﺘﻟﺍ ﺓﺎﻨﻗ"));
+            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium 8 Ball Pool Assistant","https://t.me/xabi666 ﺎﻫﻮﻌﺑﺎﺗ ﻲﻠﺘﻟﺍ ﺓﺎﻨﻗ"));
             Dummy(ImVec2(0,20));
-            TextColored(ImVec4(0.55f,0.60f,0.70f,1.0f), "%s", L("Contact @Qst_30 on Telegram","@Qst_30 ﻡﺍﺮﺠﻠﺗ ﻞﺻﺍﻮﺗ"));
+            TextColored(ImVec4(0.55f,0.60f,0.70f,1.0f), "%s", L("Contact @xabi666 on Telegram","@Qst_30 ﻡﺍﺮﺠﻠﺗ ﻞﺻﺍﻮﺗ"));
             break;
         }
     }
@@ -1176,8 +1176,8 @@ static void DrawFloatingButton(ImGuiIO& io) {
         dl->AddCircle(c, r,             COL_GOLD_BRIGHT, 48, 2.0f);
 
         SetWindowFontScale(1.4f);
-        ImVec2 ts = CalcTextSize("QP");
-        dl->AddText(ImVec2(c.x - ts.x*0.5f, c.y - ts.y*0.5f), COL_GOLD_BRIGHT, "QP");
+        ImVec2 ts = CalcTextSize("CM");
+        dl->AddText(ImVec2(c.x - ts.x*0.5f, c.y - ts.y*0.5f), COL_GOLD_BRIGHT, "CM");
         SetWindowFontScale(1.0f);
 
         if (IsItemActive() && IsMouseDragging(0)) {
@@ -1270,8 +1270,8 @@ INLINE void DrawLogin(ImGuiIO& io) {
 
     DrawGradientRect(dl, ImVec2(wp.x + 20, wp.y + 20), ImVec2(wp.x + cardW - 20, wp.y + 90), COL_GOLD_DEEP, COL_GOLD_BRIGHT, true);
     SetWindowFontScale(1.7f);
-    ImVec2 ts = CalcTextSize("QP ENGINE");
-    DrawBoldText(dl, ImVec2(wp.x + (cardW - ts.x) * 0.5f, wp.y + 38), IM_COL32(15,22,36,255), "QP ENGINE");
+    ImVec2 ts = CalcTextSize("CM ENGINE");
+    DrawBoldText(dl, ImVec2(wp.x + (cardW - ts.x) * 0.5f, wp.y + 38), IM_COL32(15,22,36,255), "CM ENGINE");
     SetWindowFontScale(1.0f);
     ImVec2 ss = CalcTextSize("GOLD EDITION");
     dl->AddText(ImVec2(wp.x + (cardW - ss.x) * 0.5f, wp.y + 66), IM_COL32(30,40,55,255), "GOLD EDITION");
