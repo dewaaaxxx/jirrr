@@ -849,6 +849,33 @@ INLINE void DrawESP(ImDrawList* draw) {
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
                 }
             }
+            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (ball.initialPosition != ball.predictedPosition) {
+                    ImU32 col = getCol(i);
+                    bool isStripe = (i >= 9 && i <= 15);
+                    float circleR = 20.f;
+
+                    // Start circle (hollow)
+                    draw->AddCircle(WorldToScreen(ball.initialPosition), circleR, col, 0, 6.f);
+
+                    // End circle (filled)
+                    ImVec2 endPos = WorldToScreen(ball.predictedPosition);
+                    draw->AddCircleFilled(endPos, circleR, col);
+
+                    // Stripe balls: draw minus sign ( — ) inside end circle
+                    if (isStripe) {
+                        float minusHalfW = circleR * 0.55f;
+                        float minusThick = circleR * 0.28f;
+                        draw->AddLine(
+                            ImVec2(endPos.x - minusHalfW, endPos.y),
+                            ImVec2(endPos.x + minusHalfW, endPos.y),
+                            IM_COL32(255, 255, 255, 220),
+                            minusThick
+                        );
+                    }
+                }
+            }
         }
     }
 }
