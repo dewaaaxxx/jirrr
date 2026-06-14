@@ -1165,8 +1165,10 @@ INLINE void DrawMenu(ImGuiIO& io) {
         else               g_menu.menuAlpha  = 0.0f;
 
         if (g_menu.menuAlpha > 0.01f) {
-            float winW = 1320.0f;
-            float winH = 820.0f;
+            float winW = 750.0f;
+            float winH = 520.0f;
+
+            
 
             SetNextWindowSize(ImVec2(winW, winH), ImGuiCond_Always);
             SetNextWindowPos(ImVec2(Width / 2.0f, Height / 2.0f), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
