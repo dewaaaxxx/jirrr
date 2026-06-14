@@ -293,6 +293,14 @@ BallType getPlayerBallType(Ball::Classification classification) {
     return SOLIDS;
 }
 
+int GetLowestBallOnTable() {
+    for (int i = 1; i <= 9; i++) {
+        if (i >= gPrediction->guiData.ballsCount) break;
+        if (gPrediction->guiData.balls[i].originalOnTable) return i;
+    }
+    return -1;
+}
+
 // ============================================================================
 // AUTOPLAY NAMESPACE
 // ============================================================================
@@ -469,8 +477,7 @@ if (isMyBall) {
                 candidates.push_back({i, angle, score, pocketIdx, power});
             }
         }
-        
-        std::sort(candidates.begin(), candidates.end());
+       std::sort(candidates.begin(), candidates.end());
         
         bool foundShot = false;
         
@@ -480,6 +487,14 @@ if (isMyBall) {
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
+            
+            int GetLowestBallOnTable() {
+    for (int i = 1; i <= 9; i++) {
+        if (i >= gPrediction->guiData.ballsCount) break;
+        if (gPrediction->guiData.balls[i].originalOnTable) return i;
+    }
+    return -1;
+}
             
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
