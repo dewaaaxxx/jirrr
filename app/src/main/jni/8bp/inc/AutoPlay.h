@@ -566,8 +566,6 @@ namespace AutoPlay {
         // 8-ball prematurely), even if nothing actually goes in a pocket.
         // Used so the bot ALWAYS shoots something rather than freezing.
         static bool   foundSafety  = false;
-        static double safetyAngle  = 0.0;
-        static double safetyPower  = 0.0;
 
         if (g_CurrentCandidate.idx != -1) return;
         
@@ -615,8 +613,6 @@ namespace AutoPlay {
 
                 if (!foundSafety) {
                     foundSafety = true;
-                    safetyAngle = angle;
-                    safetyPower = power;
                 }
                 
                 // Find what was potted
@@ -659,27 +655,8 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Exhaustive scan complete, no potting shot found");
             isScanning = false;
             currentScanAngle = 0.0;
-
-            if (foundSafety) {
-                // No shot pots a ball, but we found a LEGAL safety shot
-                // (hits our own ball first, no scratch, no premature 8-ball).
-                // Take it instead of freezing — this is what a human would
-                // do when stuck: play a safety rather than do nothing.
-                LOGI("AutoPlaySlow: No pot found, taking SAFETY shot angle %f power %f", safetyAngle, safetyPower);
-                g_CurrentCandidate.idx = -2; // sentinel: safety shot, no specific target ball
-                g_CurrentCandidate.angle = safetyAngle;
-                g_CurrentCandidate.power = safetyPower;
-                g_CurrentCandidate.pocketIndex = -1;
-                foundSafety = false;
-                Shoot(safetyAngle, safetyPower);
-            } else {
-                // Genuinely no legal shot found anywhere (extremely rare —
-                // would mean every angle either scratches, fouls the
-                // 8-ball, or hits the opponent's ball first from every
-                // direction). Go back to IDLE; next frame will retry from
-                // scratch since isScanning was reset above.
-                state = IDLE;
-            }
+            foundSafety = false;
+            state = IDLE;
         }
     }
 
