@@ -492,6 +492,7 @@ namespace AutoPlay {
                 );
                 
                 // Calculate score
+                bool isMyBall = nineBall ? true : (ballType == myBallType);
                 double score = PhysicsEngine::calculateShotScore(
                     ballToPocketDist,
                     accuracy,
