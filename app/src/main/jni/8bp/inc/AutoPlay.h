@@ -46,7 +46,7 @@ double normalizeAngle(double angle) {
     return newAngle;
 }
 
-int GetLowestBallOnTable() {
+int GetLowestNumberedBallOnTable() {
     for (int i = 1; i <= 9; i++) {
         if (i >= gPrediction->guiData.ballsCount) break;
         if (gPrediction->guiData.balls[i].originalOnTable) return i;
