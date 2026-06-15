@@ -20,15 +20,6 @@ using namespace std;
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 
-inline void AutoPlayShootWithApproval(double angle, double power) {
-    // Aktifkan approval
-    g_shotApproval.active = true;
-    g_shotApproval.shownAt = std::chrono::steady_clock::now();
-    
-    // Panggil Shoot asli
-    AutoPlay::Shoot(angle, power);
-}
-
 static const char* L(const char* en, const char* ar);
 
 
