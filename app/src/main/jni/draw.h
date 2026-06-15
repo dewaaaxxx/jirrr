@@ -454,8 +454,6 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 INLINE void DrawAutoQueue() {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
-        if (!sharedMenuManager) return;
-       if (sharedMenuManager.getMenuStateId() != 13) return;
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
@@ -820,17 +818,16 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         int lineStyle = persistent_int["iLineStyle"];
 
-    /*    if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                gPrediction->determineShotResult(false);
                 auto& ball = gPrediction->guiData.balls[i];
 
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
-                    float lineThick = (float)persistent_int[O("iLineThickness")];
-                    if (lineThick < 1.f) lineThick = 1.f;
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
+                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], 10.f);
                         lastPos = point;
                     }
                 }
@@ -839,18 +836,18 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                gPrediction->determineShotResult(false);
                 auto& ball = gPrediction->guiData.balls[i];
 
                 if (ball.initialPosition != ball.predictedPosition) {
-                    float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
-                    if (circleR < 2.f) circleR = 2.f;
-                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
+                    draw->AddCircle(WorldToScreen(ball.initialPosition), 20, colors[i], 0, 6.f);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
                 }
             }
-        }*/
+        }
+        }
 
-        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+       /* if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
             if (predA < 0.01f) predA = 1.0f;
             auto getCol = [&](int idx) -> ImU32 {
@@ -922,7 +919,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                         );
                     }
                 }
-            }
+            }*/
         }
     }
 }
