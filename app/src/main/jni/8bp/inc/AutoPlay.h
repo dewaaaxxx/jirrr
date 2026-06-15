@@ -313,6 +313,20 @@ BallType getPlayerBallType(Ball::Classification classification) {
     return SOLIDS;
 }
 
+bool isNineBallGame() {
+    return sharedGameManager.getPlayerClassification() == Ball::Classification::NINE_BALL_RULE;
+}
+
+// Cari indeks bola terendah yang masih di meja (untuk 9-ball)
+int getLowestBallOnTable() {
+    for (int i = 1; i <= 9; i++) {
+        if (i >= gPrediction->guiData.ballsCount) break;
+        auto& ball = gPrediction->guiData.balls[i];
+        if (ball.originalOnTable) return i;
+    }
+    return -1;
+}
+
 // ============================================================================
 // AUTOPLAY NAMESPACE
 // ============================================================================
@@ -406,6 +420,8 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
+        bool nineBall = isNineBallGame();
+        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
         std::vector<Candidate> candidates;
@@ -418,6 +434,20 @@ namespace AutoPlay {
         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
             auto& ball = gPrediction->guiData.balls[i];
             if (!ball.originalOnTable) continue;
+
+            // 9-ball: hanya bola terendah yang boleh jadi kandidat
+            if (nineBall) {
+                if (i != lowestBall) continue;
+            } else {
+                bool isMyBall = (ballType == myBallType);
+                bool isCandidate = false;
+                if (isMyBall) {
+                    isCandidate = true;
+                } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+                    isCandidate = true;
+                }
+                if (!isCandidate) continue;
+            }
             
             BallType ballType = getBallType(i);
             bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
@@ -471,6 +501,7 @@ namespace AutoPlay {
                 );
                 
                 // Calculate score
+                bool isMyBall = nineBall ? true : (ballType == myBallType);
                 double score = PhysicsEngine::calculateShotScore(
                     ballToPocketDist,
                     accuracy,
@@ -504,6 +535,14 @@ namespace AutoPlay {
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
             if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
             if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+            
+            if (nineBall) {
+                auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                if (!firstHit || firstHit->index != lowestBall) continue;
+            } else {
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+            }
+            
             if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
             
             // Verify target ball is in correct pocket
@@ -542,6 +581,8 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
+        bool nineBall = isNineBallGame();
+        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
         
@@ -570,6 +611,13 @@ namespace AutoPlay {
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                 if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+
+                if (nineBall) {
+                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                    if (!firstHit || firstHit->index != lowestBall) continue;
+                } else {
+                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+                }
                 
                 // Find what was potted
                 int targetIdx = -1;
@@ -577,13 +625,24 @@ namespace AutoPlay {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (!ball.originalOnTable || ball.onTable) continue;
 
-                    BallType ballType = getBallType(i);
-bool isMyBall = (ballType == myBallType);
+                    if (nineBall) {
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                        // Prioritas bola 9, fallback ke bola lain yang masuk
+                        if (i == 9) { targetIdx = 9; break; }
+                        if (targetIdx == -1) targetIdx = i;
+                    } else {
+                        BallType ballType = getBallType(i);
+                        bool isMyBall = (ballType == myBallType);
+                        bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                        if (isValid) { targetIdx = i; break; }
+                    }
+                }
 
-bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+                if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
                     
-                    if (isValid) { targetIdx = i; break; }
+                if (isValid) { targetIdx = i; break; }
                 }
 
                 if (targetIdx == -1) continue;
