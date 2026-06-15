@@ -1170,8 +1170,8 @@ INLINE void DrawMenu(ImGuiIO& io) {
         else               g_menu.menuAlpha  = 0.0f;
 
         if (g_menu.menuAlpha > 0.01f) {
-            float winW = 750.0f;
-            float winH = 520.0f;
+            float winW = 1000.0f;
+            float winH = 620.0f;
 
             
 
@@ -1194,7 +1194,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
                 DrawTitleFrame(dl, wp, winW);
 
-                float sidebarW = 330.0f;
+                float sidebarW = 250.0f;
                 DrawSidebar(sidebarW, winH, wp);
                 DrawContentArea(sidebarW, winW, winH, wp);
             }
