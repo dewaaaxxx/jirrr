@@ -847,7 +847,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         }
         }
 
-       /* if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+     /*   if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
             if (predA < 0.01f) predA = 1.0f;
             auto getCol = [&](int idx) -> ImU32 {
@@ -919,8 +919,8 @@ INLINE void DrawESP(ImDrawList* draw) {
                         );
                     }
                 }
-            }*/
-        }
+            }
+        }*/
     }
 }
 
