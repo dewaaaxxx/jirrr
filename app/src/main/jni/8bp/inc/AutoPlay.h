@@ -451,8 +451,6 @@ namespace AutoPlay {
                 if (!isCandidate) continue;
             }
             
-            bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
-
             bool isCandidate = false;
             if (isMyBall) {
                 isCandidate = true;
