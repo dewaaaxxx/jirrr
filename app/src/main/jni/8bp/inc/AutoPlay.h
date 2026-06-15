@@ -615,6 +615,7 @@ namespace AutoPlay {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (!ball.originalOnTable || ball.onTable) continue;
 
+                    // 9-ball: bola yang masuk harus bola yang legal (bola terendah atau bola 9)
                     if (nineBall) {
                         if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
                         // Prioritas bola 9, fallback ke bola lain yang masuk
@@ -627,12 +628,6 @@ namespace AutoPlay {
                         if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
                         if (isValid) { targetIdx = i; break; }
                     }
-                }
-
-                bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-                if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                    
-                if (isValid) { targetIdx = i; break; }
                 }
 
                 if (targetIdx == -1) continue;
