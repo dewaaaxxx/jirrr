@@ -454,6 +454,8 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 INLINE void DrawAutoQueue() {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+        if (!sharedMenuManager) return;
+       if (sharedMenuManager.getMenuStateId() != 13) return;
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
@@ -636,7 +638,17 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 
 INLINE void DrawESP(ImDrawList* draw) {
-    if (g_menu.hideForCapture) return; 
+    if (g_menu.hideForCapture) return;
+    
+    // ========== TAMBAHKAN INI (SAFETY CHECK) ==========
+    if (!sharedGameManager) return;
+    auto stateMgr = sharedGameManager.mStateManager();
+    if (!stateMgr) return;
+    int stateId = stateMgr.getCurrentStateId();
+    
+    // HANYA JALAN SAAT DI DALAM MATCH (4,6,7,8)
+    if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
+    
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
