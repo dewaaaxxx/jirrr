@@ -845,7 +845,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                 }
             }
         }
-        }
+        
 
      /*   if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
