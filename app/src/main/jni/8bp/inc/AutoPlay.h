@@ -46,13 +46,13 @@ double normalizeAngle(double angle) {
     return newAngle;
 }
 
-int GetLowestNumberedBallOnTable() {
+/*int GetLowestNumberedBallOnTable() {
     for (int i = 1; i <= 9; i++) {
         if (i >= gPrediction->guiData.ballsCount) break;
         if (gPrediction->guiData.balls[i].originalOnTable) return i;
     }
     return -1;
-}
+}*/
 
 Candidate g_CurrentCandidate = { -1 };
 extern void DrawEightBallLoading(ImDrawList*);
@@ -435,6 +435,8 @@ namespace AutoPlay {
             auto& ball = gPrediction->guiData.balls[i];
             if (!ball.originalOnTable) continue;
 
+            BallType ballType = getBallType(i);
+
             // 9-ball: hanya bola terendah yang boleh jadi kandidat
             if (nineBall) {
                 if (i != lowestBall) continue;
@@ -449,7 +451,6 @@ namespace AutoPlay {
                 if (!isCandidate) continue;
             }
             
-            BallType ballType = getBallType(i);
             bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
 
             bool isCandidate = false;
