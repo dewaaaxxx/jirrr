@@ -21,8 +21,6 @@ using namespace ImGui;
 #define PI 3.14159265358979323846
 #endif
 
-extern struct ShotApprovalState g_shotApproval;
-
 const double TWO_PI = 2.0 * PI;
 const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
 const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
@@ -544,7 +542,7 @@ namespace AutoPlay {
             LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, angle, cand.power);
             g_CurrentCandidate = cand;
             foundShot = true;
-            AutoPlayShootWithApproval(angle, power);
+            Shoot(angle, power);
             break;
         }
 
@@ -641,7 +639,7 @@ namespace AutoPlay {
                 g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
                 isScanning = false;
                 currentScanAngle = 0.0;
-                AutoPlayShootWithApproval(angle, power);
+                Shoot(angle, power);
                 return;
             }
         }
