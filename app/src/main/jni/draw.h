@@ -808,7 +808,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         int lineStyle = persistent_int["iLineStyle"];
 
-        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+    /*    if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
 
@@ -836,9 +836,9 @@ INLINE void DrawESP(ImDrawList* draw) {
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
-        }
+        }*/
 
-       /* if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
             if (predA < 0.01f) predA = 1.0f;
             auto getCol = [&](int idx) -> ImU32 {
@@ -911,7 +911,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     }
                 }
             }
-        }*/
+        }
     }
 }
 
@@ -1082,8 +1082,31 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
                                     &persistent_bool[O("bAutoApproval")]);
+            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Mode","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
+            Dummy(ImVec2(0,8));
+            {
+                int curMode = persistent_int["iAutoPlayMode"]; // 0=Normal, 1=Fast
+                const char* modeNames[2] = {
+                    L("Normal","ﻲﻌﻴﺒﻃ"),
+                    L("Fast","ﻊﻳﺮﺳ")
+                };
+                float bw2 = (GetContentRegionAvail().x - 8) / 2.0f;
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                for (int i = 0; i < 2; i++) {
+                    if (i) SameLine();
+                    bool sel = (curMode == i);
+                    PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
+                    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
+                    PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1,1,1,1) : ImVec4(0.75f,0.80f,0.90f,1));
+                    if (Button(modeNames[i], ImVec2(bw2, 44))) { persistent_int["iAutoPlayMode"] = i; need_save = true; }
+                    PopStyleColor(3);
+                }
+                PopStyleVar();
+            }
+            TextColored(ImVec4(0.5f,0.5f,0.55f,1.0f), "%s",
+                L("Fast = coarser, quicker scan (finds a shot sooner, slightly less precise)",
+                  "ﻊﺳﻭﺃﻭ ﻉﺮﺳﺃ ﺢﺴﻣ = ﻊﻳﺮﺴﻟﺍ"));
             Dummy(ImVec2(0,12));
-
 
             TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
             Dummy(ImVec2(0,8));
