@@ -379,7 +379,6 @@ namespace AutoPlay {
     // ========================================================================
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
-        g_shotApproval.active = true;
         setShotPower(power);
         gPrediction->determineShotResult(false, angle, power);
 
@@ -545,7 +544,7 @@ namespace AutoPlay {
             LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, angle, cand.power);
             g_CurrentCandidate = cand;
             foundShot = true;
-            Shoot(angle, cand.power);
+            AutoPlayShootWithApproval(angle, power);
             break;
         }
 
@@ -642,7 +641,7 @@ namespace AutoPlay {
                 g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
                 isScanning = false;
                 currentScanAngle = 0.0;
-                Shoot(angle, power);
+                AutoPlayShootWithApproval(angle, power);
                 return;
             }
         }
