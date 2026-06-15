@@ -71,6 +71,11 @@ static bool ShotApprovalGate(int stateId) {
 
     if (A.approved) return true;
 
+    if (!A.hasShot) {
+        A.active = false;
+        return false;
+    }
+
     if (!A.active) {
         A.active  = true;
         A.shownAt = std::chrono::steady_clock::now();
