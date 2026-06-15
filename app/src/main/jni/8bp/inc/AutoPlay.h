@@ -450,15 +450,6 @@ namespace AutoPlay {
                 }
                 if (!isCandidate) continue;
             }
-            
-            bool isCandidate = false;
-            if (isMyBall) {
-                isCandidate = true;
-            } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
-                isCandidate = true;
-            }
-            
-            if (!isCandidate) continue;
 
             // ================================================================
             // ITERATE: All pockets
