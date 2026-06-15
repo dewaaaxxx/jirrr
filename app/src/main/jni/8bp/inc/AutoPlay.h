@@ -24,8 +24,8 @@ using namespace ImGui;
 const double TWO_PI = 2.0 * PI;
 const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
 const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
-const double MIN_POCKET_DIST = 5.0;       // Minimum distance to pocket (was 40 — rejected easy tap-ins)
-const double MAX_POCKET_DIST = 300.0;     // Maximum distance to pocket (was 120 — table diagonal ~280+)
+const double MIN_POCKET_DIST = 40.0;      // Minimum distance to pocket
+const double MAX_POCKET_DIST = 120.0;     // Maximum distance to pocket
 const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
 
 // Ball type classifications
@@ -44,6 +44,14 @@ double normalizeAngle(double angle) {
     if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
     else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
     return newAngle;
+}
+
+int GetLowestNumberedBallOnTable() {
+    for (int i = 1; i <= 9; i++) {
+        if (i >= gPrediction->guiData.ballsCount) break;
+        if (gPrediction->guiData.balls[i].originalOnTable) return i;
+    }
+    return -1;
 }
 
 Candidate g_CurrentCandidate = { -1 };
@@ -305,21 +313,6 @@ BallType getPlayerBallType(Ball::Classification classification) {
     return SOLIDS;
 }
 
-// Cek apakah game mode 9-ball
-bool isNineBallGame() {
-    return sharedGameManager.getPlayerClassification() == Ball::Classification::NINE_BALL_RULE;
-}
-
-// Cari indeks bola terendah yang masih di meja (untuk 9-ball)
-int getLowestBallOnTable() {
-    for (int i = 1; i <= 9; i++) {
-        if (i >= gPrediction->guiData.ballsCount) break;
-        auto& ball = gPrediction->guiData.balls[i];
-        if (ball.originalOnTable) return i;
-    }
-    return -1;
-}
-
 // ============================================================================
 // AUTOPLAY NAMESPACE
 // ============================================================================
@@ -386,15 +379,7 @@ namespace AutoPlay {
         
         if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || 
             (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-            // FIX: guard against safety-shot candidates (idx=-2,
-            // pocketIndex=-1, set by ScanSlow's fallback). Without these
-            // extra checks, `getNominatedPocket() != -1` is almost always
-            // true, so `nominating` becomes true and
-            // GetPocketScreenPos(-1) reads pockets[-1] — out of bounds —
-            // producing a garbage screen position that buttonClicker then
-            // clicks on.
-            if (g_CurrentCandidate.idx > 0 && g_CurrentCandidate.pocketIndex >= 0
-                && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
                 nominating = true;
             }
         }
@@ -421,8 +406,6 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
-        bool nineBall = isNineBallGame();
-        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
         std::vector<Candidate> candidates;
@@ -437,20 +420,16 @@ namespace AutoPlay {
             if (!ball.originalOnTable) continue;
             
             BallType ballType = getBallType(i);
+            bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
 
-            // 9-ball: hanya bola terendah yang boleh jadi kandidat
-            if (nineBall) {
-                if (i != lowestBall) continue;
-            } else {
-                bool isMyBall = (ballType == myBallType);
-                bool isCandidate = false;
-                if (isMyBall) {
-                    isCandidate = true;
-                } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
-                    isCandidate = true;
-                }
-                if (!isCandidate) continue;
+            bool isCandidate = false;
+            if (isMyBall) {
+                isCandidate = true;
+            } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+                isCandidate = true;
             }
+            
+            if (!isCandidate) continue;
 
             // ================================================================
             // ITERATE: All pockets
@@ -492,7 +471,6 @@ namespace AutoPlay {
                 );
                 
                 // Calculate score
-                bool isMyBall = nineBall ? true : (ballType == myBallType);
                 double score = PhysicsEngine::calculateShotScore(
                     ballToPocketDist,
                     accuracy,
@@ -521,19 +499,11 @@ namespace AutoPlay {
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
-                     
+            
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
             if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-
-            // 9-ball: first hit HARUS bola terendah
-            if (nineBall) {
-                auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                if (!firstHit || firstHit->index != lowestBall) continue;
-            } else {
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
-            }
-
+            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
             if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
             
             // Verify target ball is in correct pocket
@@ -561,11 +531,6 @@ namespace AutoPlay {
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
 
-        // Safety fallback: first angle/power found during this scan that
-        // legally hits OUR ball first (doesn't scratch, doesn't pot the
-        // 8-ball prematurely), even if nothing actually goes in a pocket.
-        // Used so the bot ALWAYS shoots something rather than freezing.
-
         if (g_CurrentCandidate.idx != -1) return;
         
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
@@ -577,13 +542,14 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
-        bool nineBall = isNineBallGame();
-        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
         
+        bool fastMode = (persistent_int["iAutoPlayMode"] == 1); // 0=Normal, 1=Fast
+
         int steps = 0;
         int stepsPerFrame = (int)(20 * GameSpeed::getAnimationMultiplier());
+        if (fastMode) stepsPerFrame *= 2; // finish exhaustive scan in half the frames
         
         // ====================================================================
         // ITERATE: All angles
@@ -593,21 +559,17 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
+            // Strategic power levels for testing
+           // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
+            // FAST MODE: only try max power (1 sim instead of 2 per angle)
+            std::vector<double> powers = fastMode ? std::vector<double>{666.0} : std::vector<double>{666.0, 350.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-
-                // 9-ball: first hit HARUS bola terendah
-                if (nineBall) {
-                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                    if (!firstHit || firstHit->index != lowestBall) continue;
-                } else {
-                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
-                }
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
                 
                 // Find what was potted
                 int targetIdx = -1;
@@ -615,19 +577,13 @@ namespace AutoPlay {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (!ball.originalOnTable || ball.onTable) continue;
 
-                    // 9-ball: bola yang masuk harus bola yang legal (bola terendah atau bola 9)
-                    if (nineBall) {
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
-                        // Prioritas bola 9, fallback ke bola lain yang masuk
-                        if (i == 9) { targetIdx = 9; break; }
-                        if (targetIdx == -1) targetIdx = i;
-                    } else {
-                        BallType ballType = getBallType(i);
-                        bool isMyBall = (ballType == myBallType);
-                        bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                        if (isValid) { targetIdx = i; break; }
-                    }
+                    BallType ballType = getBallType(i);
+bool isMyBall = (ballType == myBallType);
+
+bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                    
+                    if (isValid) { targetIdx = i; break; }
                 }
 
                 if (targetIdx == -1) continue;
@@ -645,7 +601,7 @@ namespace AutoPlay {
         }
 
         if (currentScanAngle >= maxAngle) {
-            LOGI("AutoPlaySlow: Exhaustive scan complete, no potting shot found");
+            LOGI("AutoPlaySlow: Exhaustive scan complete, no shot found");
             isScanning = false;
             currentScanAngle = 0.0;
             state = IDLE;
@@ -744,11 +700,18 @@ namespace AutoPlay {
             scan = FAST;
         } 
         if (state == SCANNING) {
+            // FAST MODE: coarser angle steps -> far fewer candidates /
+            // scan-frames -> ScanSlow's exhaustive scan finishes much
+            // sooner. NORMAL MODE: unchanged (original fine steps).
+            bool fastMode = (persistent_int["iAutoPlayMode"] == 1); // 0=Normal, 1=Fast
+            double angleStepFast = fastMode ? (ANGLE_STEP_FAST * 2.0) : ANGLE_STEP_FAST;
+            double angleStepSlow = fastMode ? (ANGLE_STEP_SLOW * 2.5) : ANGLE_STEP_SLOW;
+
             if (scan == FAST) {
-                ScanFast(ANGLE_STEP_FAST);
+                ScanFast(angleStepFast);
             } else {
                 DrawEightBallLoading(GetForegroundDrawList());
-                ScanSlow(ANGLE_STEP_SLOW);
+                ScanSlow(angleStepSlow);
             }
         } 
         if (state == NOMINATING) {
