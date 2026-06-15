@@ -542,7 +542,7 @@ namespace AutoPlay {
             LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, angle, cand.power);
             g_CurrentCandidate = cand;
             foundShot = true;
-            Shoot(angle, power);
+            Shoot(angle, cand.power);
             break;
         }
 
