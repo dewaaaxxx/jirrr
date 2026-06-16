@@ -20,6 +20,10 @@ using namespace std;
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 
+static bool g_aqCounting = false;
+static std::chrono::steady_clock::time_point g_aqLastCall;
+static std::chrono::steady_clock::time_point g_aqCountdownStart;
+
 static const char* L(const char* en, const char* ar);
 
 
