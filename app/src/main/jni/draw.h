@@ -884,16 +884,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     if (circleR < 2.f) circleR = 2.f;
                     draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
-                    if (isStripe) {
-                        float minusHalfW = circleR * 0.55f;
-                        float minusThick = circleR * 0.28f;
-                        draw->AddLine(
-                            ImVec2(endPos.x - minusHalfW, endPos.y),
-                            ImVec2(endPos.x + minusHalfW, endPos.y),
-                            IM_COL32(255, 255, 255, 220),
-                            minusThick
-                        );
-                    }
+                    
                 }
             }
         }
