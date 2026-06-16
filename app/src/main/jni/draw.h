@@ -1133,7 +1133,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
                                     &persistent_bool[O("bAutoApproval")]);
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Mode","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
+            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Scanning Mode","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
             Dummy(ImVec2(0,8));
             {
                 int curMode = persistent_int["iAutoPlayMode"]; // 0=Normal, 1=Fast
