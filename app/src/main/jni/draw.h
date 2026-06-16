@@ -856,6 +856,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         int lineStyle = persistent_int["iLineStyle"];
 
          if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            gPrediction->determineShotResult(false);
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
 
@@ -873,14 +874,26 @@ INLINE void DrawESP(ImDrawList* draw) {
         }
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            gPrediction->determineShotResult(false);
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
+                bool isStripe = (i >= 9 && i <= 15);
 
                 if (ball.initialPosition != ball.predictedPosition) {
                     float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
                     draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
+                    if (isStripe) {
+                        float minusHalfW = circleR * 0.55f;
+                        float minusThick = circleR * 0.28f;
+                        draw->AddLine(
+                            ImVec2(endPos.x - minusHalfW, endPos.y),
+                            ImVec2(endPos.x + minusHalfW, endPos.y),
+                            IM_COL32(255, 255, 255, 220),
+                            minusThick
+                        );
+                    }
                 }
             }
         }
@@ -1094,7 +1107,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                     &persistent_bool[O("bESP_DrawPocketsShotState")]);
             Dummy(ImVec2(0,8));
             
-            float tebel = persistent_float["fLineThick"];
+           /* float tebel = persistent_float["fLineThick"];
             if (tebel < 0.0f) tebel = 0.5f;
             if (GoldSliderFloat(L("Line Thickness","ﺕﺎﻄﻘﻠﻟﺍ ﻦﻴﺑ ﺮﻴﺧﺄﺗ"),
                                 L("",""),
@@ -1110,7 +1123,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                 &opa, 0.5f, 1.0f, "%.2f")) {
                 persistent_float["fPredAlpha"] = opa;
                 need_save = true;
-            }
+            }*/
 
 
             const char* items = "SOLID\0DOTTED\0";
@@ -1130,32 +1143,9 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
                                     &persistent_bool[O("bAutoApproval")]);
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Scanning Mode","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
-            Dummy(ImVec2(0,8));
-            {
-                int curMode = persistent_int["iAutoPlayMode"]; // 0=Normal, 1=Fast
-                const char* modeNames[2] = {
-                    L("Normal","ﻲﻌﻴﺒﻃ"),
-                    L("Fast","ﻊﻳﺮﺳ")
-                };
-                float bw2 = (GetContentRegionAvail().x - 8) / 2.0f;
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                for (int i = 0; i < 2; i++) {
-                    if (i) SameLine();
-                    bool sel = (curMode == i);
-                    PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-                    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
-                    PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1,1,1,1) : ImVec4(0.75f,0.80f,0.90f,1));
-                    if (Button(modeNames[i], ImVec2(bw2, 44))) { persistent_int["iAutoPlayMode"] = i; need_save = true; }
-                    PopStyleColor(3);
-                }
-                PopStyleVar();
-            }
-            TextColored(ImVec4(0.5f,0.5f,0.55f,1.0f), "%s",
-                L("Fast = coarser, quicker scan (finds a shot sooner, slightly less precise)",
-                  "ﻊﺳﻭﺃﻭ ﻉﺮﺳﺃ ﺢﺴﻣ = ﻊﻳﺮﺴﻟﺍ"));
+            
             Dummy(ImVec2(0,12));
-
+            
             TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
             Dummy(ImVec2(0,8));
 
