@@ -458,6 +458,7 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
+    if (!persistent_bool[O("bAutoQueue")]) return;
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         
         // إذا لم يبدأ العد بعد، نقوم ببدئه مرة واحدة فقط
@@ -674,6 +675,14 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 
 INLINE void DrawESP(ImDrawList* draw) {
+    if (!sharedGameManager) return;
+    auto stateMgr = sharedGameManager.mStateManager();
+    if (!stateMgr) return;
+    int stateId = stateMgr.getCurrentStateId();
+    
+    // ========== HANYA BLOKIR LOBBY (0-3) ==========
+    if (stateId >= 0 && stateId <= 3) return;
+    
     if (g_menu.hideForCapture) return; 
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
@@ -685,10 +694,10 @@ INLINE void DrawESP(ImDrawList* draw) {
         sharedMenuManager = F(ptr, libmain + O(0x4dfe838));if (!sharedMenuManager) return;
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
-        if (!mainStateManager.isInGame()) {
+    /*    if (!mainStateManager.isInGame()) {
             if (persistent_bool[O("bAutoQueue")]) { if (!sharedMenuManager.isInQueue()) DrawAutoQueue(); }
             return;
-        }
+        }*/
         auto visualCue = sharedGameManager.mVisualCue();
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         Table table = sharedGameManager.mTable;
@@ -1597,6 +1606,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawFloatingButton(io);
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
+        DrawAutoQueue();
 
 
 
