@@ -674,27 +674,13 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 
 INLINE void DrawESP(ImDrawList* draw) {
-    if (g_menu.hideForCapture) return;
-    if (!sharedGameManager) return;
-    if (!gPrediction) return;
-    
-    auto stateMgr = sharedGameManager.mStateManager();
-    if (!stateMgr) return;
-    int stateId = stateMgr.getCurrentStateId();
-    
-    // ========== HANYA CEK UNTUK MENGHINDARI LOBBY (4,6,7,8) ==========
-    // HAPUS baris ini jika ingin ESP tetap muncul saat bola bergerak
-    // if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
-    
-    // ========== ATAU GUNAKAN INI (HANYA CEK LOBBY) ==========
-    if (stateId < 4) return;  // Hanya cegah di lobby (stateId 0-3)
-    
+    if (g_menu.hideForCapture) return; 
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
-    //  F(bool, sharedUserInfo + 0x340) = true;
+        F(bool, sharedUserInfo + 0x340) = true;
         sharedMainManager = F(ptr, libmain + O(0x4dde3e0));if (!sharedMainManager) return;
         sharedMenuManager = F(ptr, libmain + O(0x4dfe838));if (!sharedMenuManager) return;
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
@@ -837,7 +823,7 @@ INLINE void DrawESP(ImDrawList* draw) {
             g_shotApproval.hasShot  = shotFound;
 
 
-            if (shotFound) persistent_float["fShotPower"] = bestPower;
+           // if (shotFound) persistent_float["fShotPower"] = bestPower;
         }
 
 
@@ -862,14 +848,15 @@ INLINE void DrawESP(ImDrawList* draw) {
 
          if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                gPrediction->determineShotResult(false);
                 auto& ball = gPrediction->guiData.balls[i];
 
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
+                    float lineThick = (float)persistent_int[O("iLineThickness")];
+                    if (lineThick < 1.f) lineThick = 1.f;
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], 10.f);
+                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
                         lastPos = point;
                     }
                 }
@@ -878,12 +865,13 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                gPrediction->determineShotResult(false);
                 auto& ball = gPrediction->guiData.balls[i];
 
                 if (ball.initialPosition != ball.predictedPosition) {
-                    draw->AddCircle(WorldToScreen(ball.initialPosition), 20, colors[i], 0, 6.f);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
+                    float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
+                    if (circleR < 2.f) circleR = 2.f;
+                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
         }
