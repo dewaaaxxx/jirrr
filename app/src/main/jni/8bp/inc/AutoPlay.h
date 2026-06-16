@@ -24,8 +24,8 @@ using namespace ImGui;
 const double TWO_PI = 2.0 * PI;
 const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
 const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
-const double MIN_POCKET_DIST = 40.0;      // Minimum distance to pocket
-const double MAX_POCKET_DIST = 120.0;     // Maximum distance to pocket
+const double MIN_POCKET_DIST = 2.0;       // was 40 — rejected easy tap-ins right next to the pocket
+const double MAX_POCKET_DIST = 300.0;     // was 120 — table diagonal is ~284, so most long shots were rejected outright
 const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
 
 // Ball type classifications
@@ -46,13 +46,13 @@ double normalizeAngle(double angle) {
     return newAngle;
 }
 
-/*int GetLowestNumberedBallOnTable() {
+int GetLowestNumberedBallOnTable() {
     for (int i = 1; i <= 9; i++) {
         if (i >= gPrediction->guiData.ballsCount) break;
         if (gPrediction->guiData.balls[i].originalOnTable) return i;
     }
     return -1;
-}*/
+}
 
 Candidate g_CurrentCandidate = { -1 };
 extern void DrawEightBallLoading(ImDrawList*);
@@ -85,23 +85,34 @@ struct PhysicsEngine {
         double ballToPocketDist,   // Distance from target ball to pocket (ACTUAL SHOT)
         const FrictionProperties& friction
     ) {
-        // The target ball needs to travel from its position to the pocket
-        // This is the ACTUAL distance the ball must cover
-        if (ballToPocketDist < 1.0) return 100.0;
-        
-        // Friction deceleration: a = -mu * g
-        double friction_coeff = friction._velocityReductionRollingFactor;
-        double deceleration = GRAVITY * friction_coeff;
-        
-        // CORRECTED: Power needed for TARGET BALL to reach pocket
-        // v^2 = 2 * a * s  =>  v = sqrt(2 * a * s)
-        double requiredVelocity = std::sqrt(2.0 * deceleration * ballToPocketDist);
-        
-        // Add extra power to overcome collision loss (elastic collision efficiency ~90%)
-        double powerWithCollisionLoss = requiredVelocity / 0.9;  // Account for energy loss
-        
-        // Map to power scale (0-666)
-        double power = powerWithCollisionLoss / 1.0;
+        if (ballToPocketDist < 1.0) ballToPocketDist = 1.0;
+        if (cueToBallDist < 1.0) cueToBallDist = 1.0;
+
+        // FIX: previously `cueToBallDist` was accepted as a parameter but
+        // never actually used anywhere in this function — power was
+        // calculated using ONLY the target-ball-to-pocket distance. That
+        // means a shot where the cue ball has to travel a long way before
+        // even reaching the target ball (and therefore loses a lot of
+        // speed to friction along the way) got the exact same power
+        // estimate as a shot where the cue ball is right next to the
+        // target ball. The cue ball would arrive at the target already too
+        // slow, transfer too little energy, and the target ball would fall
+        // short of the pocket — a real cause of "almost went in but didn't".
+        //
+        // Also switched to the sliding-friction deceleration constant
+        // (196.0) that matches the actual physics model used elsewhere in
+        // this codebase (see Prediction.fast.h), instead of
+        // GRAVITY * rolling_factor, which underestimates the power needed
+        // for anything beyond a very short shot.
+        constexpr double slidingDeceleration = 196.0;
+
+        double velocityForTarget = std::sqrt(2.0 * slidingDeceleration * ballToPocketDist);
+        double velocityForCue    = std::sqrt(2.0 * slidingDeceleration * cueToBallDist);
+
+        // Combine both legs of the shot (cue's travel + target's travel),
+        // plus a margin for collision transfer inefficiency.
+        double power = (velocityForCue + velocityForTarget) * 1.25;
+
         return std::min(std::max(power, 100.0), 666.0);
     }
     
@@ -297,6 +308,12 @@ struct PhysicsEngine {
 // GAME STATE & HELPER FUNCTIONS
 // ============================================================================
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
+// Set when BOTH ScanFast and the exhaustive ScanSlow have failed to find
+// any shot for this exact cue ball position. Prevents AutoPlay from
+// endlessly re-running the same doomed scan cycle over and over (which
+// looks identical to a freeze) — it'll only retry once the cue ball
+// actually moves.
+Point2D fullyExhaustedCuePos = { -1000.0, -1000.0 };
 
 BallType getBallType(int ballIndex) {
     if (ballIndex == 0) return CUE_BALL;
@@ -311,20 +328,6 @@ BallType getPlayerBallType(Ball::Classification classification) {
     if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
     // SOLID atau ANY (open table) → default ke SOLIDS
     return SOLIDS;
-}
-
-bool isNineBallGame() {
-    return sharedGameManager.getPlayerClassification() == Ball::Classification::NINE_BALL_RULE;
-}
-
-// Cari indeks bola terendah yang masih di meja (untuk 9-ball)
-int getLowestBallOnTable() {
-    for (int i = 1; i <= 9; i++) {
-        if (i >= gPrediction->guiData.ballsCount) break;
-        auto& ball = gPrediction->guiData.balls[i];
-        if (ball.originalOnTable) return i;
-    }
-    return -1;
 }
 
 // ============================================================================
@@ -377,6 +380,7 @@ namespace AutoPlay {
     void ClearState() {
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
+        fullyExhaustedCuePos = { -1000.0, -1000.0 };
     }
     
     // ========================================================================
@@ -415,13 +419,21 @@ namespace AutoPlay {
     // ========================================================================
     void ScanFast(double angleStep = ANGLE_STEP_FAST) {
         if (g_CurrentCandidate.idx != -1) return;
-        if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
+        if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) {
+            // We already know ScanFast can't find anything for this exact
+            // cue ball position (tried it last cycle). FIX: previously this
+            // returned WITHOUT setting scan=SLOW, so on the next IDLE->
+            // SCANNING transition `scan` got reset to FAST again, hit this
+            // same early-return, and got stuck forever — AutoPlay would
+            // freeze completely ("bengong"). Make sure we still hand off to
+            // the exhaustive slow scan.
+            scan = SLOW;
+            return;
+        }
 
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
-        bool nineBall = isNineBallGame();
-        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
         std::vector<Candidate> candidates;
@@ -434,22 +446,18 @@ namespace AutoPlay {
         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
             auto& ball = gPrediction->guiData.balls[i];
             if (!ball.originalOnTable) continue;
-
+            
             BallType ballType = getBallType(i);
+            bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
 
-            // 9-ball: hanya bola terendah yang boleh jadi kandidat
-            if (nineBall) {
-                if (i != lowestBall) continue;
-            } else {
-                bool isMyBall = (ballType == myBallType);
-                bool isCandidate = false;
-                if (isMyBall) {
-                    isCandidate = true;
-                } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
-                    isCandidate = true;
-                }
-                if (!isCandidate) continue;
+            bool isCandidate = false;
+            if (isMyBall) {
+                isCandidate = true;
+            } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+                isCandidate = true;
             }
+            
+            if (!isCandidate) continue;
 
             // ================================================================
             // ITERATE: All pockets
@@ -491,7 +499,6 @@ namespace AutoPlay {
                 );
                 
                 // Calculate score
-                bool isMyBall = nineBall ? true : (ballType == myBallType);
                 double score = PhysicsEngine::calculateShotScore(
                     ballToPocketDist,
                     accuracy,
@@ -518,30 +525,57 @@ namespace AutoPlay {
         // VALIDATE: Each candidate
         // ====================================================================
         for (const auto& cand : candidates) {
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-            gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
-            
-            // Safety checks
-            if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
-            if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
-            
-            if (nineBall) {
-                auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                if (!firstHit || firstHit->index != lowestBall) continue;
-            } else {
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+            double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+
+            // Refinement: try a small window of angles/powers around the
+            // geometrically-computed values instead of just the single
+            // exact point. This does NOT relax what counts as a valid shot
+            // — every attempt below still must legitimately pot the target
+            // ball into the correct pocket in simulation. It just makes
+            // candidate selection more robust against small inaccuracies
+            // in the power-estimation formula (so a genuinely good
+            // ball+pocket candidate doesn't get thrown away just because
+            // the FIRST power guess was a little off).
+            bool validated = false;
+            double bestAngle = baseAngle;
+            double bestPower = cand.power;
+
+            double powerVariants[5] = {
+                cand.power, cand.power * 1.08, cand.power * 0.92,
+                cand.power * 1.16, cand.power * 0.85
+            };
+            double angleOffsets[3] = { 0.0, 0.02, -0.02 };
+
+            for (int ai = 0; ai < 3 && !validated; ai++) {
+                double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + angleOffsets[ai]));
+                for (int pi = 0; pi < 5; pi++) {
+                    double tryPower = powerVariants[pi];
+                    if (tryPower < 100.0) tryPower = 100.0;
+                    if (tryPower > 666.0) tryPower = 666.0;
+
+                    gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+
+                    if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+                    if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+                    if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
+                    if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+
+                    bestAngle = tryAngle;
+                    bestPower = tryPower;
+                    validated = true;
+                    break;
+                }
             }
+
+            if (!validated) continue;
             
-            if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
-            
-            // Verify target ball is in correct pocket
-            if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
-            
-            LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, angle, cand.power);
+            LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, bestAngle, bestPower);
             g_CurrentCandidate = cand;
+            g_CurrentCandidate.angle = bestAngle;
+            g_CurrentCandidate.power = bestPower;
             foundShot = true;
-            Shoot(angle, cand.power);
+            Shoot(bestAngle, bestPower);
             break;
         }
 
@@ -571,8 +605,6 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
-        bool nineBall = isNineBallGame();
-        int lowestBall = nineBall ? getLowestBallOnTable() : -1;
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
         
@@ -601,13 +633,6 @@ namespace AutoPlay {
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                 if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
-
-                if (nineBall) {
-                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                    if (!firstHit || firstHit->index != lowestBall) continue;
-                } else {
-                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
-                }
                 
                 // Find what was potted
                 int targetIdx = -1;
@@ -615,19 +640,13 @@ namespace AutoPlay {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (!ball.originalOnTable || ball.onTable) continue;
 
-                    // 9-ball: bola yang masuk harus bola yang legal (bola terendah atau bola 9)
-                    if (nineBall) {
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
-                        // Prioritas bola 9, fallback ke bola lain yang masuk
-                        if (i == 9) { targetIdx = 9; break; }
-                        if (targetIdx == -1) targetIdx = i;
-                    } else {
-                        BallType ballType = getBallType(i);
-                        bool isMyBall = (ballType == myBallType);
-                        bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                        if (isValid) { targetIdx = i; break; }
-                    }
+                    BallType ballType = getBallType(i);
+bool isMyBall = (ballType == myBallType);
+
+bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                    
+                    if (isValid) { targetIdx = i; break; }
                 }
 
                 if (targetIdx == -1) continue;
@@ -648,6 +667,7 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Exhaustive scan complete, no shot found");
             isScanning = false;
             currentScanAngle = 0.0;
+            fullyExhaustedCuePos = cueBall.initialPosition;
             state = IDLE;
         }
     }
@@ -744,6 +764,15 @@ namespace AutoPlay {
             scan = FAST;
         } 
         if (state == SCANNING) {
+            // If we've already exhaustively searched (both fast AND slow)
+            // this exact cue ball position and found nothing, don't
+            // restart the whole search — it would just fail identically
+            // every cycle, which looks exactly like a permanent freeze.
+            // Wait for the cue ball to actually move before retrying.
+            if (gPrediction->guiData.balls[0].initialPosition == fullyExhaustedCuePos) {
+                return;
+            }
+
             // FAST MODE: coarser angle steps -> far fewer candidates /
             // scan-frames -> ScanSlow's exhaustive scan finishes much
             // sooner. NORMAL MODE: unchanged (original fine steps).
