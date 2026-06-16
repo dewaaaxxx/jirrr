@@ -453,56 +453,89 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
-        static std::chrono::steady_clock::time_point last_call_time;
-        static std::chrono::steady_clock::time_point countdown_start;
-        static bool counting = false;
+    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
+        
+        // إذا لم يبدأ العد بعد، نقوم ببدئه مرة واحدة فقط
+        if (!g_aqCounting) {
+            g_aqCounting = true;
+            g_aqCountdownStart = std::chrono::steady_clock::now();
+        }
+
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call_time).count() > 500) counting = false;
-        last_call_time = now;
-        if (!counting) { counting = true; countdown_start = now; }
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
-        int remaining_ms = 3000 - elapsed;
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - g_aqCountdownStart).count();
+        int remaining_ms = 3000 - (int)elapsed;
+
+        // عند انتهاء العد التنازلي
         if (remaining_ms <= 0) {
-            if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
-            StartLastMatch();
-            counting = false;
+            // ========== تنفيذ الدخول ==========
+            int mode = persistent_int["iAutoQueue_Mode"];
+            
+            // وضع آخر مختار
+            if (mode == 0 && lastMatchInfo.set) {
+                LOGI("Joining last match: %s", lastMatchInfo.Tier.c_str());
+                _StartMatch(sharedMenuManager.instance, 0, lastMatchInfo.Tier, 
+                            0, 0, 0, 0, 0, 0, lastMatchInfo.arg10, lastMatchInfo.arg11);
+            }
+            // وضع ذكي
+            else if (mode == 1) {
+                auto coins = sharedUserInfo.coins();
+                auto maxBet = coins * persistent_int["iAutoQueue_BetPercent"] / 100;
+                
+                std::map<string, int64_t> modeBets = {
+                    {"M1", 50}, {"M2", 100}, {"M3", 500}, {"M4", 2500},
+                    {"M5", 10000}, {"M6", 50000}, {"M7", 100000}, {"M8", 250000},
+                    {"M9", 500000}, {"M10", 1000000}, {"M11", 2500000}, {"M12", 4000000},
+                    {"M13", 5000000}, {"M14", 10000000}, {"M15", 15000000}, {"M16", 25000000},
+                    {"M17", 100000000}
+                };
+                
+                string selectedMode = "M1";
+                for (const auto& [mn, bet] : modeBets) {
+                    if (maxBet >= bet) selectedMode = mn;
+                }
+                
+                LOGI("Smart mode: %s", selectedMode.c_str());
+                if (lastMatchInfo.set) {
+                    _StartMatch(sharedMenuManager.instance, 0, selectedMode, 
+                                0, 0, 0, 0, 0, 0, lastMatchInfo.arg10, lastMatchInfo.arg11);
+                } else {
+                    _StartMatch(sharedMenuManager.instance, 0, selectedMode, 
+                                0, 0, 0, 0, 0, 0, 0x7100000001, 0xffffffff);
+                }
+            }
+            
+            // إيقاف العد لمنع التكرار
+            g_aqCounting = false;
+            // اختيارياً: يمكنك إيقاف الخاصية بالكامل بعد الانضمام إذا أردت
+            // persistent_bool[O("bAutoQueue")] = false; 
             return;
         }
-        SetNextWindowPos(ImVec2(Width/2.0f, Height/2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-        SetNextWindowSize(ImVec2(360, 240), ImGuiCond_Always);
-        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.08f, 0.13f, 0.98f));
-        PushStyleVar(ImGuiStyleVar_WindowRounding, 18.0f);
-        if (Begin(O("##AutoQueue"), nullptr, ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings)) {
+
+        // عرض العد التنازلي على الشاشة
+        SetNextWindowPos(ImVec2(Width * 0.5f, Height * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 1.f));
+        PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(32.0f, 20.0f));
+        PushStyleVar(ImGuiStyleVar_WindowRounding, 24.0f);
+
+        if (Begin(O("##AutoQueueCD"), nullptr,
+                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+                  ImGuiWindowFlags_AlwaysAutoResize)) {
             ImDrawList* dl = GetWindowDrawList();
-            ImVec2 wp = GetWindowPos(); ImVec2 ws = GetWindowSize();
-            DrawGradientRect(dl, wp, ImVec2(wp.x+ws.x, wp.y+60), COL_GOLD_DEEP, COL_GOLD, true);
-            dl->AddRectFilled(wp, ImVec2(wp.x+ws.x, wp.y+18), COL_GOLD_DEEP, 18.0f, ImDrawFlags_RoundCornersTop);
-            const char* t = L("Auto Queue", "ﻲﺋﺎﻘﻠﺘﻟﺍ ﻝﻮﺧﺪﻟﺍ");
-            ImVec2 tz = CalcTextSize(t);
-            dl->AddText(ImVec2(wp.x + (ws.x-tz.x)*0.5f, wp.y + 18), IM_COL32(20,20,28,255), t);
+            ImVec2 wp = GetWindowPos();
+            ImVec2 ws = GetWindowSize();
+            dl->AddRectFilled(wp, ImVec2(wp.x + ws.x, wp.y + ws.y), IM_COL32(20, 20, 28, 0), 24.0f);
+            dl->AddRect(wp, ImVec2(wp.x + ws.x, wp.y + ws.y), NEON_GOLD, 24.0f, 0, 2.0f);
 
-            SetCursorPosY(80);
-            SetWindowFontScale(3.2f);
-            std::string c = std::to_string((remaining_ms/1000)+1);
-            ImVec2 cs = CalcTextSize(c.c_str());
-            SetCursorPosX((ws.x - cs.x)*0.5f);
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", c.c_str());
+            SetWindowFontScale(3.5f);
+            // إضافة 1 لجعل العد من 3 إلى 1
+            std::string count_str = std::to_string((remaining_ms / 1000) + 1);
+            TextColored(ImVec4(0.83f, 0.68f, 0.22f, 1.0f), "%s", count_str.c_str());
             SetWindowFontScale(1.0f);
-
-            SetCursorPosY(ws.y - 65);
-            SetCursorPosX(20);
-            PushStyleColor(ImGuiCol_Button,        ImVec4(0.75f,0.25f,0.25f,1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f,0.35f,0.35f,1.0f));
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-            if (Button(L("Cancel","ﺀﺎﻐﻟﺇ"), ImVec2(ws.x-40, 45))) {
-                persistent_bool[O("bAutoQueue")] = false;
-                counting = false;
-            }
-            PopStyleVar(); PopStyleColor(2);
-            End();
         }
-        PopStyleVar(); PopStyleColor();
+        End();
+        PopStyleVar(2);
+        PopStyleColor();
     }
 }
 
@@ -637,15 +670,19 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 
 INLINE void DrawESP(ImDrawList* draw) {
     if (g_menu.hideForCapture) return;
-    
-    // ========== TAMBAHKAN INI (SAFETY CHECK) ==========
     if (!sharedGameManager) return;
+    if (!gPrediction) return;
+    
     auto stateMgr = sharedGameManager.mStateManager();
     if (!stateMgr) return;
     int stateId = stateMgr.getCurrentStateId();
     
-    // HANYA JALAN SAAT DI DALAM MATCH (4,6,7,8)
-    if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
+    // ========== HANYA CEK UNTUK MENGHINDARI LOBBY (4,6,7,8) ==========
+    // HAPUS baris ini jika ingin ESP tetap muncul saat bola bergerak
+    // if (stateId != 4 && stateId != 6 && stateId != 7 && stateId != 8) return;
+    
+    // ========== ATAU GUNAKAN INI (HANYA CEK LOBBY) ==========
+    if (stateId < 4) return;  // Hanya cegah di lobby (stateId 0-3)
     
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
