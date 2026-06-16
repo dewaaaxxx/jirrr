@@ -109,6 +109,7 @@ static void DrawGradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 c1, ImU32
 #define COL_TEXT_DIM     IM_COL32(160, 168, 185, 255)
 #define COL_TEXT_FAINT   IM_COL32(120, 128, 145, 255)
 #define COL_LINE         IM_COL32(60, 75, 100, 255)
+#define NEON_GOLD       IM_COL32(255, 215, 0, 255)
 
 
 
