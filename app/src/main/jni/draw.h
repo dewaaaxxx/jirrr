@@ -457,7 +457,7 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
-    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
+    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         
         // إذا لم يبدأ العد بعد، نقوم ببدئه مرة واحدة فقط
         if (!g_aqCounting) {
