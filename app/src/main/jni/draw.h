@@ -1129,13 +1129,13 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     // ==========================================
 
     Dummy(ImVec2(0, 10));
-    
-    // ── Toggle Auto Play ──
-    need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
+
+    // ── GoldToggle Auto Play ──
+    need_save |= GoldToggle(O("Enable Auto Play"), O(""), &persistent_bool[O("bAutoPlay")]);
     Dummy(ImVec2(0, 10));
 
-    // ── Toggle Human Autoplay ──
-    need_save |= ToggleSwitch(O("Human Autoplay"), &persistent_bool["bHumanAutoplay"]);
+    // ── GoldToggle Human Autoplay ──
+    need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
     Dummy(ImVec2(0, 15));
 
     // ── Auto Play Speed ──
@@ -1162,37 +1162,32 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Power Slider Position"));
     Dummy(ImVec2(0, 8));
 
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-    PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
-    PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.18f, 1.0f));
-    PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.83f, 0.68f, 0.29f, 1.0f));
-    PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.95f, 0.78f, 0.35f, 1.0f));
-
+    // ── Slider X ──
     float sliderX = persistent_float["fPSliderX"];
-    if (SliderFloat("##psx", &sliderX, 0.70f, 1.0f, "X: %.3f")) {
+    if (GoldSliderFloat(O("X Position"), O("Horizontal"), &sliderX, 0.70f, 1.0f, "%.3f")) {
         persistent_float["fPSliderX"] = sliderX;
         need_save = true;
     }
     Dummy(ImVec2(0, 4));
 
+    // ── Slider Top ──
     float sliderTop = persistent_float["fPSliderTop"];
-    if (SliderFloat("##pst", &sliderTop, 0.05f, 0.50f, "Top: %.3f")) {
+    if (GoldSliderFloat(O("Top Position"), O("Vertical start"), &sliderTop, 0.05f, 0.50f, "%.3f")) {
         persistent_float["fPSliderTop"] = sliderTop;
         need_save = true;
     }
     Dummy(ImVec2(0, 4));
 
+    // ── Slider Height ──
     float sliderH = persistent_float["fPSliderH"];
-    if (SliderFloat("##psh", &sliderH, 0.30f, 0.90f, "Height: %.3f")) {
+    if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.90f, "%.3f")) {
         persistent_float["fPSliderH"] = sliderH;
         need_save = true;
     }
+    Dummy(ImVec2(0, 10));
 
-    PopStyleColor(3);
-    PopStyleVar(2);
-
-    // ── Toggle Preview ──
-    need_save |= ToggleSwitch(O("Preview Power Slider"), &persistent_bool["bPSliderPreview"]);
+    // ── GoldToggle Preview ──
+    need_save |= GoldToggle(O("Preview Power Slider"), O("Show guide line on screen"), &persistent_bool["bPSliderPreview"]);
     Dummy(ImVec2(0, 10));
 
     // ── PREVIEW GAMBAR ──
