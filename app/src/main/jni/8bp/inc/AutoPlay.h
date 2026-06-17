@@ -487,12 +487,11 @@ namespace AutoPlay {
         switch (humanExecState) {
             case H_POWER: {
     if (!powerSlider.Active) {
-        // Power drag selesai, ambil posisi akhir power
-        double finalPower = powerSlider.CurrentPower * 666.0;
+        // Gunakan TargetPower, bukan CurrentPower
+        double finalPower = powerSlider.TargetPower * 666.0;
         if (finalPower < 100.0) finalPower = 100.0;
         if (finalPower > 666.0) finalPower = 666.0;
         
-        // Eksekusi tembakan
         setAimAngle(humanAngleDrag.targetAngle);
         setShotPower(finalPower);
         gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
@@ -519,14 +518,30 @@ namespace AutoPlay {
             case H_THINK: {
     humanThinkTimer -= ImGui::GetIO().DeltaTime;
     if (humanThinkTimer <= 0.f) {
-        // ... kode setup slider (biarkan sama) ...
-        float dragTime = 0.80f + (rand() % 300) * 0.001f; // 800-1100ms (lebih pelan)
-        float holdTime = 0.30f + (rand() % 150) * 0.001f; // 300-450ms (tahan lebih lama)
+        // ========== DEFINISIKAN rect DI SINI ==========
+        float sliderX   = persistent_float["fPSliderX"];
+        float sliderTop = persistent_float["fPSliderTop"];
+        float sliderH   = persistent_float["fPSliderH"];
+        if (sliderX <= 0.f)   sliderX   = 0.858f;
+        if (sliderTop <= 0.f) sliderTop = 0.18f;
+        if (sliderH <= 0.f)   sliderH   = 0.67f;
+
+        ImGuiIO& io = ImGui::GetIO();
+        ImVec4 rect(  // ← DEFINISIKAN DI SINI
+            io.DisplaySize.x * sliderX,
+            io.DisplaySize.y * sliderTop,
+            io.DisplaySize.x * 0.04f,
+            io.DisplaySize.y * sliderH
+        );
+        // =============================================
+
+        float dragTime = 0.80f + (rand() % 300) * 0.001f;
+        float holdTime = 0.30f + (rand() % 150) * 0.001f;
         powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
         humanExecState = H_POWER;
     }
     break;
-}
+            }
             default: break;
         }
     }
