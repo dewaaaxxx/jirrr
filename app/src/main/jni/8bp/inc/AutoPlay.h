@@ -22,17 +22,16 @@ using namespace ImGui;
 #endif
 
 const double TWO_PI = 2.0 * PI;
-const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
-const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
-const double MIN_POCKET_DIST = 40.0;      // Minimum distance to pocket
-const double MAX_POCKET_DIST = 120.0;     // Maximum distance to pocket
-const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
+const double ANGLE_STEP_FAST = 0.05;
+const double ANGLE_STEP_SLOW = 0.02;
+const double MIN_POCKET_DIST = 40.0;
+const double MAX_POCKET_DIST = 120.0;
+const double BALL_SAFETY_MARGIN = 5.0;
 
-// Ball type classifications
 enum BallType {
     CUE_BALL = 0,
-    SOLIDS = 1,      // 1-7
-    STRIPES = 2,     // 9-15
+    SOLIDS = 1,
+    STRIPES = 2,
     EIGHT_BALL = 3,
     INVALID = -1
 };
@@ -59,56 +58,31 @@ ImVec2 GetPocketScreenPos(int pocketIdx) {
 }
 
 // ============================================================================
-// PHYSICS ENGINE - GHOST BALL GEOMETRY + BANK SHOT MIRROR GEOMETRY
+// PHYSICS ENGINE
 // ============================================================================
 struct PhysicsEngine {
     static constexpr double BALL_DIAMETER = 2.0 * Physics::BALL_RADIUS;
     static constexpr double GRAVITY = 9.81;
 
-    // ========================================================================
-    // Power needed for the TARGET ball to travel from its position to the
-    // pocket, PLUS the power the cue ball loses traveling to the collision
-    // point. FIX: the previous version of this function accepted
-    // `cueToBallDist` as a parameter but never used it anywhere in the body
-    // — meaning a shot where the cue ball has to travel far before even
-    // reaching the target ball got the exact same power estimate as a shot
-    // where the cue ball is right next to the target. The cue ball would
-    // arrive at the target already too slow, transfer too little energy,
-    // and the target ball would fall short of the pocket. Both legs of the
-    // shot are now accounted for.
-    // ========================================================================
     static double calculatePowerForTargetToPocket(
-        double cueToBallDist,      // Distance from cue to collision point
-        double ballToPocketDist,   // Distance the TARGET ball must travel
+        double cueToBallDist,
+        double ballToPocketDist,
         const FrictionProperties& friction
     ) {
         if (ballToPocketDist < 1.0) ballToPocketDist = 1.0;
         if (cueToBallDist < 1.0) cueToBallDist = 1.0;
 
-        // Sliding-phase deceleration constant matching the real engine
-        // (see Prediction.fast.h's decompiled calcVelocity reference:
-        // _velocityReductionSlidingFactor == 196.0). Using a generic
-        // friction*gravity formula here would drastically under/over
-        // estimate the power needed.
         double slidingDeceleration = friction._velocityReductionSlidingFactor;
         if (slidingDeceleration < 1.0) slidingDeceleration = 196.0;
 
         double velocityForTarget = std::sqrt(2.0 * slidingDeceleration * ballToPocketDist);
         double velocityForCue    = std::sqrt(2.0 * slidingDeceleration * cueToBallDist);
 
-        // Combine both legs, plus a margin for collision transfer
-        // inefficiency (energy lost in the cue->target collision itself).
-        double power = (velocityForCue + velocityForTarget) * 1.25;
+        double power = (velocityForCue + velocityForTarget) * 1.30; // +5% power margin
 
         return std::min(std::max(power, 100.0), 666.0);
     }
 
-    // ========================================================================
-    // GHOST BALL POSITION: where the CUE BALL's center must be at the
-    // moment of contact so the target ball travels toward `aimPoint`
-    // (normally the pocket — but for bank shots we pass in a MIRRORED
-    // pocket position instead, see ScanFast's bank-shot section below).
-    // ========================================================================
     static Point2D calculateGhostBallPosition(
         const Point2D& targetBallPos,
         const Point2D& aimPoint
@@ -121,11 +95,6 @@ struct PhysicsEngine {
         return targetBallPos - direction * BALL_DIAMETER;
     }
 
-    // ========================================================================
-    // Aim angle for the cue ball: direction from the CUE BALL to the GHOST
-    // BALL position (NOT direction from target->pocket, which ignores
-    // where the cue ball actually is).
-    // ========================================================================
     static double calculateAngleToAimPoint(
         const Point2D& cueBallPos,
         const Point2D& targetBallPos,
@@ -138,16 +107,6 @@ struct PhysicsEngine {
         return angle;
     }
 
-    static Point2D calculateCollisionPoint(
-        const Point2D& targetBallPos,
-        const Point2D& aimPoint
-    ) {
-        return calculateGhostBallPosition(targetBallPos, aimPoint);
-    }
-
-    // ========================================================================
-    // Shot accuracy: alignment between cue->target and target->aimPoint.
-    // ========================================================================
     static double calculateShotAccuracy(
         const Point2D& cueBallPos,
         const Point2D& targetBallPos,
@@ -167,11 +126,6 @@ struct PhysicsEngine {
         return std::max(0.0, std::min(1.0, accuracy));
     }
 
-    // ========================================================================
-    // Shot score (lower = better/preferred).
-    // bankPenalty: multiplier applied to bank-shot candidates so direct
-    // shots are always tried first (bank shots are inherently riskier).
-    // ========================================================================
     static double calculateShotScore(
         double targetBallTravelDist,
         double accuracy,
@@ -197,8 +151,12 @@ struct PhysicsEngine {
         return dist >= MIN_POCKET_DIST && dist <= MAX_POCKET_DIST;
     }
 
+    // ========================================================================
+    // VALIDASI KETAT (FIX UNTUK SCRATCH & NEMBAK SALAH)
+    // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        return pred.guiData.balls[0].onTable;
+        // Cue ball must be on table AND not moving after shot
+        return pred.guiData.balls[0].onTable && !pred.guiData.balls[0].velocity;
     }
 
     static bool validateEightBallSafety(const Prediction& pred, BallType myBallType) {
@@ -236,14 +194,7 @@ struct PhysicsEngine {
     }
 
     // ========================================================================
-    // BANK SHOT GEOMETRY: mirror a pocket across one of the table's 4 flat
-    // rail walls. A ball aimed at the MIRRORED pocket position will, upon
-    // colliding with the real wall, naturally redirect toward the REAL
-    // pocket (standard mirror-image bank-shot trick). This is only an
-    // INITIAL angle estimate — the actual simulation (determineShotResult)
-    // still has to validate that the ball really ends up in the correct
-    // pocket, since this simplified rectangular-wall approximation ignores
-    // the table's rounded corners / pocket cutout shape.
+    // BANK SHOT GEOMETRY
     // ========================================================================
     struct BankWall { double axis; bool vertical; };
 
@@ -257,10 +208,10 @@ struct PhysicsEngine {
                 halfWid = props.getWidth() / 2.0;
             }
         }
-        outWalls[0] = { -halfLen, true  }; // left rail
-        outWalls[1] = {  halfLen, true  }; // right rail
-        outWalls[2] = { -halfWid, false }; // top rail
-        outWalls[3] = {  halfWid, false }; // bottom rail
+        outWalls[0] = { -halfLen, true  };
+        outWalls[1] = {  halfLen, true  };
+        outWalls[2] = { -halfWid, false };
+        outWalls[3] = {  halfWid, false };
     }
 
     static Point2D MirrorAcrossWall(const Point2D& point, const BankWall& wall) {
@@ -274,10 +225,6 @@ struct PhysicsEngine {
 // GAME STATE & HELPER FUNCTIONS
 // ============================================================================
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
-// Set when BOTH ScanFast and the exhaustive ScanSlow have failed to find any
-// shot for this exact cue ball position. Prevents AutoPlay from endlessly
-// re-running the same doomed scan cycle (which would otherwise look exactly
-// like a permanent freeze) — it only retries once the cue ball moves.
 Point2D fullyExhaustedCuePos = { -1000.0, -1000.0 };
 
 BallType getBallType(int ballIndex) {
@@ -295,22 +242,11 @@ BallType getPlayerBallType(Ball::Classification classification) {
 }
 
 // ============================================================================
-// HUMAN ANGLE DRAG — self-correcting touch-drag cue rotation
-// ============================================================================
-// Drags a finger across the table to rotate the cue toward `targetAngle`,
-// the same way a human player would. Because the exact pixels-per-radian
-// relationship can't be perfectly calibrated without testing on the real
-// device/resolution, this performs the drag, then READS BACK the actual
-// resulting angle from memory (mVisualGuide().mAimAngle()) and performs a
-// small corrective follow-up drag if there's still meaningful error — up to
-// a few attempts. This makes the system self-calibrating: even if the
-// initial sensitivity guess is off, it converges on the correct angle.
-// Tune `fAngleDragSensitivity` (pixels per radian) in the settings menu if
-// you want fewer correction passes needed in practice.
+// HUMAN ANGLE DRAG
 // ============================================================================
 struct HumanAngleDrag {
     enum State { HAD_IDLE, HAD_DRAGGING, HAD_FINISHED } state = HAD_IDLE;
-    int touchIndex = 9; // distinct from PowerSlider(10) and ButtonClicker(11)
+    int touchIndex = 9;
 
     double targetAngle = 0.0;
     ImVec2 dragOrigin{};
@@ -321,7 +257,7 @@ struct HumanAngleDrag {
     float duration = 0.f;
     int correctionAttempts = 0;
     static constexpr int MAX_CORRECTIONS = 4;
-    static constexpr double ANGLE_TOLERANCE = 0.01; // ~0.57 degrees
+    static constexpr double ANGLE_TOLERANCE = 0.01;
 
     bool active = false;
     bool done = false;
@@ -342,11 +278,8 @@ struct HumanAngleDrag {
 
     void BeginSegment(double angleDelta) {
         float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 220.0f; // default px/rad — tune in settings if needed
+        if (sens <= 1.0f) sens = 220.0f;
 
-        // Drag starting point: roughly the center of the table on screen,
-        // with a touch of randomization so consecutive shots don't look
-        // robotically identical.
         float originX = (float)((TABLE_LEFT + TABLE_RIGHT) * 0.5) + (float)((rand() % 40) - 20);
         float originY = (float)((TABLE_TOP + TABLE_BOTTOM) * 0.5) + (float)((rand() % 20) - 10);
         dragOrigin = ImVec2(originX, originY);
@@ -356,7 +289,7 @@ struct HumanAngleDrag {
         dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y);
 
         elapsed = 0.f;
-        duration = 0.45f + (rand() % 250) * 0.001f; // ~450-700ms (lebih pelan & natural)
+        duration = 0.45f + (rand() % 250) * 0.001f;
 
         NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
         state = HAD_DRAGGING;
@@ -381,7 +314,6 @@ struct HumanAngleDrag {
         elapsed += dt;
         float t = std::min(1.f, elapsed / duration);
 
-        // ease-in-out cubic
         float ease = (t < 0.5f) ? (4.f * t * t * t) : (1.f - powf(-2.f * t + 2.f, 3.f) / 2.f);
         float jamp = 0.8f * (1.f - ease * 0.5f);
 
@@ -409,7 +341,7 @@ struct HumanAngleDrag {
                 state = HAD_FINISHED;
             } else {
                 correctionAttempts++;
-                BeginSegment(remaining); // small follow-up correction drag
+                BeginSegment(remaining);
             }
         }
     }
@@ -442,9 +374,6 @@ namespace AutoPlay {
 
     // ========================================================================
     // HUMAN-STYLE SHOT EXECUTION
-    // Drives: angle drag -> short "thinking" pause -> power drag/release
-    // (reuses the existing PowerSlider for the power phase, which already
-    // does a natural press->drag->hold->release with timing variance).
     // ========================================================================
     enum HumanExecState { H_IDLE, H_ANGLE, H_THINK, H_POWER } humanExecState = H_IDLE;
     float humanThinkTimer = 0.f;
@@ -469,99 +398,69 @@ namespace AutoPlay {
     bool HumanShootBusy() { return humanExecState != H_IDLE; }
 
     void HumanShootBegin(double angle, double power) {
-    humanPendingPower = power;
-    // JANGAN SET AIM LANGSUNG — biar humanAngleDrag yang gerakin pelan
-    humanAngleDrag.targetAngle = angle;
-    humanAngleDrag.active = true;
-    humanAngleDrag.done = false;
-    humanAngleDrag.correctionAttempts = 0;
-    
-    double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-    double delta = humanAngleDrag.AngleDiff(angle, currentAngle);
-    humanAngleDrag.BeginSegment(delta);
-    
-    humanExecState = H_ANGLE;
-}
+        humanPendingPower = power;
+        humanAngleDrag.Begin(angle);
+        humanExecState = H_ANGLE;
+    }
 
     void HumanShootUpdate() {
         switch (humanExecState) {
-            case H_POWER: {
-    if (!powerSlider.Active) {
-        // Gunakan TargetPower, bukan CurrentPower
-        double finalPower = powerSlider.TargetPower * 666.0;
-        if (finalPower < 100.0) finalPower = 100.0;
-        if (finalPower > 666.0) finalPower = 666.0;
-        
-        setAimAngle(humanAngleDrag.targetAngle);
-        setShotPower(finalPower);
-        gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
-        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
-        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
-        
-        humanExecState = H_IDLE;
-        ClearState();
-        state = IDLE;
-    }
-    break;
-    }
-            
             case H_ANGLE: {
-    humanAngleDrag.Update();
-    if (humanAngleDrag.done) {
-        // HAPUS setAimAngle() — biar aim tetap di posisi hasil drag
-        // setAimAngle(humanAngleDrag.targetAngle); // ← COMMENT ATAU HAPUS
-        humanThinkTimer = 0.50f + (rand() % 400) * 0.001f;
-        humanExecState = H_THINK;
-    }
-    break;
-}
+                humanAngleDrag.Update();
+                if (humanAngleDrag.done) {
+                    setAimAngle(humanAngleDrag.targetAngle);
+                    humanThinkTimer = 0.50f + (rand() % 400) * 0.001f;
+                    humanExecState = H_THINK;
+                }
+                break;
+            }
             case H_THINK: {
-    humanThinkTimer -= ImGui::GetIO().DeltaTime;
-    if (humanThinkTimer <= 0.f) {
-        // ========== DEFINISIKAN rect DI SINI ==========
-        float sliderX   = persistent_float["fPSliderX"];
-        float sliderTop = persistent_float["fPSliderTop"];
-        float sliderH   = persistent_float["fPSliderH"];
-        if (sliderX <= 0.f)   sliderX   = 0.858f;
-        if (sliderTop <= 0.f) sliderTop = 0.18f;
-        if (sliderH <= 0.f)   sliderH   = 0.67f;
+                humanThinkTimer -= ImGui::GetIO().DeltaTime;
+                if (humanThinkTimer <= 0.f) {
+                    float sliderX   = persistent_float["fPSliderX"];
+                    float sliderTop = persistent_float["fPSliderTop"];
+                    float sliderH   = persistent_float["fPSliderH"];
+                    if (sliderX <= 0.f)   sliderX   = 0.858f;
+                    if (sliderTop <= 0.f) sliderTop = 0.18f;
+                    if (sliderH <= 0.f)   sliderH   = 0.67f;
 
-        ImGuiIO& io = ImGui::GetIO();
-        ImVec4 rect(  // ← DEFINISIKAN DI SINI
-            io.DisplaySize.x * sliderX,
-            io.DisplaySize.y * sliderTop,
-            io.DisplaySize.x * 0.04f,
-            io.DisplaySize.y * sliderH
-        );
-        // =============================================
+                    ImGuiIO& io = ImGui::GetIO();
+                    ImVec4 rect(
+                        io.DisplaySize.x * sliderX,
+                        io.DisplaySize.y * sliderTop,
+                        io.DisplaySize.x * 0.04f,
+                        io.DisplaySize.y * sliderH
+                    );
 
-        float dragTime = 0.80f + (rand() % 300) * 0.001f;
-        float holdTime = 0.30f + (rand() % 150) * 0.001f;
-        powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
-        humanExecState = H_POWER;
-    }
-    break;
+                    float dragTime = 0.80f + (rand() % 300) * 0.001f;
+                    float holdTime = 0.30f + (rand() % 150) * 0.001f;
+                    powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
+                    humanExecState = H_POWER;
+                }
+                break;
+            }
+            case H_POWER: {
+                if (!powerSlider.Active) {
+                    double finalPower = humanPendingPower;
+                    if (finalPower < 100.0) finalPower = 100.0;
+                    if (finalPower > 666.0) finalPower = 666.0;
+                    
+                    setAimAngle(humanAngleDrag.targetAngle);
+                    setShotPower(finalPower);
+                    gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
+                    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
+                    M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+                    
+                    humanExecState = H_IDLE;
+                    ClearState();
+                    state = IDLE;
+                }
+                break;
             }
             default: break;
         }
     }
 
-    // ========================================================================
-    // HELPER: Set aim angle (instant, memory-only — used by non-human mode)
-    // ========================================================================
-  /*  void setAimAngle(double angle) {
-        lastSetAngle = angle;
-        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(angle);
-    }
-
-    void setShotPower(double power) {
-        lastSetPower = power;
-        sharedGameManager.mVisualCue().setShotPower(power);
-    }*/
-
-    // ========================================================================
-    // HELPER: Execute shot (instant / non-human path)
-    // ========================================================================
     void takeShot(double angle, double power) {
         setAimAngle(angle);
         setShotPower(power);
@@ -570,15 +469,6 @@ namespace AutoPlay {
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
 
-/*void ClearState() {
-        g_CurrentCandidate.idx = -1;
-        lastFailedCuePos = { -1000.0, -1000.0 };
-        fullyExhaustedCuePos = { -1000.0, -1000.0 };
-    }*/
-
-    // ========================================================================
-    // MAIN: Execute shot with nomination + human/instant branching
-    // ========================================================================
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
         gPrediction->determineShotResult(false, angle, power);
@@ -610,15 +500,11 @@ namespace AutoPlay {
     }
 
     // ========================================================================
-    // SCAN FAST: Direct shots + bank shots (1-cushion), with small angle/
-    // power refinement window for robustness
+    // SCAN FAST
     // ========================================================================
     void ScanFast(double angleStep = ANGLE_STEP_FAST) {
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) {
-            // FIX: previously this returned WITHOUT setting scan=SLOW, so on
-            // the next IDLE->SCANNING transition `scan` got reset to FAST
-            // again, hit this same early-return, and got stuck forever.
             scan = SLOW;
             return;
         }
@@ -635,15 +521,13 @@ namespace AutoPlay {
         PhysicsEngine::BankWall bankWalls[4];
         PhysicsEngine::GetBankWalls(bankWalls);
 
-        // ====================================================================
-        // ITERATE: All balls on table
-        // ====================================================================
         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
             auto& ball = gPrediction->guiData.balls[i];
             if (!ball.originalOnTable) continue;
 
             BallType ballType = getBallType(i);
-            bool isMyBall = (ballType == myBallType);
+            // FIX: isMyBall HARUS exclude 8-ball dan cue ball
+            bool isMyBall = (ballType == myBallType && ballType != EIGHT_BALL && ballType != CUE_BALL);
 
             bool isCandidate = false;
             if (isMyBall) {
@@ -654,15 +538,11 @@ namespace AutoPlay {
 
             if (!isCandidate) continue;
 
-            // ================================================================
-            // ITERATE: All pockets
-            // ================================================================
             for (int pocketIdx = 0; pocketIdx < (int)pockets.size(); pocketIdx++) {
                 if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
 
                 Point2D pocket = pockets[pocketIdx];
 
-                // ---- DIRECT SHOT candidate ----
                 Point2D ballToPocket = pocket - ball.initialPosition;
                 double ballToPocketDist = std::sqrt(ballToPocket.square());
 
@@ -681,13 +561,7 @@ namespace AutoPlay {
                     }
                 }
 
-                // ---- BANK SHOT candidates (1-cushion, one per wall) ----
-                // Mirror-image trick: aim the target ball at the pocket's
-                // reflection across a rail; after bouncing off that real
-                // rail it heads toward the real pocket. This is only an
-                // initial estimate (table corners/pockets aren't perfectly
-                // rectangular) — the refinement step below and the real
-                // physics validation confirm whether it actually works.
+                // Bank shots
                 for (int w = 0; w < 4; w++) {
                     Point2D mirrorPocket = PhysicsEngine::MirrorAcrossWall(pocket, bankWalls[w]);
 
@@ -702,8 +576,6 @@ namespace AutoPlay {
 
                     double angle = PhysicsEngine::calculateAngleToAimPoint(cueBall.initialPosition, ball.initialPosition, mirrorPocket);
                     double accuracy = PhysicsEngine::calculateShotAccuracy(cueBall.initialPosition, ball.initialPosition, mirrorPocket);
-                    // Bank shots are riskier than direct shots -> penalized
-                    // so direct shots always get tried first when available.
                     double score = PhysicsEngine::calculateShotScore(ballToMirrorDist, accuracy, ballType, myBallType, isMyBall, 2.5);
                     double power = PhysicsEngine::calculatePowerForTargetToPocket(cueToGhostDist, ballToMirrorDist, cachedFriction);
 
@@ -716,12 +588,6 @@ namespace AutoPlay {
 
         bool foundShot = false;
 
-        // ====================================================================
-        // VALIDATE: Each candidate, with a small refinement window around
-        // the computed angle/power (handles imprecision in the power
-        // formula and, especially for bank shots, imprecision from the
-        // simplified rectangular-wall mirror estimate).
-        // ====================================================================
         for (const auto& cand : candidates) {
             double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
 
@@ -744,6 +610,7 @@ namespace AutoPlay {
 
                     gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
 
+                    // ========== VALIDASI KETAT ==========
                     if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                     if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                     if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
@@ -776,7 +643,7 @@ namespace AutoPlay {
     }
 
     // ========================================================================
-    // SCAN SLOW: Exhaustive angle search (last resort, direct shots only)
+    // SCAN SLOW
     // ========================================================================
     void ScanSlow(double angleStep = ANGLE_STEP_SLOW) {
         static double currentScanAngle = 0.0;
@@ -809,6 +676,7 @@ namespace AutoPlay {
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
 
+                // ========== VALIDASI KETAT ==========
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                 if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
@@ -819,7 +687,7 @@ namespace AutoPlay {
                     if (!ball.originalOnTable || ball.onTable) continue;
 
                     BallType ballType = getBallType(i);
-                    bool isMyBall = (ballType == myBallType);
+                    bool isMyBall = (ballType == myBallType && ballType != EIGHT_BALL && ballType != CUE_BALL);
 
                     bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
                     if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
@@ -845,9 +713,6 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Exhaustive scan complete, no shot found");
             isScanning = false;
             currentScanAngle = 0.0;
-            // FIX: remember that this exact cue position has been fully
-            // exhausted (both ScanFast AND ScanSlow failed), so Update()
-            // won't endlessly restart the same doomed scan cycle.
             fullyExhaustedCuePos = cueBall.initialPosition;
             state = IDLE;
         }
@@ -912,8 +777,6 @@ namespace AutoPlay {
         PopStyleVar();
         PopStyleColor(2);
 
-        // Small "Human Autoplay" indicator badge under the main button so
-        // it's visible at a glance whether human-style execution is on.
         if (persistent_bool["bHumanAutoplay"]) {
             ImDrawList* fg = GetForegroundDrawList();
             ImVec2 badgePos(io.DisplaySize.x - 155 - windowWidth, io.DisplaySize.y - 20 - windowHeight - 22);
@@ -923,9 +786,6 @@ namespace AutoPlay {
         }
     }
 
-    // ========================================================================
-    // CHECK: Is animation active?
-    // ========================================================================
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
         if (!visualCue) return true;
@@ -943,7 +803,7 @@ namespace AutoPlay {
     void Update() {
         buttonClicker.Update();
         powerSlider.Update();
-        HumanShootUpdate(); // selalu jalan tiap frame
+        HumanShootUpdate();
         DrawToggleButton();
 
         if (isAnimationActive()) return;
@@ -952,7 +812,6 @@ namespace AutoPlay {
             return;
         }
 
-        // Kalau masih eksekusi shot human mode, jangan scan
         if (HumanShootBusy()) return;
 
         if (state == IDLE) {
@@ -960,9 +819,6 @@ namespace AutoPlay {
             scan = FAST;
         }
         if (state == SCANNING) {
-            // If we've already exhaustively searched (both fast AND slow)
-            // this exact cue ball position and found nothing, don't
-            // restart the whole search — wait for the cue ball to move.
             if (gPrediction->guiData.balls[0].initialPosition == fullyExhaustedCuePos) {
                 return;
             }
@@ -991,8 +847,7 @@ namespace AutoPlay {
             }
         }
         if (state == EXECUTING) {
-            // HumanShootUpdate() sudah handle ClearState + state = IDLE
-            // waktu shot selesai, jadi di sini tinggal tunggu
+            // HumanShootUpdate() handles the rest
         }
     }
 };
