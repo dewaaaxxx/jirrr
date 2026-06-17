@@ -22,10 +22,10 @@ using namespace ImGui;
 #endif
 
 const double TWO_PI = 2.0 * PI;
-const double ANGLE_STEP_FAST = 0.05;
-const double ANGLE_STEP_SLOW = 0.02;
-const double MIN_POCKET_DIST = 40.0;
-const double MAX_POCKET_DIST = 120.0;
+const double ANGLE_STEP_FAST = 0.04;      // Sedikit lebih halus dari 0.05
+const double ANGLE_STEP_SLOW = 0.015;      // Lebih halus untuk slow scan
+const double MIN_POCKET_DIST = 30.0;      // Turunkan dari 40 biar lebih fleksibel
+const double MAX_POCKET_DIST = 140.0;     // Naikkan dari 120
 const double BALL_SAFETY_MARGIN = 5.0;
 
 enum BallType {
@@ -36,12 +36,12 @@ enum BallType {
     INVALID = -1
 };
 
-constexpr double maxAngle = 360.0 / (180.0 / M_PI);
+constexpr double maxAngle = 2.0 * M_PI; // Gunakan radian langsung
 
 double normalizeAngle(double angle) {
     double newAngle = angle;
-    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
-    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    while (newAngle < 0) newAngle += 2.0 * M_PI;
+    while (newAngle >= 2.0 * M_PI) newAngle -= 2.0 * M_PI;
     return newAngle;
 }
 
@@ -78,7 +78,8 @@ struct PhysicsEngine {
         double velocityForTarget = std::sqrt(2.0 * slidingDeceleration * ballToPocketDist);
         double velocityForCue    = std::sqrt(2.0 * slidingDeceleration * cueToBallDist);
 
-        double power = (velocityForCue + velocityForTarget) * 1.30; // +5% power margin
+        // FIX: Naikkan power margin untuk mengatasi prediksi yang terlalu optimis
+        double power = (velocityForCue + velocityForTarget) * 1.35;
 
         return std::min(std::max(power, 100.0), 666.0);
     }
@@ -155,7 +156,6 @@ struct PhysicsEngine {
     // VALIDASI KETAT (FIX UNTUK SCRATCH & NEMBAK SALAH)
     // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        // Cue ball must be on table AND not moving after shot
         return pred.guiData.balls[0].onTable && !pred.guiData.balls[0].velocity;
     }
 
@@ -526,14 +526,31 @@ namespace AutoPlay {
             if (!ball.originalOnTable) continue;
 
             BallType ballType = getBallType(i);
-            // FIX: isMyBall HARUS exclude 8-ball dan cue ball
             bool isMyBall = (ballType == myBallType && ballType != EIGHT_BALL && ballType != CUE_BALL);
+
+            // ====================================================================
+            // FIX: DETEKSI KHUSUS BOLA 8
+            // Jika hanya bola 8 yang tersisa di meja, maka targetkan bola 8
+            // ====================================================================
+            bool onlyEightBallLeft = true;
+            for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
+                if (j == i) continue; // Skip current ball
+                auto& otherBall = gPrediction->guiData.balls[j];
+                if (otherBall.originalOnTable && getBallType(j) != EIGHT_BALL && getBallType(j) != CUE_BALL) {
+                    onlyEightBallLeft = false;
+                    break;
+                }
+            }
 
             bool isCandidate = false;
             if (isMyBall) {
                 isCandidate = true;
             } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
                 isCandidate = true;
+            } else if (ballType == EIGHT_BALL && onlyEightBallLeft) {
+                // Jika hanya bola 8 yang tersisa, jadikan kandidat
+                isCandidate = true;
+                LOGI("AutoPlay: Detected only 8-ball left, targeting it.");
             }
 
             if (!isCandidate) continue;
@@ -595,15 +612,18 @@ namespace AutoPlay {
             double bestAngle = baseAngle;
             double bestPower = cand.power;
 
-            double powerVariants[5] = {
-                cand.power, cand.power * 1.08, cand.power * 0.92,
-                cand.power * 1.16, cand.power * 0.85
+            // Lebih banyak variasi power untuk akurasi
+            double powerVariants[7] = {
+                cand.power, cand.power * 1.05, cand.power * 0.95,
+                cand.power * 1.10, cand.power * 0.90,
+                cand.power * 1.15, cand.power * 0.85
             };
-            double angleOffsets[5] = { 0.0, 0.015, -0.015, 0.03, -0.03 };
+            // Lebih banyak variasi angle untuk presisi
+            double angleOffsets[7] = { 0.0, 0.01, -0.01, 0.02, -0.02, 0.03, -0.03 };
 
-            for (int ai = 0; ai < 5 && !validated; ai++) {
+            for (int ai = 0; ai < 7 && !validated; ai++) {
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + angleOffsets[ai]));
-                for (int pi = 0; pi < 5; pi++) {
+                for (int pi = 0; pi < 7; pi++) {
                     double tryPower = powerVariants[pi];
                     if (tryPower < 100.0) tryPower = 100.0;
                     if (tryPower > 666.0) tryPower = 666.0;
@@ -616,6 +636,14 @@ namespace AutoPlay {
                     if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
                     if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
                     if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+
+                    // FIX: Pastikan setidaknya ada bola yang masuk
+                    int pottedBalls = 0;
+                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                        auto& ball = gPrediction->guiData.balls[i];
+                        if (ball.originalOnTable && !ball.onTable) pottedBalls++;
+                    }
+                    if (pottedBalls < 1) continue;
 
                     bestAngle = tryAngle;
                     bestPower = tryPower;
@@ -672,7 +700,7 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            std::vector<double> powers = {666.0, 350.0};
+            std::vector<double> powers = {666.0, 450.0, 300.0}; // Tambah power 300
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
 
@@ -690,12 +718,36 @@ namespace AutoPlay {
                     bool isMyBall = (ballType == myBallType && ballType != EIGHT_BALL && ballType != CUE_BALL);
 
                     bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+                    
+                    // FIX: Jika hanya bola 8 yang tersisa, izinkan
+                    bool onlyEightBallLeft = true;
+                    for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
+                        if (j == i) continue;
+                        auto& otherBall = gPrediction->guiData.balls[j];
+                        if (otherBall.originalOnTable && getBallType(j) != EIGHT_BALL && getBallType(j) != CUE_BALL) {
+                            onlyEightBallLeft = false;
+                            break;
+                        }
+                    }
+                    if (ballType == EIGHT_BALL && onlyEightBallLeft) {
+                        isValid = true;
+                        LOGI("AutoPlay Slow: Only 8-ball left, targeting it.");
+                    }
+
                     if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
 
                     if (isValid) { targetIdx = i; break; }
                 }
 
                 if (targetIdx == -1) continue;
+
+                // FIX: Pastikan setidaknya ada bola yang masuk
+                int pottedBalls = 0;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (ball.originalOnTable && !ball.onTable) pottedBalls++;
+                }
+                if (pottedBalls < 1) continue;
 
                 LOGI("AutoPlay: SLOW - Ball %d angle %f power %f", targetIdx, angle, power);
                 g_CurrentCandidate.idx = targetIdx;
