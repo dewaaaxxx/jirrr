@@ -1122,131 +1122,101 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             break;
         }
         case 1: {
-            if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.858f;
-if (persistent_float["fPSliderTop"] <= 0.f) persistent_float["fPSliderTop"] = 0.18f;
-if (persistent_float["fPSliderH"] <= 0.f) persistent_float["fPSliderH"] = 0.67f;
-            
-            Dummy(ImVec2(0,4));
-            need_save |= GoldToggle(L("Enable Auto Play","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻞﻴﻌﻔﺗ"),
-                                    L("",""),
-                                    &persistent_bool[O("bAutoPlay")]);
-            Dummy(ImVec2(0,8));
+    // ========== INISIALISASI DEFAULT ==========
+    if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.858f;
+    if (persistent_float["fPSliderTop"] <= 0.f) persistent_float["fPSliderTop"] = 0.18f;
+    if (persistent_float["fPSliderH"] <= 0.f) persistent_float["fPSliderH"] = 0.67f;
+    // ==========================================
 
-            need_save |= GoldToggle(L("Enable Human Mode","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻞﻴﻌﻔﺗ"),
-                                    L("",""),
-                                    &persistent_bool[O("bHumanAutoplay")]);
-            Dummy(ImVec2(0,8));
+    Dummy(ImVec2(0, 10));
+    
+    // ── Toggle Auto Play ──
+    need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
+    Dummy(ImVec2(0, 10));
 
+    // ── Toggle Human Autoplay ──
+    need_save |= ToggleSwitch(O("Human Autoplay"), &persistent_bool["bHumanAutoplay"]);
+    Dummy(ImVec2(0, 15));
 
-            need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
-                                    L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
-                                    &persistent_bool[O("bAutoApproval")]);
-            
-            Dummy(ImVec2(0,12));
-            
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
-            Dummy(ImVec2(0,8));
-
-            // Di bagian Auto Play settings
-float sensitivity = persistent_float["fAngleDragSensitivity"];
-if (sensitivity < 1.0f) sensitivity = 220.0f; // default
-if (GoldSliderFloat("Drag Sensitivity", "Pixels per radian", &sensitivity, 50.0f, 500.0f, "%.0f")) {
-    persistent_float["fAngleDragSensitivity"] = sensitivity;
-    need_save = true;
-}
-            Dummy(ImVec2(0,8));
-            
-
-            int curSpeed = persistent_int["iAutoPlaySpeed"];
-            const char* names[3] = { "Fast", "Medium", "Slow" };
-            float bw = (GetContentRegionAvail().x - 16) / 3.0f;
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            for (int i = 0; i < 3; i++) {
-                if (i) SameLine();
-                bool sel = (curSpeed == i);
-                PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-                PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
-                PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1,1,1,1) : ImVec4(0.75f,0.80f,0.90f,1));
-                if (Button(names[i], ImVec2(bw, 44))) { persistent_int["iAutoPlaySpeed"] = i; need_save = true; }
-                PopStyleColor(3);
-            }
-            PopStyleVar();
-            Dummy(ImVec2(0,14));
-
-
-            float power = persistent_float["fShotPower"];
-            if (power < 0.1f) power = 0.75f;
-            if (GoldSliderFloat(L("Auto Shot Power","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻳﻮﺼﺘﻟﺍ ﺓﻮﻗ"),
-                                L("",""),
-                                &power, 0.10f, 1.0f, "%.0f%%")) {
-                persistent_float["fShotPower"] = power;
-                need_save = true;
-            }
-            Dummy(ImVec2(0,8));
-            float delay = persistent_float["fShotDelay"];
-            if (delay < 0.0f) delay = 1.5f;
-            if (GoldSliderFloat(L("Delay between shots","ﺕﺎﻄﻘﻠﻟﺍ ﻦﻴﺑ ﺮﻴﺧﺄﺗ"),
-                                L("",""),
-                                &delay, 0.0f, 5.0f, "%.1fs")) {
-                persistent_float["fShotDelay"] = delay;
-                need_save = true;
-            }
-            Dummy(ImVec2(0,14));
-
-            TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "Power Slider Position");
+    // ── Auto Play Speed ──
+    TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Auto Play Speed"));
     Dummy(ImVec2(0, 8));
 
-    // Init defaults
-    // ── Power Slider Position ─────────────────────────────────────────────
-if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.858f;
-if (persistent_float["fPSliderTop"] <= 0.f) persistent_float["fPSliderTop"] = 0.18f;
-if (persistent_float["fPSliderH"] <= 0.f) persistent_float["fPSliderH"] = 0.67f;
+    int curSpeed = persistent_int["iAutoPlaySpeed"];
+    const char* names[3] = { "Fast", "Medium", "Slow" };
+    float bw = (GetContentRegionAvail().x - 16) / 3.0f;
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+    for (int i = 0; i < 3; i++) {
+        if (i) SameLine();
+        bool sel = (curSpeed == i);
+        PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
+        PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
+        PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1,1,1,1) : ImVec4(0.75f,0.80f,0.90f,1));
+        if (Button(names[i], ImVec2(bw, 44))) { persistent_int["iAutoPlaySpeed"] = i; need_save = true; }
+        PopStyleColor(3);
+    }
+    PopStyleVar();
+    Dummy(ImVec2(0, 15));
 
-float sliderX = persistent_float["fPSliderX"];
-if (GoldSliderFloat("Power X", "Horizontal pos", &sliderX, 0.70f, 1.0f, "%.3f")) {
-    persistent_float["fPSliderX"] = sliderX;
-    need_save = true;
-}
+    // ── Power Slider Position ──
+    TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Power Slider Position"));
+    Dummy(ImVec2(0, 8));
 
-float sliderTop = persistent_float["fPSliderTop"];
-if (GoldSliderFloat("Power Top", "Vertical start", &sliderTop, 0.05f, 0.50f, "%.3f")) {
-    persistent_float["fPSliderTop"] = sliderTop;
-    need_save = true;
-}
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+    PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+    PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.18f, 1.0f));
+    PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.83f, 0.68f, 0.29f, 1.0f));
+    PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.95f, 0.78f, 0.35f, 1.0f));
 
-float sliderH = persistent_float["fPSliderH"];
-if (GoldSliderFloat("Power Height", "Slider height", &sliderH, 0.30f, 0.90f, "%.3f")) {
-    persistent_float["fPSliderH"] = sliderH;
-    need_save = true;
-}
+    float sliderX = persistent_float["fPSliderX"];
+    if (SliderFloat("##psx", &sliderX, 0.70f, 1.0f, "X: %.3f")) {
+        persistent_float["fPSliderX"] = sliderX;
+        need_save = true;
+    }
+    Dummy(ImVec2(0, 4));
+
+    float sliderTop = persistent_float["fPSliderTop"];
+    if (SliderFloat("##pst", &sliderTop, 0.05f, 0.50f, "Top: %.3f")) {
+        persistent_float["fPSliderTop"] = sliderTop;
+        need_save = true;
+    }
+    Dummy(ImVec2(0, 4));
+
+    float sliderH = persistent_float["fPSliderH"];
+    if (SliderFloat("##psh", &sliderH, 0.30f, 0.90f, "Height: %.3f")) {
+        persistent_float["fPSliderH"] = sliderH;
+        need_save = true;
+    }
 
     PopStyleColor(3);
     PopStyleVar(2);
 
-    // ── TOGGLE PREVIEW ──────────────────────────────────────────────────
-    need_save |= GoldToggle("Show Power Slider Preview",
-                            "Tampilkan garis di layar buat kalibrasi",
-                            &persistent_bool["bPSliderPreview"]);
-    
-    // ========== TARUH PREVIEW GAMBAR DI SINI ==========
+    // ── Toggle Preview ──
+    need_save |= ToggleSwitch(O("Preview Power Slider"), &persistent_bool["bPSliderPreview"]);
+    Dummy(ImVec2(0, 10));
+
+    // ── PREVIEW GAMBAR ──
     if (persistent_bool["bPSliderPreview"]) {
         ImDrawList* fgdl = GetForegroundDrawList();
-        ImGuiIO& io = GetIO();
+        if (fgdl) {
+            ImGuiIO& io = GetIO();
+            float px = io.DisplaySize.x * persistent_float["fPSliderX"];
+            float pt = io.DisplaySize.y * persistent_float["fPSliderTop"];
+            float ph = io.DisplaySize.y * persistent_float["fPSliderH"];
 
-        float px = io.DisplaySize.x * persistent_float["fPSliderX"];
-        float pt = io.DisplaySize.y * persistent_float["fPSliderTop"];
-        float ph = io.DisplaySize.y * persistent_float["fPSliderH"];
-
-        fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
-        fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
-        fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
-
-        char label[32];
-        snprintf(label, sizeof(label), "X: %.3f", persistent_float["fPSliderX"]);
-        fgdl->AddText(ImVec2(px + 12.f, pt - 10.f), IM_COL32(255,255,255,200), label);
-    }
-            break;
+            fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
+            fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
+            fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
         }
+    }
+
+    Dummy(ImVec2(0, 20));
+    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Human mode will drag aim & power"));
+    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("like a real player."));
+    Dummy(ImVec2(0, 10));
+
+    break;
+}
         case 2: { 
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle(L("Enable Auto Queue","ﻲﺋﺎﻘﻠﺘﻟﺍ ﻝﻮﺧﺪﻟﺍ ﻞﻴﻌﻔﺗ"),
