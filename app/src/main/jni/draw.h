@@ -834,9 +834,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
            // if (shotFound) persistent_float["fShotPower"] = bestPower;
         }
-
-
-
+        
         if (persistent_bool[O("bAutoPlay")]) {
             bool approvalOn = persistent_bool[O("bAutoApproval")];
             if (!approvalOn || ShotApprovalGate(stateId))
@@ -1130,6 +1128,11 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                     &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
 
+            need_save |= GoldToggle(L("Enable Human Mode","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻞﻴﻌﻔﺗ"),
+                                    L("",""),
+                                    &persistent_bool[O("bHumanAutoplay")]);
+            Dummy(ImVec2(0,8));
+
 
             need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
@@ -1139,6 +1142,16 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             
             TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
             Dummy(ImVec2(0,8));
+
+            // Di bagian Auto Play settings
+float sensitivity = persistent_float["fAngleDragSensitivity"];
+if (sensitivity < 1.0f) sensitivity = 220.0f; // default
+if (GoldSliderFloat("Drag Sensitivity", "Pixels per radian", &sensitivity, 50.0f, 500.0f, "%.0f")) {
+    persistent_float["fAngleDragSensitivity"] = sensitivity;
+    need_save = true;
+}
+            Dummy(ImVec2(0,8));
+            
 
             int curSpeed = persistent_int["iAutoPlaySpeed"];
             const char* names[3] = { "Fast", "Medium", "Slow" };
