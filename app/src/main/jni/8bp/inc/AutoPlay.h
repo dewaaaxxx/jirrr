@@ -446,7 +446,7 @@ namespace AutoPlay {
     // (reuses the existing PowerSlider for the power phase, which already
     // does a natural press->drag->hold->release with timing variance).
     // ========================================================================
-    enum HumanExecState { H_IDLE, H_ANGLE, H_THINK } humanExecState = H_IDLE;
+    enum HumanExecState { H_IDLE, H_ANGLE, H_THINK, H_POWER } humanExecState = H_IDLE;
     float humanThinkTimer = 0.f;
     double humanPendingPower = 0.f;
 
@@ -485,6 +485,27 @@ namespace AutoPlay {
 
     void HumanShootUpdate() {
         switch (humanExecState) {
+            case H_POWER: {
+    if (!powerSlider.Active) {
+        // Power drag selesai, ambil posisi akhir power
+        double finalPower = powerSlider.CurrentPower * 666.0;
+        if (finalPower < 100.0) finalPower = 100.0;
+        if (finalPower > 666.0) finalPower = 666.0;
+        
+        // Eksekusi tembakan
+        setAimAngle(humanAngleDrag.targetAngle);
+        setShotPower(finalPower);
+        gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
+        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
+        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+        
+        humanExecState = H_IDLE;
+        ClearState();
+        state = IDLE;
+    }
+    break;
+    }
+            
             case H_ANGLE: {
     humanAngleDrag.Update();
     if (humanAngleDrag.done) {
