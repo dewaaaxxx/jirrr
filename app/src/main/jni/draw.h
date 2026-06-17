@@ -1187,6 +1187,60 @@ if (GoldSliderFloat("Drag Sensitivity", "Pixels per radian", &sensitivity, 50.0f
                 persistent_float["fShotDelay"] = delay;
                 need_save = true;
             }
+            Dummy(ImVec2(0,14));
+
+            TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "Power Slider Position");
+    Dummy(ImVec2(0, 8));
+
+    // Init defaults
+    // ── Power Slider Position ─────────────────────────────────────────────
+if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.858f;
+if (persistent_float["fPSliderTop"] <= 0.f) persistent_float["fPSliderTop"] = 0.18f;
+if (persistent_float["fPSliderH"] <= 0.f) persistent_float["fPSliderH"] = 0.67f;
+
+float sliderX = persistent_float["fPSliderX"];
+if (GoldSliderFloat("Power X", "Horizontal pos", &sliderX, 0.70f, 1.0f, "%.3f")) {
+    persistent_float["fPSliderX"] = sliderX;
+    need_save = true;
+}
+
+float sliderTop = persistent_float["fPSliderTop"];
+if (GoldSliderFloat("Power Top", "Vertical start", &sliderTop, 0.05f, 0.50f, "%.3f")) {
+    persistent_float["fPSliderTop"] = sliderTop;
+    need_save = true;
+}
+
+float sliderH = persistent_float["fPSliderH"];
+if (GoldSliderFloat("Power Height", "Slider height", &sliderH, 0.30f, 0.90f, "%.3f")) {
+    persistent_float["fPSliderH"] = sliderH;
+    need_save = true;
+}
+
+    PopStyleColor(3);
+    PopStyleVar(2);
+
+    // ── TOGGLE PREVIEW ──────────────────────────────────────────────────
+    need_save |= GoldToggle("Show Power Slider Preview",
+                            "Tampilkan garis di layar buat kalibrasi",
+                            &persistent_bool["bPSliderPreview"]);
+    
+    // ========== TARUH PREVIEW GAMBAR DI SINI ==========
+    if (persistent_bool["bPSliderPreview"]) {
+        ImDrawList* fgdl = GetForegroundDrawList();
+        ImGuiIO& io = GetIO();
+
+        float px = io.DisplaySize.x * persistent_float["fPSliderX"];
+        float pt = io.DisplaySize.y * persistent_float["fPSliderTop"];
+        float ph = io.DisplaySize.y * persistent_float["fPSliderH"];
+
+        fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
+        fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
+        fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
+
+        char label[32];
+        snprintf(label, sizeof(label), "X: %.3f", persistent_float["fPSliderX"]);
+        fgdl->AddText(ImVec2(px + 12.f, pt - 10.f), IM_COL32(255,255,255,200), label);
+    }
             break;
         }
         case 2: { 
