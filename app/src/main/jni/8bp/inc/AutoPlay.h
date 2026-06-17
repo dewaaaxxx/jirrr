@@ -444,6 +444,22 @@ namespace AutoPlay {
     float humanThinkTimer = 0.f;
     double humanPendingPower = 0.f;
 
+    void setAimAngle(double angle) {
+        lastSetAngle = angle;
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(angle);
+    }
+    
+    void setShotPower(double power) {
+        lastSetPower = power;
+        sharedGameManager.mVisualCue().setShotPower(power);
+    }
+    
+    void ClearState() {
+        g_CurrentCandidate.idx = -1;
+        lastFailedCuePos = { -1000.0, -1000.0 };
+        fullyExhaustedCuePos = { -1000.0, -1000.0 };
+    }
+
     bool HumanShootBusy() { return humanExecState != H_IDLE; }
 
     void HumanShootBegin(double angle, double power) {
@@ -485,7 +501,7 @@ namespace AutoPlay {
     // ========================================================================
     // HELPER: Set aim angle (instant, memory-only — used by non-human mode)
     // ========================================================================
-    void setAimAngle(double angle) {
+  /*  void setAimAngle(double angle) {
         lastSetAngle = angle;
         sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(angle);
     }
@@ -493,7 +509,7 @@ namespace AutoPlay {
     void setShotPower(double power) {
         lastSetPower = power;
         sharedGameManager.mVisualCue().setShotPower(power);
-    }
+    }*/
 
     // ========================================================================
     // HELPER: Execute shot (instant / non-human path)
@@ -506,11 +522,11 @@ namespace AutoPlay {
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
 
-    void ClearState() {
+/*void ClearState() {
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
         fullyExhaustedCuePos = { -1000.0, -1000.0 };
-    }
+    }*/
 
     // ========================================================================
     // MAIN: Execute shot with nomination + human/instant branching
