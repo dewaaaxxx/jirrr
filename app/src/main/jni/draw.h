@@ -1123,7 +1123,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         }
         case 1: {
     // ========== INISIALISASI DEFAULT ==========
-    if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.858f;
+    if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.780f;
     if (persistent_float["fPSliderTop"] <= 0.f) persistent_float["fPSliderTop"] = 0.18f;
     if (persistent_float["fPSliderH"] <= 0.f) persistent_float["fPSliderH"] = 0.67f;
     // ==========================================
@@ -1164,7 +1164,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
 
     // ── Slider X ──
     float sliderX = persistent_float["fPSliderX"];
-    if (GoldSliderFloat(O("X Position", O("Horizontal"), &sliderX, 0.50f, 1.0f, "%.3f")) {
+    GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.50f, 1.0f, "%.3f") {
         persistent_float["fPSliderX"] = sliderX;
         need_save = true;
     }
