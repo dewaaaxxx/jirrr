@@ -309,8 +309,8 @@ BallType getPlayerBallType(Ball::Classification classification) {
 // you want fewer correction passes needed in practice.
 // ============================================================================
 struct HumanAngleDrag {
-    enum State { IDLE, DRAGGING, DONE } state = IDLE;
-    int touchIndex = 9; // distinct from PowerSlider(10) and ButtonClicker(11)
+    enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
+    int touchIndex = 9;
 
     double targetAngle = 0.0;
     ImVec2 dragOrigin{};
@@ -321,7 +321,7 @@ struct HumanAngleDrag {
     float duration = 0.f;
     int correctionAttempts = 0;
     static constexpr int MAX_CORRECTIONS = 4;
-    static constexpr double ANGLE_TOLERANCE = 0.01; // ~0.57 degrees
+    static constexpr double ANGLE_TOLERANCE = 0.01;
 
     bool active = false;
     bool done = false;
@@ -342,11 +342,8 @@ struct HumanAngleDrag {
 
     void BeginSegment(double angleDelta) {
         float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 220.0f; // default px/rad — tune in settings if needed
+        if (sens <= 1.0f) sens = 220.0f;
 
-        // Drag starting point: roughly the center of the table on screen,
-        // with a touch of randomization so consecutive shots don't look
-        // robotically identical.
         float originX = (float)((TABLE_LEFT + TABLE_RIGHT) * 0.5) + (float)((rand() % 40) - 20);
         float originY = (float)((TABLE_TOP + TABLE_BOTTOM) * 0.5) + (float)((rand() % 20) - 10);
         dragOrigin = ImVec2(originX, originY);
@@ -356,7 +353,7 @@ struct HumanAngleDrag {
         dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y);
 
         elapsed = 0.f;
-        duration = 0.16f + (rand() % 140) * 0.001f; // ~160-300ms, natural variance
+        duration = 0.16f + (rand() % 140) * 0.001f;
 
         NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
         state = DRAGGING;
@@ -381,7 +378,6 @@ struct HumanAngleDrag {
         elapsed += dt;
         float t = std::min(1.f, elapsed / duration);
 
-        // ease-in-out cubic
         float ease = (t < 0.5f) ? (4.f * t * t * t) : (1.f - powf(-2.f * t + 2.f, 3.f) / 2.f);
         float jamp = 0.8f * (1.f - ease * 0.5f);
 
@@ -406,10 +402,10 @@ struct HumanAngleDrag {
             if (std::abs(remaining) < ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
                 active = false;
                 done = true;
-                state = DONE;
+                state = FINISHED;
             } else {
                 correctionAttempts++;
-                BeginSegment(remaining); // small follow-up correction drag
+                BeginSegment(remaining);
             }
         }
     }
