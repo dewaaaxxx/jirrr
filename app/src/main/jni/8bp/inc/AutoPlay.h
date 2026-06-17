@@ -547,7 +547,7 @@ namespace AutoPlay {
                 double ballToPocketDist = std::sqrt(ballToPocket.square());
 
                 if (PhysicsEngine::isPocketReachable(ballToPocketDist)) {
-                    Point2D collisionPoint = PhysicsEngine::calculateCollisionPoint(ball.initialPosition, pocket);
+                    Point2D collisionPoint = PhysicsEngine::calculateGhostBallPosition(ball.initialPosition, pocket);
                     Point2D cueToCollision = collisionPoint - cueBall.initialPosition;
                     double cueToCollisionDist = std::sqrt(cueToCollision.square());
 
