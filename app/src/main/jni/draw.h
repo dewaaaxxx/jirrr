@@ -1164,9 +1164,9 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
 
     // ── Slider X ──
     float sliderX = persistent_float["fPSliderX"];
-    GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.50f, 1.0f, "%.3f") {
-        persistent_float["fPSliderX"] = sliderX;
-        need_save = true;
+    if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.50f, 1.0f, "%.3f")) {
+    persistent_float["fPSliderX"] = sliderX;
+    need_save = true;
     }
     Dummy(ImVec2(0, 4));
 
