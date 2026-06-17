@@ -1122,6 +1122,10 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             break;
         }
         case 1: {
+            if (persistent_float["fPSliderX"] <= 0.f) persistent_float["fPSliderX"] = 0.858f;
+if (persistent_float["fPSliderTop"] <= 0.f) persistent_float["fPSliderTop"] = 0.18f;
+if (persistent_float["fPSliderH"] <= 0.f) persistent_float["fPSliderH"] = 0.67f;
+            
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle(L("Enable Auto Play","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻞﻴﻌﻔﺗ"),
                                     L("",""),
