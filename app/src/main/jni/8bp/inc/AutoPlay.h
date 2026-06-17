@@ -413,6 +413,12 @@ struct HumanAngleDrag {
 
 static HumanAngleDrag humanAngleDrag;
 
+bool IsShotValid() {
+    if (!sharedGameManager || !gPrediction) return false;
+    return sharedGameManager.mStateManager().isPlayerTurn() &&
+           gPrediction->guiData.balls[0].onTable;
+}
+
 // ============================================================================
 // AUTOPLAY NAMESPACE
 // ============================================================================
