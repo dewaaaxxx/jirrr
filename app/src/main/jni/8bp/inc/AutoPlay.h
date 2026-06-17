@@ -309,8 +309,8 @@ BallType getPlayerBallType(Ball::Classification classification) {
 // you want fewer correction passes needed in practice.
 // ============================================================================
 struct HumanAngleDrag {
-    enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
-    int touchIndex = 9;
+    enum State { IDLE, DRAGGING, DONE } state = IDLE;
+    int touchIndex = 9; // distinct from PowerSlider(10) and ButtonClicker(11)
 
     double targetAngle = 0.0;
     ImVec2 dragOrigin{};
@@ -321,7 +321,7 @@ struct HumanAngleDrag {
     float duration = 0.f;
     int correctionAttempts = 0;
     static constexpr int MAX_CORRECTIONS = 4;
-    static constexpr double ANGLE_TOLERANCE = 0.01;
+    static constexpr double ANGLE_TOLERANCE = 0.01; // ~0.57 degrees
 
     bool active = false;
     bool done = false;
@@ -342,8 +342,11 @@ struct HumanAngleDrag {
 
     void BeginSegment(double angleDelta) {
         float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 220.0f;
+        if (sens <= 1.0f) sens = 220.0f; // default px/rad — tune in settings if needed
 
+        // Drag starting point: roughly the center of the table on screen,
+        // with a touch of randomization so consecutive shots don't look
+        // robotically identical.
         float originX = (float)((TABLE_LEFT + TABLE_RIGHT) * 0.5) + (float)((rand() % 40) - 20);
         float originY = (float)((TABLE_TOP + TABLE_BOTTOM) * 0.5) + (float)((rand() % 20) - 10);
         dragOrigin = ImVec2(originX, originY);
@@ -353,7 +356,7 @@ struct HumanAngleDrag {
         dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y);
 
         elapsed = 0.f;
-        duration = 0.16f + (rand() % 140) * 0.001f;
+        duration = 0.16f + (rand() % 140) * 0.001f; // ~160-300ms, natural variance
 
         NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
         state = DRAGGING;
@@ -378,6 +381,7 @@ struct HumanAngleDrag {
         elapsed += dt;
         float t = std::min(1.f, elapsed / duration);
 
+        // ease-in-out cubic
         float ease = (t < 0.5f) ? (4.f * t * t * t) : (1.f - powf(-2.f * t + 2.f, 3.f) / 2.f);
         float jamp = 0.8f * (1.f - ease * 0.5f);
 
@@ -402,22 +406,16 @@ struct HumanAngleDrag {
             if (std::abs(remaining) < ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
                 active = false;
                 done = true;
-                state = FINISHED;
+                state = DONE;
             } else {
                 correctionAttempts++;
-                BeginSegment(remaining);
+                BeginSegment(remaining); // small follow-up correction drag
             }
         }
     }
 };
 
 static HumanAngleDrag humanAngleDrag;
-
-bool IsShotValid() {
-    if (!sharedGameManager || !gPrediction) return false;
-    return sharedGameManager.mStateManager().isPlayerTurn() &&
-           gPrediction->guiData.balls[0].onTable;
-}
 
 // ============================================================================
 // AUTOPLAY NAMESPACE
@@ -442,7 +440,7 @@ namespace AutoPlay {
     // (reuses the existing PowerSlider for the power phase, which already
     // does a natural press->drag->hold->release with timing variance).
     // ========================================================================
-    enum HumanExecState { H_IDLE, H_ANGLE, H_THINK, H_POWER } humanExecState = H_IDLE;
+    enum HumanExecState { H_IDLE, H_ANGLE, H_THINK } humanExecState = H_IDLE;
     float humanThinkTimer = 0.f;
     double humanPendingPower = 0.f;
 
@@ -459,7 +457,9 @@ namespace AutoPlay {
             case H_ANGLE: {
                 humanAngleDrag.Update();
                 if (humanAngleDrag.done) {
-                    humanThinkTimer = 0.12f + (rand() % 280) * 0.001f; // brief human pause
+                    // Set angle di memory setelah drag selesai biar engine sync
+                    setAimAngle(humanAngleDrag.targetAngle);
+                    humanThinkTimer = 0.12f + (rand() % 280) * 0.001f;
                     humanExecState = H_THINK;
                 }
                 break;
@@ -467,31 +467,14 @@ namespace AutoPlay {
             case H_THINK: {
                 humanThinkTimer -= ImGui::GetIO().DeltaTime;
                 if (humanThinkTimer <= 0.f) {
-                    float sliderX   = persistent_float["fPSliderX"];
-                    float sliderTop = persistent_float["fPSliderTop"];
-                    float sliderH   = persistent_float["fPSliderH"];
-                    if (sliderX <= 0.f)   sliderX   = 0.858f;
-                    if (sliderTop <= 0.f) sliderTop = 0.18f;
-                    if (sliderH <= 0.f)   sliderH   = 0.67f;
-
-                    ImGuiIO& io = ImGui::GetIO();
-                    ImVec4 rect(
-                        io.DisplaySize.x * sliderX,
-                        io.DisplaySize.y * sliderTop,
-                        io.DisplaySize.x * 0.04f,
-                        io.DisplaySize.y * sliderH
-                    );
-
-                    float dragTime = 0.55f + (rand() % 300) * 0.001f;
-                    float holdTime = 0.20f + (rand() % 150) * 0.001f;
-                    powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
-                    humanExecState = H_POWER;
-                }
-                break;
-            }
-            case H_POWER: {
-                if (!powerSlider.Active) {
+                    // Set angle sekali lagi sebelum tembak biar tidak drift
+                    setAimAngle(humanAngleDrag.targetAngle);
+                    gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, humanPendingPower);
+                    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(humanPendingPower));
+                    M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
                     humanExecState = H_IDLE;
+                    ClearState();
+                    state = IDLE;
                 }
                 break;
             }
@@ -896,18 +879,17 @@ namespace AutoPlay {
     void Update() {
         buttonClicker.Update();
         powerSlider.Update();
-        humanAngleDrag.Update();
-        HumanShootUpdate();
+        HumanShootUpdate(); // selalu jalan tiap frame
         DrawToggleButton();
 
-        // Don't scan/shoot while a human-style drag execution is in
-        // progress for the current shot.
-        if (HumanShootBusy()) return;
         if (isAnimationActive()) return;
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            state = IDLE;
+            if (!HumanShootBusy()) state = IDLE;
             return;
         }
+
+        // Kalau masih eksekusi shot human mode, jangan scan
+        if (HumanShootBusy()) return;
 
         if (state == IDLE) {
             state = SCANNING;
@@ -945,10 +927,8 @@ namespace AutoPlay {
             }
         }
         if (state == EXECUTING) {
-            if (!HumanShootBusy()) {
-                ClearState();
-                state = IDLE;
-            }
+            // HumanShootUpdate() sudah handle ClearState + state = IDLE
+            // waktu shot selesai, jadi di sini tinggal tunggu
         }
     }
 };
