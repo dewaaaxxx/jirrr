@@ -58,6 +58,14 @@ ImVec2 GetPocketScreenPos(int pocketIdx) {
     return WorldToScreen(pockets[pocketIdx]);
 }
 
+static BallType getBallType(int ballIndex) {
+    if (ballIndex == 0) return CUE_BALL;
+    if (ballIndex == 8) return EIGHT_BALL;
+    if (ballIndex >= 1 && ballIndex <= 7) return SOLIDS;
+    if (ballIndex >= 9 && ballIndex <= 15) return STRIPES;
+    return INVALID;
+}
+
 // ============================================================================
 // PHYSICS ENGINE - CORRECTED FOR PROPER BALL COLLISION
 // ============================================================================
@@ -292,14 +300,6 @@ struct PhysicsEngine {
 // GAME STATE & HELPER FUNCTIONS
 // ============================================================================
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
-
-BallType getBallType(int ballIndex) {
-    if (ballIndex == 0) return CUE_BALL;
-    if (ballIndex == 8) return EIGHT_BALL;
-    if (ballIndex >= 1 && ballIndex <= 7) return SOLIDS;
-    if (ballIndex >= 9 && ballIndex <= 15) return STRIPES;
-    return INVALID;
-}
 
 BallType getPlayerBallType(Ball::Classification classification) {
     if (classification == Ball::Classification::STRIPE) return STRIPES;
