@@ -254,11 +254,15 @@ BallType getPlayerBallType(Ball::Classification classification) {
 // ============================================================================
 // HUMAN ANGLE DRAG
 // ============================================================================
+// ============================================================================
+// HUMAN ANGLE DRAG - SMOOTH DARI AWAL KE TARGET (seperti video 2)
+// ============================================================================
 struct HumanAngleDrag {
     enum State { HAD_IDLE, HAD_DRAGGING, HAD_FINISHED } state = HAD_IDLE;
     int touchIndex = 9;
 
     double targetAngle = 0.0;
+    double startAngle = 0.0;  // SIMPAN SUDUT AWAL
     ImVec2 dragOrigin{};
     ImVec2 dragTo{};
     ImVec2 dragCurrent{};
@@ -279,42 +283,55 @@ struct HumanAngleDrag {
         return d;
     }
 
-    static float Jitter(float t, float seed, float amp) {
+    // === EASING YANG SMOOTH ===
+    static float SmoothEase(float t) {
+        return t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    }
+
+    static float NaturalJitter(float t, float seed, float amp) {
         return amp * (
-            sinf(t * 19.1f + seed)        * 0.5f +
-            sinf(t * 37.3f + seed * 1.4f) * 0.3f
+            sinf(t * 12.7f + seed)         * 0.6f +
+            sinf(t * 23.3f + seed * 1.7f)  * 0.25f +
+            sinf(t * 41.9f + seed * 2.3f)  * 0.1f
         );
     }
 
-    void BeginSegment(double angleDelta) {
-        float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 220.0f;
-
-        float originX = (float)((TABLE_LEFT + TABLE_RIGHT) * 0.5) + (float)((rand() % 40) - 20);
-        float originY = (float)((TABLE_TOP + TABLE_BOTTOM) * 0.5) + (float)((rand() % 20) - 10);
-        dragOrigin = ImVec2(originX, originY);
-        dragCurrent = dragOrigin;
-
-        float dx = (float)(angleDelta * sens);
-        dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y);
-
-        elapsed = 0.f;
-        duration = 0.45f + (rand() % 250) * 0.001f;
-
-        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
-        state = HAD_DRAGGING;
-    }
-
+    // ===== BEGIN: DRAG DARI POSISI AWAL KE TARGET =====
     void Begin(double angle) {
         if (active) return;
+
         targetAngle = angle;
+        startAngle = sharedGameManager.mVisualCue().getShotAngle(); // SIMPAN SUDUT AWAL
         correctionAttempts = 0;
         active = true;
         done = false;
 
-        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double delta = AngleDiff(targetAngle, currentAngle);
-        BeginSegment(delta);
+        float sens = persistent_float["fAngleDragSensitivity"];
+        if (sens <= 1.0f) sens = 220.0f;
+
+        // === AMBIL POSISI CUE BALL DI LAYAR ===
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 cueScreen = WorldToScreenImVec2(cueBall.initialPosition);
+
+        // START: dekat dengan cue ball
+        float originX = cueScreen.x + (float)((rand() % 40) - 20);
+        float originY = cueScreen.y + (float)((rand() % 30) - 15) - 25.0f;
+        dragOrigin = ImVec2(originX, originY);
+        dragCurrent = dragOrigin;
+
+        // === HITUNG DELTA SUDUT DARI AWAL KE TARGET ===
+        double delta = AngleDiff(targetAngle, startAngle);
+        
+        // END POSITION: berdasarkan delta sudut
+        float dx = (float)(delta * sens);
+        float dy = (float)(delta * sens * 0.12f); // sedikit miring
+        dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
+
+        elapsed = 0.f;
+        duration = 0.7f + (rand() % 300) * 0.001f; // 0.7 - 1.0 detik
+
+        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
+        state = HAD_DRAGGING;
     }
 
     void Update() {
@@ -324,19 +341,30 @@ struct HumanAngleDrag {
         elapsed += dt;
         float t = std::min(1.f, elapsed / duration);
 
-        float ease = (t < 0.5f) ? (4.f * t * t * t) : (1.f - powf(-2.f * t + 2.f, 3.f) / 2.f);
-        float jamp = 0.8f * (1.f - ease * 0.5f);
+        // === SMOOTH EASING ===
+        float eased = SmoothEase(t);
 
+        // === JITTER NATURAL ===
+        float jitterAmp = 1.2f * (eased * (1.0f - eased) * 4.0f);
+        float jitter = NaturalJitter(t, (float)touchIndex + 7.3f, jitterAmp * 0.6f);
+
+        // === POSISI DRAG (bergerak dari origin ke target) ===
         dragCurrent = ImVec2(
-            dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + Jitter(t, (float)touchIndex, jamp),
-            dragOrigin.y + Jitter(t, (float)touchIndex + 3.f, jamp * 0.4f)
+            dragOrigin.x + (dragTo.x - dragOrigin.x) * eased + jitter,
+            dragOrigin.y + (dragTo.y - dragOrigin.y) * eased + jitter * 0.3f + eased * 5.0f
         );
+
         NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
 
+        // === DEBUG ===
         if (dynamic_bool["DebugTouch"]) {
             ImDrawList* fg = ImGui::GetForegroundDrawList();
-            fg->AddCircleFilled(dragCurrent, 14.f, IM_COL32(80, 200, 255, 150));
-            fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 90), 2.f);
+            fg->AddCircleFilled(dragCurrent, 14.f, IM_COL32(80, 200, 255, 180));
+            fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 70), 2.f);
+            // Tampilkan progress
+            char buf[32];
+            sprintf(buf, "%.0f%%", t * 100);
+            fg->AddText(ImVec2(dragCurrent.x + 20, dragCurrent.y - 10), IM_COL32(255, 255, 255, 200), buf);
         }
 
         if (t >= 1.f) {
@@ -350,8 +378,17 @@ struct HumanAngleDrag {
                 done = true;
                 state = HAD_FINISHED;
             } else {
+                // === KALAU MASIH OFF, KOREKSI ===
                 correctionAttempts++;
-                BeginSegment(remaining);
+                // TIDAK LANGSUNG BEGIN ULANG, TAPI KOREKSI KECIL
+                float korx = (float)(remaining * 220.0f * 0.6f);
+                float kory = (float)(remaining * 220.0f * 0.6f * 0.12f);
+                dragTo = ImVec2(dragCurrent.x + korx, dragCurrent.y + kory);
+                dragOrigin = dragCurrent;
+                elapsed = 0.f;
+                duration = 0.3f + (rand() % 150) * 0.001f; // koreksi lebih cepat
+                NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+                // state tetap HAD_DRAGGING
             }
         }
     }
