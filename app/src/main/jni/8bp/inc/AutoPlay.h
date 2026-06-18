@@ -311,7 +311,7 @@ struct HumanAngleDrag {
 
         // === AMBIL POSISI CUE BALL DI LAYAR ===
         auto& cueBall = gPrediction->guiData.balls[0];
-        ImVec2 cueScreen = WorldToScreenImVec2(cueBall.initialPosition);
+        ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
 
         // START: dekat dengan cue ball
         float originX = cueScreen.x + (float)((rand() % 40) - 20);
