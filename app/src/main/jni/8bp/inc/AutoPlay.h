@@ -459,22 +459,16 @@ namespace AutoPlay {
             }
             case H_POWER: {
                 if (!powerSlider.Active) {
-                    // FIX: previously this block ALSO fired an explicit
-                    // native shoot call (M(...)) here, AFTER PowerSlider's
-                    // own touch-release had already finished. But
-                    // PowerSlider.SimulateDrag() simulates a real
-                    // press->drag->hold->release gesture, and releasing the
-                    // power lever is EXACTLY what fires the shot in the
-                    // real game (same as a human player) — that release
-                    // already triggers the shot on its own. Calling the
-                    // native shoot function a SECOND time right after
-                    // caused a double-fire: one shot from the genuine
-                    // touch release, then a second forced shot using
-                    // whatever angle/power happened to be in memory at that
-                    // moment (often already stale since the first shot's
-                    // physics had just started) — this is what was causing
-                    // "nembak ngasal" (random/garbage shots) specifically
-                    // in Human Autoplay mode.
+                    double finalPower = humanPendingPower;
+                    if (finalPower < 100.0) finalPower = 100.0;
+                    if (finalPower > 666.0) finalPower = 666.0;
+                    
+                    setAimAngle(humanAngleDrag.targetAngle);
+                    setShotPower(finalPower);
+                    gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
+                    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
+                    M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+                    
                     humanExecState = H_IDLE;
                     ClearState();
                     state = IDLE;
