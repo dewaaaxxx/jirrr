@@ -742,10 +742,10 @@ namespace AutoPlay {
 
         if (isAnimationActive()) return;
 
-        if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             state = IDLE;
             return;
-        }
+        }*/
 
         if (state == IDLE) {
             state = SCANNING;
