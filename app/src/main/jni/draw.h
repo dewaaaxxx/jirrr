@@ -461,6 +461,7 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
+    if (!persistent_bool[O("bAutoQueue")]) return;
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
