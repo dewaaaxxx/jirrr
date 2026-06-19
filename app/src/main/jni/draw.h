@@ -706,8 +706,6 @@ if (AutoPlay::state == AutoPlay::IDLE) {
         if (persistent_bool[O("bAutoPlay")]) {
              AutoPlay::Update();
         }
-
-        AutoPlay::UpdateScanMode();
         
         if (stateId == 4) gPrediction->determineShotResult(false);
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
