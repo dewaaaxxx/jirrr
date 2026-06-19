@@ -686,10 +686,8 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!gameStateManager) return;
         auto stateId = gameStateManager.getCurrentStateId();
         
-        if (persistent_bool[O("bAutoPlay")]) {
-            bool approvalOn = persistent_bool[O("bAutoApproval")];
-            if (!approvalOn || ShotApprovalGate(stateId))
-                AutoPlay::Update();
+        if (g_bInGame && persistent_bool[O("bAutoPlay")]) {
+             AutoPlay::Update();
         }
         
         if (stateId == 4) gPrediction->determineShotResult(false);
@@ -975,10 +973,10 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,8));
 
 
-            need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
+            /*need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
                                     &persistent_bool[O("bAutoApproval")]);
-            Dummy(ImVec2(0,12));
+            Dummy(ImVec2(0,12));*/
 
 
             TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
