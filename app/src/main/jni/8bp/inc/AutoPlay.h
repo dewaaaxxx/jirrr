@@ -646,7 +646,7 @@ namespace AutoPlay {
         
         buttonClicker.Update();
 
-        if (isAnimationActive()) return;
+      //  if (isAnimationActive()) return;
 
         /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             state = IDLE;
