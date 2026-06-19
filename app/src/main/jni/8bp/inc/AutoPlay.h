@@ -733,46 +733,51 @@ namespace AutoPlay {
     }
     
     void Update() {
-        if (!persistent_bool[O("bAutoPlay")] || !sharedGameManager.mStateManager().isPlayerTurn()) {
+    // ========== CEK TOGGLE & GILIRAN ==========
+    if (!persistent_bool[O("bAutoPlay")] || !sharedGameManager.mStateManager().isPlayerTurn()) {
         state = IDLE;
         return;
+    }
+
+    buttonClicker.Update();
+
+    // ========== COMMENT DULU BUAT TEST ==========
+    if (isAnimationActive()) return;
+
+    // ========== STATE MACHINE ==========
+    if (state == IDLE) {
+        state = SCANNING;
+    }
+
+    if (state == SCANNING) {
+        // ========== BACA MODE SETIAP FRAME (BIAR BISA BERUBAH) ==========
+        int mode = persistent_int["iAutoPlayMode"];
+        if (mode == 2) {
+            scan = PRECISION;
+        } else {
+            scan = FAST;
         }
+        // =================================================================
 
-        buttonClicker.Update();
+        if (scan == FAST) {
+            ScanFast();
+        } else if (scan == SLOW) {
+            ScanSlow(0.003f);
+        } else if (scan == PRECISION) {
+            ScanPrecision(0.005f);
+        }
+    }
 
-        if (isAnimationActive()) return;
-
-        /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+    if (state == NOMINATING) {
+        nominationFrameCounter++;
+        if (nominationFrameCounter == 10) {
+            buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
+        }
+        if (nominationFrameCounter > 20 && !buttonClicker.Active) {
+            takeShot(g_CurrentCandidate.angle, g_CurrentCandidate.power);
+            ClearState();
             state = IDLE;
-            return;
-        }*/
-
-        if (state == IDLE) {
-            state = SCANNING;
-    
-    // ========== BACA MODE DARI MENU ==========
-    int mode = persistent_int["iAutoPlayMode"];
-    if (mode == 2) {
-        scan = PRECISION;   // Mode Precision
-    } else if (mode == 1) {
-        scan = FAST;        // Mode Fast
-    } else {
-        scan = FAST;        // Mode Normal (default FAST)
-    }
-        } else if (state == SCANNING) {
-            if (scan == FAST) ScanFast();
-            else if (scan == SLOW) ScanSlow(0.003f);
-            else if (scan == PRECISION) ScanPrecision(0.005f);
-        } else if (state == NOMINATING) {
-            nominationFrameCounter++;
-            if (nominationFrameCounter == 10) {
-                buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
-            }
-            if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-                takeShot(pendingShotAngle, pendingShotPower);
-                ClearState();
-                state = IDLE;
-            }
         }
     }
+}
 };
