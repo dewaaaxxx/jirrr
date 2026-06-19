@@ -685,10 +685,21 @@ INLINE void DrawESP(ImDrawList* draw) {
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
         auto stateId = gameStateManager.getCurrentStateId();
+
+// ========== UPDATE MODE (BIAR BISA BERUBAH KAPAN AJA) ==========
+int currentMode = persistent_int["iAutoPlayMode"];
+if (currentMode == 2) {
+    AutoPlay::scan = AutoPlay::PRECISION;
+} else {
+    AutoPlay::scan = AutoPlay::FAST;
+}
+// =================================================================
         
         if (persistent_bool[O("bAutoPlay")]) {
              AutoPlay::Update();
         }
+
+        AutoPlay::UpdateScanMode();
         
         if (stateId == 4) gPrediction->determineShotResult(false);
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
