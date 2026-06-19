@@ -1,3 +1,4 @@
+ImVec2 WorldToScreen(const Point2D& worldPos);  // ← TAMBAHKAN INI
 void DrawEightBallLoading(ImDrawList* draw_list) {
     auto& io = ImGui::GetIO();
     
