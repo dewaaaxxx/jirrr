@@ -668,7 +668,16 @@ namespace AutoPlay {
 
         if (state == IDLE) {
             state = SCANNING;
-            scan = FAST;
+    
+    // ========== BACA MODE DARI MENU ==========
+    int mode = persistent_int["iAutoPlayMode"];
+    if (mode == 2) {
+        scan = PRECISION;   // Mode Precision
+    } else if (mode == 1) {
+        scan = FAST;        // Mode Fast
+    } else {
+        scan = FAST;        // Mode Normal (default FAST)
+    }
         } else if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
