@@ -27,6 +27,7 @@ static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
 static std::chrono::steady_clock::time_point g_aqCountdownStart;
 static bool DEBUG_BYPASS_LOGIN = true;
+static const int64_t EXPIRY_TS = O(1781488655);
 
 static const char* L(const char* en, const char* ar);
 
@@ -34,6 +35,7 @@ static const char* L(const char* en, const char* ar);
 struct MenuState {
     bool  isOpen        = false;
     int   currentTab    = 0;
+    float sidebarWidth = 750.0f;
     float menuAlpha     = 0.0f;
     float menuScale     = 0.92f;
     bool  hideForCapture = false;
@@ -747,7 +749,7 @@ if (AutoPlay::state == AutoPlay::IDLE) {
              AutoPlay::Update();
         }
 
-        AutoPlay::UpdateScanMode();
+    //    AutoPlay::UpdateScanMode();
         
         if (stateId == 4) gPrediction->determineShotResult(false);
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
