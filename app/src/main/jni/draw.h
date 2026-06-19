@@ -813,6 +813,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 }
 
 #include "ButtonClicker.h"
+#include "8bp/inc/AutoPlay.h
 
 
 static void DrawTitleFrame(ImDrawList* dl, ImVec2 winPos, float winW){
