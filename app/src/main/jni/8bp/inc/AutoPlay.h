@@ -639,54 +639,36 @@ namespace AutoPlay {
     }
     
     void Update() {
-    // ========== CEK TOGGLE & GILIRAN ==========
-    if (!persistent_bool[O("bAutoPlay")] || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        if (!persistent_bool[O("bAutoPlay")] || !sharedGameManager.mStateManager().isPlayerTurn()) {
         state = IDLE;
         return;
-    }
-
-    buttonClicker.Update();
-
-    // ========== COMMENT DULU BUAT TEST ==========
-    if (isAnimationActive()) return;
-
-    // ========== STATE MACHINE ==========
-    if (state == IDLE) {
-        state = SCANNING;
-    }
-
-    if (state == SCANNING) {
-        // FIX: only read iAutoPlayMode when starting a fresh scan (IDLE->SCANNING
-        // transition), NOT every single frame. Previously this block ran every
-        // frame and always forced `scan = FAST` whenever mode != 2, which meant
-        // that after ScanFast failed and set `scan = SLOW`, the very next frame
-        // would reset it back to FAST — so ScanSlow was never actually reached.
-        // It also prevented mid-game mode switching because the mode was being
-        // overwritten from persistent_int on every frame regardless.
-        if (scan == FAST) {
-            int mode = persistent_int["iAutoPlayMode"];
-            if (mode == 2) {
-                // User selected Precision mode — go straight to it
-                ScanPrecision(0.005f);
-            } else {
-                ScanFast();
-            }
-        } else if (scan == SLOW) {
-            ScanSlow(0.003f);
-        } else if (scan == PRECISION) {
-            ScanPrecision(0.005f);
         }
-    }
+        
+        buttonClicker.Update();
 
-    if (state == NOMINATING) {
-        nominationFrameCounter++;
-        if (nominationFrameCounter == 10) {
-            buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
-        }
-        if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-            takeShot(g_CurrentCandidate.angle, g_CurrentCandidate.power);
-            ClearState();
+        if (isAnimationActive()) return;
+
+        /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             state = IDLE;
+            return;
+        }*/
+
+        if (state == IDLE) {
+            state = SCANNING;
+            scan = FAST;
+        } else if (state == SCANNING) {
+            if (scan == FAST) ScanFast();
+            else if (scan == SLOW) ScanSlow(0.003f);
+        //    else if (scan == PRECISION) ScanPrecision(0.005f);
+        } else if (state == NOMINATING) {
+            nominationFrameCounter++;
+            if (nominationFrameCounter == 10) {
+                buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
+            }
+            if (nominationFrameCounter > 20 && !buttonClicker.Active) {
+                takeShot(pendingShotAngle, pendingShotPower);
+                ClearState();
+                state = IDLE;
         }
     }
 }
