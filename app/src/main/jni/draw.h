@@ -557,7 +557,90 @@ INLINE void DrawAutoQueue() {
     }
 }
 
+static void DrawLiveStatusOverlay(ImGuiIO& io) {
+    if (!persistent_bool[O("bAutoPlay")]) return;
 
+    const char* stateStr = "Idle";
+    switch (AutoPlay::state) {
+        case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
+        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
+        case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
+        default:                   stateStr = "Idle";       break;
+    }
+    bool isPlaying = AutoPlay::bAutoPlaying;
+
+    const float padH  = 24.0f;  // jarak dari tepi KANAN layar
+    const float padV  = 24.0f;  // jarak dari tepi BAWAH layar
+
+    // ANCHOR DIUBAH: dari kiri-bawah (0.0f, 1.0f) jadi kanan-bawah (1.0f, 1.0f)
+    SetNextWindowPos(
+        ImVec2(io.DisplaySize.x - padH, io.DisplaySize.y - padV),
+        ImGuiCond_Always,
+        ImVec2(1.0f, 1.0f)   // anchor: kanan-bawah
+    );
+
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
+    PushStyleColor(ImGuiCol_Border,   IM_COL32(60, 60, 80, 120));
+    PushStyleVar(ImGuiStyleVar_WindowRounding,  12.0f);
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding,   ImVec2(14.0f, 10.0f));
+
+    if (Begin(O("##LiveStatus"), nullptr,
+              ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
+              ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
+              ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        ImDrawList* dl = GetWindowDrawList();
+        ImVec2 wp = GetWindowPos();
+        ImVec2 ws = GetWindowSize();
+        ImU32 accentCol = isPlaying
+            ? IM_COL32(0, 210, 130, 255)
+            : IM_COL32(200, 40, 40, 255);
+        
+        // Accent bar di KIRI window (tetap, karena window sekarang di kanan)
+        dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
+
+        SetWindowFontScale(0.95f);
+
+        ImU32 playCol = isPlaying ? IM_COL32(0, 210, 130, 255) : IM_COL32(200, 60, 60, 255);
+        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Auto Play "));
+        SameLine(0, 0);
+        TextColored(ImGui::ColorConvertU32ToFloat4(playCol), isPlaying ? O("ON") : O("OFF"));
+
+        ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
+            ? IM_COL32(0, 200, 255, 255)
+            : IM_COL32(130, 130, 145, 255);
+        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("State     "));
+        SameLine(0, 0);
+        TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
+    if (g_CurrentCandidate.pocketIndex >= 0) {
+    TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Pocket    "));
+    SameLine(0, 0);
+    
+    // Warna pocket beda beda biar lebih jelas
+    ImU32 pocketColor;
+    switch (g_CurrentCandidate.pocketIndex) {
+        case 0: pocketColor = IM_COL32(255, 100, 100, 255); break; // Merah (kiri atas)
+        case 1: pocketColor = IM_COL32(100, 255, 100, 255); break; // Hijau (tengah atas)
+        case 2: pocketColor = IM_COL32(100, 100, 255, 255); break; // Biru (kanan atas)
+        case 3: pocketColor = IM_COL32(255, 200, 100, 255); break; // Kuning (kanan bawah)
+        case 4: pocketColor = IM_COL32(200, 100, 255, 255); break; // Ungu (tengah bawah)
+        case 5: pocketColor = IM_COL32(100, 255, 200, 255); break; // Toska (kiri bawah)
+        default: pocketColor = IM_COL32(150, 150, 150, 255);
+    }
+    
+    char pocketText[32];
+    snprintf(pocketText, sizeof(pocketText), " %d", g_CurrentCandidate.pocketIndex);
+    TextColored(ImGui::ColorConvertU32ToFloat4(pocketColor), pocketText);
+    }
+
+        SetWindowFontScale(1.0f);
+    }
+    End();
+    PopStyleVar(3);
+    PopStyleColor(2);
+}
 
 static void DrawOrnateFrame(ImDrawList* dl, ImVec2 a, ImVec2 b);
 
@@ -1562,7 +1645,8 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawFloatingButton(io);
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
-      //  DrawAutoQueue();
+        DrawLiveStatusOverlay(io)
+        DrawAutoQueue();
 
 
 
