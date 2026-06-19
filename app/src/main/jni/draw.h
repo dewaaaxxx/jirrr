@@ -686,7 +686,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!gameStateManager) return;
         auto stateId = gameStateManager.getCurrentStateId();
         
-        if (g_bInGame && persistent_bool[O("bAutoPlay")]) {
+        if (persistent_bool[O("bAutoPlay")]) {
              AutoPlay::Update();
         }
         
