@@ -27,7 +27,7 @@ static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
 static std::chrono::steady_clock::time_point g_aqCountdownStart;
 static bool DEBUG_BYPASS_LOGIN = true;
-static const int64_t EXPIRY_TS = O(1781488655);
+static const int64_t EXPIRY_TS = O(1784426596);
 
 static const char* L(const char* en, const char* ar);
 
@@ -335,7 +335,7 @@ INLINE void DrawExpired(ImGuiIO& io) {
 
         PushTextWrapPos(GetCursorPosX() + winW - 60.0f);
         TextColored(ImVec4(0.85f, 0.85f, 0.90f, 1.0f), "%s",
-            O("Beta Version Expired. Update on our Telegram t.me/Lyn4xp"));
+            O("Beta Version Expired. Update on our Telegram t.me/xabi666"));
         PopTextWrapPos();
 
         Dummy(ImVec2(0, 10));
