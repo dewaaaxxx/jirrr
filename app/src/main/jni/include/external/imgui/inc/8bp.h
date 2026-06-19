@@ -1,4 +1,4 @@
-ImVec2 WorldToScreen(const Point2D& worldPos);  // ← TAMBAHKAN INI
+#include "8bp/inc/ScreenTable.h"
 void DrawEightBallLoading(ImDrawList* draw_list) {
     auto& io = ImGui::GetIO();
     
