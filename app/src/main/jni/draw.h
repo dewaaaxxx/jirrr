@@ -971,9 +971,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         }
         case 1: {
             Dummy(ImVec2(0,4));
-            need_save |= GoldToggle(L("Enable Auto Play","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻞﻴﻌﻔﺗ"),
-                                    L("",""),
-                                    &persistent_bool[O("bAutoPlay")]);
+            need_save |= GoldToggle("Enable Auto Play", "Turn autoplay on/off", &AutoPlay::bAutoPlaying);
             Dummy(ImVec2(0,8));
 
 
