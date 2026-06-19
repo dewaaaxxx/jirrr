@@ -603,10 +603,10 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
 
         SetWindowFontScale(0.95f);
 
-        ImU32 playCol = isPlaying ? IM_COL32(0, 210, 130, 255) : IM_COL32(200, 60, 60, 255);
+        ImU32 playCol = isPlaying ? IM_COL32(0, 210, 130, 255);
         TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Auto Play "));
         SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(playCol), isPlaying ? O("ON") : O("OFF"));
+        TextColored(ImGui::ColorConvertU32ToFloat4(playCol), isPlaying ? O("ON"));
 
         ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
             ? IM_COL32(0, 200, 255, 255)
@@ -818,14 +818,14 @@ INLINE void DrawESP(ImDrawList* draw) {
 // the mode change also never took effect mid-game.
 // Only apply the mode setting when AutoPlay is idle (between shots), so the
 // scan state machine can actually progress through FAST -> SLOW as intended.
-if (AutoPlay::state == AutoPlay::IDLE) {
+/*if (AutoPlay::state == AutoPlay::IDLE) {
     int currentMode = persistent_int["iAutoPlayMode"];
     if (currentMode == 2) {
         AutoPlay::scan = AutoPlay::PRECISION;
     } else {
         AutoPlay::scan = AutoPlay::FAST;
     }
-}
+}*/
 // ===========================================================================
         
         if (persistent_bool[O("bAutoPlay")]) {
