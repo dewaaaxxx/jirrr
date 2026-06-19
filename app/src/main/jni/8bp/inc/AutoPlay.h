@@ -276,11 +276,11 @@ namespace AutoPlay {
         }
     }
     
-    void ScanPrecision(double angleStep = 0.005f) {
+    /*void ScanPrecision(double angleStep = 0.005f) {
         /**
          * LUXURY PRECISION MODE: Ultra-fine-grained analysis
          * Scans with precision-grade angle steps and advanced physics evaluation
-         */
+         *
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
@@ -406,6 +406,82 @@ namespace AutoPlay {
             currentScanAngle = 0.0;
             state = IDLE;
         }
+    }*/
+
+    void ScanPrecision(double angleStep = 0.005f) {
+    static double currentScanAngle = 0.0;
+    static bool isScanning = false;
+    static Point2D lastScanCuePos = { -1000.0, -1000.0 };
+
+    if (g_CurrentCandidate.idx != -1) return;
+
+    if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
+        currentScanAngle = 0.0;
+        isScanning = true;
+        lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
+    }
+
+    Ball::Classification myclass = sharedGameManager.getPlayerClassification();
+    uint nominatedPocket = sharedGameManager.getNominatedPocket();
+
+    int steps = 0;
+    bool foundShot = false;
+
+    while (steps < 15 && currentScanAngle < maxAngle) {
+        double angle = currentScanAngle;
+        currentScanAngle += angleStep;
+        steps++;
+
+        std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
+        for (double power : powers) {
+            gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+
+            // ========== VALIDASI ==========
+            if (!gPrediction->guiData.balls[0].onTable) continue;
+            auto firstHit = gPrediction->guiData.collision.firstHitBall;
+            if (!firstHit) continue;
+            
+            // Cari target yang masuk
+            int targetIdx = -1;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (ball.originalOnTable && !ball.onTable) {
+                    bool isValid = false;
+                    if (myclass == Ball::Classification::ANY) {
+                        if (ball.classification != Ball::Classification::EIGHT_BALL) isValid = true;
+                    } else if (ball.classification == myclass) {
+                        isValid = true;
+                    }
+                    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                    if (isValid) { targetIdx = i; break; }
+                }
+            }
+
+            if (targetIdx == -1) continue;
+
+            // Cegah pot 8 prematur
+            if (targetIdx == 8 && myclass != Ball::Classification::EIGHT_BALL) continue;
+
+            // ========== LANGSUNG TEMBAK ==========
+            LOGI("ScanPrecision: Found shot - Ball %d, angle %.4f, power %.1f", targetIdx, angle, power);
+            g_CurrentCandidate.idx = targetIdx;
+            g_CurrentCandidate.angle = angle;
+            g_CurrentCandidate.power = power;
+            g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
+            isScanning = false;
+            currentScanAngle = 0.0;
+            Shoot(angle, power);
+            return; // ← LANGSUNG KELUAR
+        }
+    }
+
+    if (currentScanAngle >= maxAngle) {
+        LOGI("ScanPrecision: No shot found, switching to ScanSlow");
+        isScanning = false;
+        currentScanAngle = 0.0;
+        scan = SLOW;
+        state = IDLE;
+    }
     }
     
     void ScanSlow(double angleStep = 0.01f) {
