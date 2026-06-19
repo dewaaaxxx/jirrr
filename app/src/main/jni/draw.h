@@ -1463,7 +1463,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawFloatingButton(io);
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
-        DrawAutoQueue();
+      //  DrawAutoQueue();
 
 
 
