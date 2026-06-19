@@ -21,7 +21,7 @@ using namespace std;
 #include <GLES3/gl3.h>
 
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoPlay.h
+#include "8bp/inc/AutoPlay.h"
 
 static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
