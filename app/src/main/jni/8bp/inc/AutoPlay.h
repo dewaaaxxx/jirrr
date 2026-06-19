@@ -408,6 +408,15 @@ namespace AutoPlay {
         }
     }*/
 
+    void UpdateScanMode() {
+        int mode = persistent_int["iAutoPlayMode"];
+        if (mode == 2) {
+            scan = PRECISION;
+        } else {
+            scan = FAST;
+        }
+    }
+
     void ScanPrecision(double angleStep = 0.005f) {
     static double currentScanAngle = 0.0;
     static bool isScanning = false;
