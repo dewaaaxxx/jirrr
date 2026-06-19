@@ -446,12 +446,19 @@ namespace AutoPlay {
             for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
                 if (ball.originalOnTable && !ball.onTable) {
-                    bool isValid = false;
-                    if (myclass == Ball::Classification::ANY) {
-                        if (ball.classification != Ball::Classification::EIGHT_BALL) isValid = true;
-                    } else if (ball.classification == myclass) {
-                        isValid = true;
-                    }
+                    // ========== VALIDASI TARGET ==========
+bool isValid = false;
+if (myclass == Ball::Classification::ANY) {
+    if (ball.classification != Ball::Classification::EIGHT_BALL && 
+        ball.classification != Ball::Classification::CUE_BALL) {
+        isValid = true;
+    }
+} else if (ball.classification == myclass && 
+           ball.classification != Ball::Classification::EIGHT_BALL &&
+           ball.classification != Ball::Classification::CUE_BALL) {
+    isValid = true;
+}
+// =====================================
                     if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
                     if (isValid) { targetIdx = i; break; }
                 }
