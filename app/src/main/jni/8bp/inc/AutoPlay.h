@@ -657,9 +657,11 @@ namespace AutoPlay {
     }
     
     void Update() {
-        bAutoPlaying = true;
-        persistent_bool[O("bAutoPlay")] = true;
-        
+        if (!persistent_bool[O("bAutoPlay")] || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        state = IDLE;
+        return;
+        }
+
         buttonClicker.Update();
 
         if (isAnimationActive()) return;
