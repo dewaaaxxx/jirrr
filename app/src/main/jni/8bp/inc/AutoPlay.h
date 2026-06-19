@@ -657,6 +657,9 @@ namespace AutoPlay {
     }
     
     void Update() {
+        bAutoPlaying = true;
+        persistent_bool[O("bAutoPlay")] = true;
+        
         buttonClicker.Update();
 
         if (isAnimationActive()) return;
