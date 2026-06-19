@@ -1645,7 +1645,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawFloatingButton(io);
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
-        DrawLiveStatusOverlay(io)
+        DrawLiveStatusOverlay(io);
         DrawAutoQueue();
 
 
