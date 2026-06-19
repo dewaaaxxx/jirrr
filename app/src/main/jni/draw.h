@@ -1000,31 +1000,37 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             
             // ========== AUTO PLAY MODE ==========
             TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "%s", L("Auto Play Style","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
-            Dummy(ImVec2(0, 8));
+Dummy(ImVec2(0, 8));
 
-            int curMode = persistent_int["iAutoPlayMode"];
-            const char* modeNames[3] = {
-                L("Fast", "ﻊﻳﺮﺳ"),      // Kiri
-                L("Normal", "ﻲﻌﻴﺒﻃ"),  // Tengah
-                L("Precision", "ﺔﻗﺩﺎﺑ") // Kanan
-           };
-            float bwMode = (GetContentRegionAvail().x - 16) / 3.0f;
+// ========== FIX: BACA ULANG SETIAP FRAME ==========
+int curMode = persistent_int["iAutoPlayMode"];
+const char* modeNames[3] = {
+    L("Fast", "ﻊﻳﺮﺳ"),      // Kiri
+    L("Normal", "ﻲﻌﻴﺒﻃ"),  // Tengah
+    L("Precision", "ﺔﻗﺩﺎﺑ") // Kanan
+};
+float bwMode = (GetContentRegionAvail().x - 16) / 3.0f;
 
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            for (int i = 0; i < 3; i++) {
-            if (i) SameLine();
-            bool sel = (curMode == i);
-            PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
-            PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1,1,1,1) : ImVec4(0.75f,0.80f,0.90f,1));
-            if (Button(modeNames[i], ImVec2(bwMode, 44))) {
-                    persistent_int["iAutoPlayMode"] = i;
-                    need_save = true;
-                }
-                PopStyleColor(3);
-            }
-            PopStyleVar();
+PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+for (int i = 0; i < 3; i++) {
+    if (i) SameLine();
+    bool sel = (curMode == i);
+    PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
+    PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
 
+    // ========== YANG DIUBAH: UPDATE curMode LANGSUNG SAAT KLIK ==========
+    if (Button(modeNames[i], ImVec2(bwMode, 44))) {
+        persistent_int["iAutoPlayMode"] = i;
+        curMode = i; // ← TAMBAHKAN INI (BIAR UI LANGSUNG BERUBAH)
+        need_save = true;
+    }
+    // ====================================================================
+
+    PopStyleColor(3);
+}
+PopStyleVar();
+            
             Dummy(ImVec2(0, 12));
 
             float power = persistent_float["fShotPower"];
