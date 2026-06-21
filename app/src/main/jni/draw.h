@@ -569,7 +569,7 @@ INLINE void DrawAutoQueue() {
     }
 }
 
-static void DrawLiveStatusOverlay(ImGuiIO& io) {
+/*static void DrawLiveStatusOverlay(ImGuiIO& io) {
     if (!persistent_bool[O("bAutoPlay")]) return;
 
     const char* stateStr = "Idle";
@@ -652,7 +652,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     End();
     PopStyleVar(3);
     PopStyleColor(2);
-}
+}*/
 
 static void DrawOrnateFrame(ImDrawList* dl, ImVec2 a, ImVec2 b);
 
