@@ -1398,7 +1398,7 @@ static void DrawFloatingButton(ImGuiIO& io) {
         // Main filled circle — dark
         dl->AddCircleFilled(center, btnR, hov ? IM_COL32(38, 38, 48, 245) : IM_COL32(22, 22, 30, 230));
         // Red accent border
-        dl->AddCircle(center, btnR, IM_COL32(200, 30, 30, hov ? 255 : 180), 0, 2.5f);
+        dl->AddCircle(center, btnR, IM_COL32(0, 255, 100, hov ? 255 : 180), 0, 2.5f);
 
     }
     End();
