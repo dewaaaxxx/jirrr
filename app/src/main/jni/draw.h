@@ -999,11 +999,8 @@ static void DrawToggleButton() {
 
         // Logika Klik (Toggle ON/OFF)
         if (clicked) {
-            persistent_bool[O("bAutoPlay")] = !persistent_bool[O("bAutoPlay")];
-            AutoPlay::bAutoPlaying = persistent_bool[O("bAutoPlay")];
-            // ✅ TAMBAHKAN INI: Tandai bahwa user sudah sengaja menekan tombol
-            g_GameReady = true; 
-            if (!AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
+            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
         }
     }
     End();
