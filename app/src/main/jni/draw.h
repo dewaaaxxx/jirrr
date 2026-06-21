@@ -1678,7 +1678,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawExpired(io);
     } else
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
-        DrawCaptureButton(io);
+   //     DrawCaptureButton(io);
         DrawFloatingButton(io);
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
