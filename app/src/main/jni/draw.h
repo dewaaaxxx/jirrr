@@ -108,14 +108,19 @@ static void DrawGradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 c1, ImU32
 #define COL_BG_DARK      IM_COL32(16, 26, 44, 250)
 #define COL_PANEL        IM_COL32(22, 32, 52, 255)
 #define COL_PANEL_SOFT   IM_COL32(28, 40, 62, 255)
-#define COL_GOLD         IM_COL32(212, 175, 75, 255)
-#define COL_GOLD_BRIGHT  IM_COL32(245, 210, 110, 255)
-#define COL_GOLD_DEEP    IM_COL32(160, 120, 40, 255)
+//#define COL_GOLD         IM_COL32(212, 175, 75, 255)
+//#define COL_GOLD_BRIGHT  IM_COL32(245, 210, 110, 255)
+//#define COL_GOLD_DEEP    IM_COL32(160, 120, 40, 255)
 #define COL_TEXT         IM_COL32(235, 238, 245, 255)
 #define COL_TEXT_DIM     IM_COL32(160, 168, 185, 255)
 #define COL_TEXT_FAINT   IM_COL32(120, 128, 145, 255)
 #define COL_LINE         IM_COL32(60, 75, 100, 255)
-#define NEON_GOLD       IM_COL32(255, 215, 0, 255)
+//#define NEON_GOLD       IM_COL32(255, 215, 0, 255)
+
+#define COL_GOLD         IM_COL32(46, 204, 113, 255)
+#define COL_GOLD_BRIGHT  IM_COL32(76, 255, 150, 255)
+#define COL_GOLD_DEEP    IM_COL32(30, 150, 80, 255)
+#define NEON_GOLD        IM_COL32(57, 255, 20, 255)
 
 
 
