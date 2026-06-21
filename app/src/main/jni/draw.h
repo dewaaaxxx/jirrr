@@ -542,7 +542,7 @@ INLINE void DrawAutoQueue() {
             std::string c = std::to_string((remaining_ms/1000)+1);
             ImVec2 cs = CalcTextSize(c.c_str());
             SetCursorPosX((ws.x - cs.x)*0.5f);
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", c.c_str());
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", c.c_str());
             SetWindowFontScale(1.0f);
 
             SetCursorPosY(ws.y - 65);
@@ -1155,7 +1155,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,12));*/
 
 
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
             Dummy(ImVec2(0,8));
 
             int curSpeed = persistent_int["iAutoPlaySpeed"];
@@ -1242,7 +1242,7 @@ PopStyleVar();*/
         }
         case 3: { 
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Mod Information","تفصيل ما يقولونه"));
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Mod Information","تفصيل ما يقولونه"));
             Dummy(ImVec2(0,14));
             TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Version: ","DewaaPrtamaa: "));
             SameLine();
@@ -1254,7 +1254,7 @@ PopStyleVar();*/
             Dummy(ImVec2(0,10));
             TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Dev: ","ﻡﺍﺮﺠﻴﻠﻴﺗ: "));
             SameLine();
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", "@xabi666");
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "@xabi666");
             Dummy(ImVec2(0,20));
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
             PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f,0.22f,0.22f,1.0f));
@@ -1273,7 +1273,7 @@ PopStyleVar();*/
         }
         case 5: {
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", "CM ENGINE  v2.0  -  Gold Edition");
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "CM ENGINE  v1.0");
             Dummy(ImVec2(0,10));
             TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium 8 Ball Pool Assistant","https://t.me/xabi666 ﺎﻫﻮﻌﺑﺎﺗ ﻲﻠﺘﻟﺍ ﺓﺎﻨﻗ"));
             Dummy(ImVec2(0,20));
@@ -1559,7 +1559,7 @@ INLINE void DrawLogin(ImGuiIO& io) {
                              " ﻡﺍﺮﺠﻠﺗ ﺮﺒﻋ ﺎﻨﻌﻣ ﻞﺻﺍﻮﺗ ﺡﺎﺘﻔﻣ ﻰﻠﻋ ﻝﻮﺼﺤﻠﻟ @Qst_30");
         ImVec2 hps = CalcTextSize(help);
         SetCursorPosX((cardW - hps.x) * 0.5f);
-        TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", help);
+        TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", help);
     }
 
     End();
