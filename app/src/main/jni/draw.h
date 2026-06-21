@@ -1396,7 +1396,7 @@ static void DrawFloatingButton(ImGuiIO& io) {
         ImVec2 dd = ImGui::GetMouseDragDelta(0);
         bool wasTap = (dd.x * dd.x + dd.y * dd.y) < 16.0f;  // <4px total movement
         if (IsItemHovered() && IsMouseReleased(0) && wasTap) {
-            g_menu.isOpen = true;
+            g_menu.isOpen = !g_menu.isOpen;
         }
 
         bool hov = IsItemHovered();
