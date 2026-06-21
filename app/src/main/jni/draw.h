@@ -22,6 +22,7 @@ using namespace std;
 
 #include "ButtonClicker.h"
 #include "8bp/inc/AutoPlay.h"
+#include "logo.h"
 
 static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
@@ -1346,49 +1347,56 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
 
 static void DrawFloatingButton(ImGuiIO& io) {
-    if (g_menu.hideForCapture) return;
-    static ImVec2 buttonPos = ImVec2(80, 160);
-    static bool isDragging = false;
-    static float hoverAnim = 0.0f;
+    static GLuint logo_tex   = LoadTextureFromMemory(logo_png, logo_png_len);
+    static bool   isDragging = false;
 
-    float R = 38.0f;
-    float S = R * 2.0f;
+    float buttonRadius = 65.0f;
+    float buttonSize   = buttonRadius * 2.0f;
+    float winSize      = buttonSize + 10.0f;
+    float margin       = 8.0f;
 
-    SetNextWindowPos(buttonPos, ImGuiCond_Always);
-    SetNextWindowSize(ImVec2(S + 10, S + 10), ImGuiCond_Always);
-    PushStyleColor(ImGuiCol_WindowBg, ImVec4(0,0,0,0));
-    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0));
+    float toggleWinH = GetFrameHeight() * 1.7f + GetStyle().WindowPadding.y * 2.0f;
+    const float rightMargin = 20.0f;
+    float toggleWinW = GetFrameHeight() * 1.7f + GetStyle().WindowPadding.x * 2.0f;
+    float fixedX = io.DisplaySize.x - rightMargin - ImMax(winSize, toggleWinW);
+
+    if (g_sideBtnsY == 0.0f)
+        g_sideBtnsY = io.DisplaySize.y - 80.0f - toggleWinH;
+
+    float posY = g_sideBtnsY - winSize - margin;
+
+    SetNextWindowPos(ImVec2(fixedX, posY), ImGuiCond_Always);
+    SetNextWindowSize(ImVec2(winSize, winSize), ImGuiCond_Always);
+    PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
-    if (Begin(O("##QPFloat"), nullptr, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoBackground|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings)) {
-        ImDrawList* dl = GetWindowDrawList();
-        ImVec2 c = ImVec2(buttonPos.x + R + 2, buttonPos.y + R + 2);
-        SetCursorPos(ImVec2(0,0));
-        InvisibleButton(O("##QPFloatHit"), ImVec2(S, S));
-        bool hov = IsItemHovered();
-        float tgt = hov ? 1.0f : 0.0f;
-        hoverAnim += (tgt - hoverAnim) * io.DeltaTime * 10.0f;
-        float r = R + hoverAnim * 3.0f;
+    if (Begin(O("##FloatBtn"), nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
 
+        ImDrawList* dl     = GetWindowDrawList();
+        ImVec2      center = ImVec2(fixedX + buttonRadius + 5, posY + buttonRadius + 5);
 
-        dl->AddCircleFilled(ImVec2(c.x + 2, c.y + 3), r, IM_COL32(0,0,0,90), 48);
-        dl->AddCircleFilled(c, r,       COL_GOLD,       48);
-        dl->AddCircleFilled(c, r - 3,   IM_COL32(14, 22, 38, 255), 48);
-        dl->AddCircle(c, r,             COL_GOLD_BRIGHT, 48, 2.0f);
+        SetCursorPos(ImVec2(0, 0));
+        InvisibleButton(O("##FloatBtnHit"), ImVec2(winSize, winSize));
 
-        SetWindowFontScale(1.4f);
-        ImVec2 ts = CalcTextSize("CM");
-        dl->AddText(ImVec2(c.x - ts.x*0.5f, c.y - ts.y*0.5f), COL_GOLD_BRIGHT, "CM");
-        SetWindowFontScale(1.0f);
+        // Draw logo — no animations, fixed size
+        dl->AddImage((void*)(intptr_t)logo_tex,
+                     ImVec2(center.x - buttonRadius, center.y - buttonRadius),
+                     ImVec2(center.x + buttonRadius, center.y + buttonRadius));
 
+        // Vertical-only drag moves both buttons together via g_sideBtnsY
         if (IsItemActive() && IsMouseDragging(0)) {
             isDragging = true;
-            buttonPos.x += io.MouseDelta.x;
-            buttonPos.y += io.MouseDelta.y;
-            buttonPos.x = ImClamp(buttonPos.x, 0.0f, (float)Width  - S);
-            buttonPos.y = ImClamp(buttonPos.y, 0.0f, (float)Height - S);
+            g_sideBtnsY += io.MouseDelta.y;
+            g_sideBtnsY = ImClamp(g_sideBtnsY, winSize + margin,
+                                  io.DisplaySize.y - 80.0f - toggleWinH);
         }
-        if (IsItemHovered() && IsMouseReleased(0) && !isDragging) g_menu.isOpen = !g_menu.isOpen;
+
+        if (IsItemHovered() && IsMouseReleased(0) && !isDragging)
+            g_menu.isOpen = !g_menu.isOpen;
+
         if (!IsItemActive()) isDragging = false;
     }
     End();
