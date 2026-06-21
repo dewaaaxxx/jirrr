@@ -780,6 +780,8 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
     PopStyleColor();
 }
 
+static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
+
 INLINE void DrawESP(ImDrawList* draw) {
     if (!sharedGameManager) return;
     auto stateMgr = sharedGameManager.mStateManager();
@@ -840,8 +842,8 @@ INLINE void DrawESP(ImDrawList* draw) {
 // ==========================================================================
 
         // Cek 2 kondisi: Status ON, DAN user sudah sengaja menekan tombol (GameReady)
-        if (persistent_bool[O("bAutoPlay")] && g_GameReady) {
-            AutoPlay::Update();
+        if (persistent_bool[O("bAutoPlay")]) {
+            DrawToggleButton();
         }
 
     //    AutoPlay::UpdateScanMode();
