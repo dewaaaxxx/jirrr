@@ -1327,6 +1327,8 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
             ImGuiWindowFlags wf = ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse;
             if (Begin(O("##QPMenu"), &g_menu.isOpen, wf)) {
+                static GLuint lyn4xp_menu_tex = LoadTextureFromMemory(logo_png, logo_png_len);
+                
                 ImDrawList* dl = GetWindowDrawList();
                 ImVec2 wp = GetWindowPos();
 
