@@ -785,7 +785,7 @@ static void DrawToggleButton() {
     static GLuint play_on_tex  = LoadTextureFromMemory(play_on_png,  play_on_png_len);
     static GLuint play_off_tex = LoadTextureFromMemory(play_off_png, play_off_png_len);
 
-    float button_size   = 130.f;
+    float button_size   = 80.f;
     float winPadX       = GetStyle().WindowPadding.x;
     float winPadY       = GetStyle().WindowPadding.y;
     float windowWidth   = button_size + winPadX * 2.0f;
@@ -833,7 +833,9 @@ static void DrawToggleButton() {
         // Logika Klik (Toggle ON/OFF)
         if (clicked) {
             AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
-            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+            if (AutoPlay::bAutoPlaying) {
+                 AutoPlay::Update(); 
+            }
         }
     }
     End();
