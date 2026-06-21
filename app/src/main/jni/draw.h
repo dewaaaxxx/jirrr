@@ -259,7 +259,6 @@ static bool GoldSidebarButton(const char* label, const char* icon, bool selected
     ImGuiContext& g = *GImGui;
     const ImGuiID id = window->GetID(label);
 
-
     ImVec2 pos  = window->DC.CursorPos;
     ImVec2 size = ImVec2(width - 16.0f, 86.0f);
     const ImRect bb(pos, pos + size);
@@ -276,33 +275,34 @@ static bool GoldSidebarButton(const char* label, const char* icon, bool selected
 
     ImDrawList* dl = window->DrawList;
 
+    // ===== FIX: WARNA HIJAU =====
     if (selected) {
         dl->AddRectFilledMultiColor(bb.Min, bb.Max,
-            IM_COL32(180, 140, 50, 255), IM_COL32(120, 90, 30, 255),
-            IM_COL32(90, 70, 25, 255),  IM_COL32(150, 115, 40, 255));
+            IM_COL32(30, 150, 80, 255),     // Hijau tua
+            IM_COL32(20, 100, 55, 255),      // Hijau gelap
+            IM_COL32(15, 70, 40, 255),       // Hijau sangat gelap
+            IM_COL32(25, 120, 65, 255));     // Hijau sedang
         dl->AddRect(bb.Min, bb.Max, COL_GOLD_BRIGHT, 12.0f, 0, 1.8f);
 
-        dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(245, 210, 110, 35), 12.0f);
+        dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(46, 204, 113, 35), 12.0f);
 
         dl->AddRectFilled(ImVec2(bb.Max.x - 4, bb.Min.y + 10),
                           ImVec2(bb.Max.x,     bb.Max.y - 10), COL_GOLD_BRIGHT, 2.0f);
     } else if (t > 0.01f) {
-        dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(60, 75, 100, (int)(95*t)), 12.0f);
+        dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(46, 204, 113, (int)(95*t)), 12.0f);
     }
 
-    ImU32 textCol = selected ? IM_COL32(255,250,235,255) : IM_COL32(210,215,228,(int)(210+45*t));
-    ImU32 iconCol = selected ? COL_GOLD_BRIGHT          : IM_COL32(180,188,205,(int)(190+65*t));
-
+    ImU32 textCol = selected ? IM_COL32(220, 255, 220, 255) : IM_COL32(160, 200, 180, (int)(210+45*t));
+    ImU32 iconCol = selected ? COL_GOLD_BRIGHT : IM_COL32(46, 204, 113, (int)(190+65*t));
 
     int tabIdx = 0;
     if (icon && icon[0] >= '0' && icon[0] <= '9') tabIdx = icon[0] - '0';
     ImVec2 iconCenter = ImVec2(bb.Min.x + 36.0f, bb.Min.y + size.y * 0.5f);
     dl->AddCircleFilled(iconCenter, 21.0f,
-        selected ? IM_COL32(40, 28, 10, 255) : IM_COL32(22, 32, 52, 255), 32);
+        selected ? IM_COL32(10, 50, 25, 255) : IM_COL32(22, 32, 52, 255), 32);
     dl->AddCircle(iconCenter, 21.0f,
-        selected ? COL_GOLD_BRIGHT : IM_COL32(60, 75, 100, 200), 32, 1.4f);
+        selected ? COL_GOLD_BRIGHT : IM_COL32(46, 204, 113, 200), 32, 1.4f);
     DrawTabIcon(dl, tabIdx, iconCenter, iconCol);
-
 
     ImVec2 textSize = CalcTextSize(label);
     ImVec2 textPos  = ImVec2(bb.Min.x + 78.0f, bb.Min.y + (size.y - textSize.y) * 0.5f);
@@ -1028,11 +1028,15 @@ static void DrawOrnateFrame(ImDrawList* dl, ImVec2 a, ImVec2 b){
 static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
     ImDrawList* dl = GetWindowDrawList();
 
-
     ImVec2 a = ImVec2(winPos.x + 16,            winPos.y + 80);
     ImVec2 b = ImVec2(winPos.x + sidebarW + 16, winPos.y + winH - 20);
     dl->AddRectFilled(a, b, IM_COL32(14, 22, 38, 255), 14.0f);
     dl->AddRect(a, b, IM_COL32(50, 65, 90, 200), 14.0f, 0, 1.0f);
+
+    // ===== TAMBAH: Aksen hijau di atas sidebar =====
+    dl->AddRectFilled(ImVec2(winPos.x + 16, winPos.y + 78), 
+                      ImVec2(winPos.x + sidebarW + 16, winPos.y + 81), 
+                      COL_GOLD, 4.0f);
 
     SetCursorPos(ImVec2(22, 96));
     BeginGroup();
