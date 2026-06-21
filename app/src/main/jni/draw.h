@@ -24,6 +24,8 @@ using namespace std;
 #include "8bp/inc/AutoPlay.h"
 #include "logo.h"
 
+static float g_sideBtnsY      = 0.0f;
+
 static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
 static std::chrono::steady_clock::time_point g_aqCountdownStart;
