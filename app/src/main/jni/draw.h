@@ -857,7 +857,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         int lineStyle = persistent_int["iLineStyle"];
 
-         if (persistent_bool[O("bESP_DrawPredictionLine")] && g_bInGame) {
+         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
             if (predA < 0.01f) predA = 1.0f;
             auto getCol = [&](int idx) -> ImU32 {
@@ -1076,9 +1076,9 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                     &persistent_bool[O("bESP_DrawPocketsShotState")]);
             Dummy(ImVec2(0,8));
             
-            needSave |= GoldSliderFloat("##slt", "Line Thickness", &persistent_float["fLineThick"], 0.5f, 8.0f, "%.1f px");
+            need_save |= GoldSliderFloat("##slt", "Line Thickness", &persistent_float["fLineThick"], 0.5f, 8.0f, "%.1f px");
             Dummy(ImVec2(0,8));
-            needSave |= GoldSliderFloat("##sla", "Line Opacity", &persistent_float["fPredAlpha"], 0.05f, 1.0f, "%.2f");
+            need_save |= GoldSliderFloat("##sla", "Line Opacity", &persistent_float["fPredAlpha"], 0.05f, 1.0f, "%.2f");
             Dummy(ImVec2(0,8));
             
            /*TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), "Line Thickness");
