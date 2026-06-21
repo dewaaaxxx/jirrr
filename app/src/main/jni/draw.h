@@ -384,15 +384,17 @@ static bool GoldToggle(const char* label, const char* sub, bool* v){
     dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12), COL_TEXT, label);
     if (sub && *sub) dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12 + ts.y + 4), COL_TEXT_FAINT, sub);
 
-
     ImVec2 togPos = ImVec2(bb.Max.x - tw - 18.0f, bb.Min.y + (rowH - th) * 0.5f);
     ImVec2 togEnd = ImVec2(togPos.x + tw, togPos.y + th);
 
+    // ===== FIX: Warna aktif jadi HIJAU =====
     ImVec4 off = ImVec4(0.18f, 0.22f, 0.30f, 1.0f);
-    ImVec4 on  = ImVec4(0.83f, 0.68f, 0.29f, 1.0f);
+    ImVec4 on  = ImVec4(0.18f, 0.80f, 0.44f, 1.0f);  // Hijau zamrud (#2ECC71)
     ImVec4 cur = ImLerp(off, on, t);
     dl->AddRectFilled(togPos, togEnd, ImColor(cur), r);
-    if (t > 0.05f) dl->AddRect(togPos, togEnd, IM_COL32(245, 210, 110, (int)(255*t)), r, 0, 1.2f);
+    
+    // Border hijau saat aktif
+    if (t > 0.05f) dl->AddRect(togPos, togEnd, IM_COL32(46, 204, 113, (int)(255*t)), r, 0, 1.2f);
 
     float kx = togPos.x + r + (tw - th) * t;
     float ky = togPos.y + r;
