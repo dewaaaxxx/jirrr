@@ -1125,9 +1125,9 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,16));*/
 
 
-            need_save |= GoldToggle(L("Hide overlay while capturing","ﺮﻳﻮﺼﺘﻠﻟ ﻙﺎﻬﻟﺍ ﺀﺎﻨﺛﺃ ﺀﺎﻔﺧﺍ"),
+/*            need_save |= GoldToggle(L("Hide overlay while capturing","ﺮﻳﻮﺼﺘﻠﻟ ﻙﺎﻬﻟﺍ ﺀﺎﻨﺛﺃ ﺀﺎﻔﺧﺍ"),
                                     L("",""),
-                                    &g_menu.hideForCapture);
+                                    &g_menu.hideForCapture);*/
             Dummy(ImVec2(0,8));
 
 
