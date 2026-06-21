@@ -639,7 +639,7 @@ namespace AutoPlay {
     }
     
     void Update() {
-        if (!persistent_bool[O("bAutoPlay")] || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        if (!AutoPlay::bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
         state = IDLE;
         return;
         }
