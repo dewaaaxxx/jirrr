@@ -902,7 +902,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 // ===========================================================================
         
         if (persistent_bool[O("bAutoPlay")]) {
-             DrawToggleButton(false);
+             DrawToggleButton();
         }
 
     //    AutoPlay::UpdateScanMode();
