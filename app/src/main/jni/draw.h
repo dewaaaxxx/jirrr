@@ -1258,7 +1258,8 @@ PopStyleVar();*/
         }
         case 2: { 
             Dummy(ImVec2(0,4));
-            need_save |= GoldToggle(L("Enable Auto Queue","ﻲﺋﺎﻘﻠﺘﻟﺍ ﻝﻮﺧﺪﻟﺍ ﻞﻴﻌﻔﺗ"),
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Coming Soon","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
+          /*  need_save |= GoldToggle(L("Enable Auto Queue","ﻲﺋﺎﻘﻠﺘﻟﺍ ﻝﻮﺧﺪﻟﺍ ﻞﻴﻌﻔﺗ"),
                                     L("","ً"),
                                     &persistent_bool[O("bAutoQueue")]);
             Dummy(ImVec2(0,12));
@@ -1267,7 +1268,7 @@ PopStyleVar();*/
             need_save |= GoldCombo(L("Mode","ﻊﺿﻮﻟﺍ"),
                                    L("Queue selection mode","ﺔﻟﻭﺎﻄﻟﺍ ﺭﺎﻴﺘﺧﺍ ﺔﻘﻳﺮﻃ"),
                                    &persistent_int["iAutoQueue_Mode"],
-                                   persistent_int["iLang"]==1 ? itemsAr : items);
+                                   persistent_int["iLang"]==1 ? itemsAr : items);*/
             break;
         }
         case 3: { 
