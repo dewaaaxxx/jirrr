@@ -23,6 +23,8 @@ using namespace std;
 #include "ButtonClicker.h"
 #include "8bp/inc/AutoPlay.h"
 #include "logo.h"
+#include "on.h"
+#include "off.h"
 
 static float g_sideBtnsY      = 0.0f;
 static float g_sideBtnsX      = 0.0f;
@@ -1298,6 +1300,68 @@ INLINE void DrawMenu(ImGuiIO& io) {
             PopStyleColor();
         }
     }
+}
+
+static void DrawToggleButton() {
+    ImGuiIO& io = GetIO();
+
+    static GLuint play_on_tex  = LoadTextureFromMemory(play_on_png,  play_on_png_len);
+    static GLuint play_off_tex = LoadTextureFromMemory(play_off_png, play_off_png_len);
+
+    float button_size   = 130.f;
+    float winPadX       = GetStyle().WindowPadding.x;
+    float winPadY       = GetStyle().WindowPadding.y;
+    float windowWidth   = button_size + winPadX * 2.0f;
+    float windowHeight  = button_size + winPadY * 2.0f;
+
+    const float rightMargin  = 20.0f;
+    float fixedX = io.DisplaySize.x - rightMargin - windowWidth;
+
+    if (g_sideBtnsY == 0.0f)
+        g_sideBtnsY = io.DisplaySize.y - 20.0f - windowHeight;
+
+    SetNextWindowSize(ImVec2(windowWidth, windowHeight), ImGuiCond_Always);
+    SetNextWindowPos(ImVec2(fixedX, g_sideBtnsY), ImGuiCond_Always);
+
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
+    PushStyleColor(ImGuiCol_Border,   IM_COL32(0, 0, 0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowRounding, 99.0f);
+
+    if (Begin(O("##ToggleBtn"), nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove)) {
+
+        ImVec2 pos    = GetCursorScreenPos();
+        ImVec2 size(button_size, button_size);
+        ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
+
+        bool clicked = InvisibleButton(O("##TglBtnHit"), size);
+
+        // Pilih tekstur berdasarkan status AutoPlay
+        GLuint tex = AutoPlay::bAutoPlaying ? play_on_tex : play_off_tex;
+
+        float r = size.x * 0.5f;
+        ImDrawList* dl = GetWindowDrawList();
+        dl->AddImage((void*)(intptr_t)tex,
+            ImVec2(center.x - r, center.y - r),
+            ImVec2(center.x + r, center.y + r));
+
+        // Vertical-only drag (Geser tombol)
+        if (IsItemActive() && IsMouseDragging(ImGuiMouseButton_Left)) {
+            g_sideBtnsY += io.MouseDelta.y;
+            g_sideBtnsY = ImClamp(g_sideBtnsY, 0.0f, io.DisplaySize.y - windowHeight);
+            SetWindowPos(ImVec2(fixedX, g_sideBtnsY), ImGuiCond_Always);
+        }
+
+        // Logika Klik (Toggle ON/OFF)
+        if (clicked) {
+            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
+            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+        }
+    }
+    End();
+    PopStyleVar();
+    PopStyleColor(2);
 }
 
 static void DrawFloatingButton(ImGuiIO& io) {
