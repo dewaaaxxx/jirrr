@@ -1327,8 +1327,6 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
             ImGuiWindowFlags wf = ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse;
             if (Begin(O("##QPMenu"), &g_menu.isOpen, wf)) {
-                static GLuint lyn4xp_menu_tex = LoadTextureFromMemory(logo_png, logo_png_len);
-                
                 ImDrawList* dl = GetWindowDrawList();
                 ImVec2 wp = GetWindowPos();
 
@@ -1349,7 +1347,6 @@ INLINE void DrawMenu(ImGuiIO& io) {
     }
 }
 
-
 static void DrawFloatingButton(ImGuiIO& io) {
     if (g_menu.isOpen) return;
 
@@ -1358,13 +1355,19 @@ static void DrawFloatingButton(ImGuiIO& io) {
     float winSize = btnR * 2.0f + 8.0f;
     const float rightMargin = 24.0f;
 
-    if (g_sideBtnsY <= 0.0f) g_sideBtnsY = io.DisplaySize.y - 150.0f;
+    // Initialise shared position to bottom-right (first frame only)
+    if (g_sideBtnsX <= 0.0f)
+        g_sideBtnsX = io.DisplaySize.x - rightMargin;
+    if (g_sideBtnsY <= 0.0f)
+        g_sideBtnsY = io.DisplaySize.y - 150.0f;
 
+    // Floating button sits 100px ABOVE the toggle button, centred on same X anchor
     float toggleWidth = 78.f + (GetStyle().WindowPadding.x * 2.0f);
-    float fixedX = io.DisplaySize.x - rightMargin - toggleWidth + (toggleWidth - winSize) * 0.5f;
-    float posY   = g_sideBtnsY - 100.0f;
+    float posX = ImClamp(g_sideBtnsX - toggleWidth + (toggleWidth - winSize) * 0.5f,
+                         0.0f, io.DisplaySize.x - winSize);
+    float posY = g_sideBtnsY - 100.0f;
 
-    SetNextWindowPos(ImVec2(fixedX, posY), ImGuiCond_Always);
+    SetNextWindowPos(ImVec2(posX, posY), ImGuiCond_Always);
     SetNextWindowSize(ImVec2(winSize, winSize), ImGuiCond_Always);
 
     PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -1376,18 +1379,23 @@ static void DrawFloatingButton(ImGuiIO& io) {
               ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
 
         ImDrawList* dl = GetWindowDrawList();
-        ImVec2 center  = ImVec2(fixedX + winSize * 0.5f, posY + winSize * 0.5f);
+        ImVec2 center  = ImVec2(posX + winSize * 0.5f, posY + winSize * 0.5f);
 
         InvisibleButton(O("##FloatBtnHit"), ImVec2(winSize, winSize));
 
-        // Drag moves the whole button group
+        // Drag: move BOTH X and Y freely anywhere on screen
         if (IsItemActive() && IsMouseDragging(ImGuiMouseButton_Left)) {
+            g_sideBtnsX += io.MouseDelta.x;
             g_sideBtnsY += io.MouseDelta.y;
-            g_sideBtnsY = ImClamp(g_sideBtnsY, 140.0f, io.DisplaySize.y - 130.0f);
+            // Clamp: keep buttons fully visible
+            g_sideBtnsX = ImClamp(g_sideBtnsX, toggleWidth, io.DisplaySize.x - 4.0f);
+            g_sideBtnsY = ImClamp(g_sideBtnsY, 140.0f,      io.DisplaySize.y - 80.0f);
         }
 
-        // Tap opens menu
-        if (IsItemHovered() && IsMouseReleased(0) && ImGui::GetMouseDragDelta(0).y == 0) {
+        // Tap opens menu — use total drag distance, not just Y
+        ImVec2 dd = ImGui::GetMouseDragDelta(0);
+        bool wasTap = (dd.x * dd.x + dd.y * dd.y) < 16.0f;  // <4px total movement
+        if (IsItemHovered() && IsMouseReleased(0) && wasTap) {
             g_menu.isOpen = true;
         }
 
@@ -1398,8 +1406,17 @@ static void DrawFloatingButton(ImGuiIO& io) {
         // Main filled circle — dark
         dl->AddCircleFilled(center, btnR, hov ? IM_COL32(38, 38, 48, 245) : IM_COL32(22, 22, 30, 230));
         // Red accent border
-        dl->AddCircle(center, btnR, IM_COL32(0, 255, 100, hov ? 255 : 180), 0, 2.5f);
+        dl->AddCircle(center, btnR, IM_COL32(200, 30, 30, hov ? 255 : 180), 0, 2.5f);
 
+        // LYN4XP logo inside floating button
+        static GLuint s_lyn4xp_float_tex = LoadTextureFromMemory(logo_png, logo_png_len);
+        if (s_lyn4xp_float_tex) {
+            float imgSz = btnR * 0.95f;
+            ImVec2 iMin(center.x - imgSz, center.y - imgSz);
+            ImVec2 iMax(center.x + imgSz, center.y + imgSz);
+            dl->AddImageRounded((void*)(intptr_t)s_lyn4xp_float_tex, iMin, iMax,
+                ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,230), btnR * 0.60f);
+        }
     }
     End();
     PopStyleVar(2);
