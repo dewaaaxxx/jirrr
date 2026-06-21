@@ -1349,26 +1349,22 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
 
 static void DrawFloatingButton(ImGuiIO& io) {
-    static GLuint logo_tex   = LoadTextureFromMemory(logo_png, logo_png_len);
-    static bool   isDragging = false;
+    if (g_menu.isOpen) return;
 
-    float buttonRadius = 65.0f;
-    float buttonSize   = buttonRadius * 2.0f;
-    float winSize      = buttonSize + 10.0f;
-    float margin       = 8.0f;
+    // Simple floating button — clean circle design
+    float btnR    = 38.0f;   // radius
+    float winSize = btnR * 2.0f + 8.0f;
+    const float rightMargin = 24.0f;
 
-    float toggleWinH = GetFrameHeight() * 1.7f + GetStyle().WindowPadding.y * 2.0f;
-    const float rightMargin = 20.0f;
-    float toggleWinW = GetFrameHeight() * 1.7f + GetStyle().WindowPadding.x * 2.0f;
-    float fixedX = io.DisplaySize.x - rightMargin - ImMax(winSize, toggleWinW);
+    if (g_sideBtnsY <= 0.0f) g_sideBtnsY = io.DisplaySize.y - 150.0f;
 
-    if (g_sideBtnsY == 0.0f)
-        g_sideBtnsY = io.DisplaySize.y - 80.0f - toggleWinH;
-
-    float posY = g_sideBtnsY - winSize - margin;
+    float toggleWidth = 78.f + (GetStyle().WindowPadding.x * 2.0f);
+    float fixedX = io.DisplaySize.x - rightMargin - toggleWidth + (toggleWidth - winSize) * 0.5f;
+    float posY   = g_sideBtnsY - 100.0f;
 
     SetNextWindowPos(ImVec2(fixedX, posY), ImGuiCond_Always);
     SetNextWindowSize(ImVec2(winSize, winSize), ImGuiCond_Always);
+
     PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -1377,29 +1373,31 @@ static void DrawFloatingButton(ImGuiIO& io) {
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
               ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
 
-        ImDrawList* dl     = GetWindowDrawList();
-        ImVec2      center = ImVec2(fixedX + buttonRadius + 5, posY + buttonRadius + 5);
+        ImDrawList* dl = GetWindowDrawList();
+        ImVec2 center  = ImVec2(fixedX + winSize * 0.5f, posY + winSize * 0.5f);
 
-        SetCursorPos(ImVec2(0, 0));
         InvisibleButton(O("##FloatBtnHit"), ImVec2(winSize, winSize));
 
-        // Draw logo — no animations, fixed size
-        dl->AddImage((void*)(intptr_t)logo_tex,
-                     ImVec2(center.x - buttonRadius, center.y - buttonRadius),
-                     ImVec2(center.x + buttonRadius, center.y + buttonRadius));
-
-        // Vertical-only drag moves both buttons together via g_sideBtnsY
-        if (IsItemActive() && IsMouseDragging(0)) {
-            isDragging = true;
+        // Drag moves the whole button group
+        if (IsItemActive() && IsMouseDragging(ImGuiMouseButton_Left)) {
             g_sideBtnsY += io.MouseDelta.y;
-            g_sideBtnsY = ImClamp(g_sideBtnsY, winSize + margin,
-                                  io.DisplaySize.y - 80.0f - toggleWinH);
+            g_sideBtnsY = ImClamp(g_sideBtnsY, 140.0f, io.DisplaySize.y - 130.0f);
         }
 
-        if (IsItemHovered() && IsMouseReleased(0) && !isDragging)
-            g_menu.isOpen = !g_menu.isOpen;
+        // Tap opens menu
+        if (IsItemHovered() && IsMouseReleased(0) && ImGui::GetMouseDragDelta(0).y == 0) {
+            g_menu.isOpen = true;
+        }
 
-        if (!IsItemActive()) isDragging = false;
+        bool hov = IsItemHovered();
+
+        // Outer glow ring
+        dl->AddCircle(center, btnR + 5.0f, IM_COL32(200, 30, 30, hov ? 120 : 60), 0, 2.0f);
+        // Main filled circle — dark
+        dl->AddCircleFilled(center, btnR, hov ? IM_COL32(38, 38, 48, 245) : IM_COL32(22, 22, 30, 230));
+        // Red accent border
+        dl->AddCircle(center, btnR, IM_COL32(200, 30, 30, hov ? 255 : 180), 0, 2.5f);
+
     }
     End();
     PopStyleVar(2);
