@@ -27,6 +27,7 @@ using namespace std;
 #include "off.h"
 
 static float g_sideBtnsY      = 0.0f;
+static bool g_GameReady = false; // Penanda game sudah siap
 static float g_sideBtnsX      = 0.0f;
 static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
@@ -832,10 +833,11 @@ static void DrawToggleButton() {
 
         // Logika Klik (Toggle ON/OFF)
         if (clicked) {
-            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
-            if (AutoPlay::bAutoPlaying) {
-                 AutoPlay::Update(); 
-            }
+            persistent_bool[O("bAutoPlay")] = !persistent_bool[O("bAutoPlay")];
+            AutoPlay::bAutoPlaying = persistent_bool[O("bAutoPlay")];
+            // ✅ TAMBAHKAN INI: Tandai bahwa user sudah sengaja menekan tombol
+            g_GameReady = true; 
+            if (!AutoPlay::bAutoPlaying) AutoPlay::ClearState();
         }
     }
     End();
@@ -901,10 +903,11 @@ INLINE void DrawESP(ImDrawList* draw) {
         AutoPlay::scan = AutoPlay::FAST;
     }
 }*/
-// ===========================================================================
-        
-        if (persistent_bool[O("bAutoPlay")]) {
-             DrawToggleButton();
+// ==========================================================================
+
+        // Cek 2 kondisi: Status ON, DAN user sudah sengaja menekan tombol (GameReady)
+        if (persistent_bool[O("bAutoPlay")] && g_GameReady) {
+            AutoPlayUpdate();
         }
 
     //    AutoPlay::UpdateScanMode();
