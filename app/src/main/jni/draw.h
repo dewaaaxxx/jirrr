@@ -1348,7 +1348,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 }
 
 static void DrawFloatingButton(ImGuiIO& io) {
-    if (g_menu.isOpen) return;
+   // if (g_menu.isOpen) return;
 
     // Simple floating button — clean circle design
     float btnR    = 38.0f;   // radius
