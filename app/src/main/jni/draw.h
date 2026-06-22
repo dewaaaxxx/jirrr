@@ -1155,6 +1155,14 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
             Dummy(ImVec2(0, 8));
 
+            float sens = persistent_float["fAngleDragSensitivity"];
+if (sens < 1.0f) sens = 220.0f;
+if (GoldSliderFloat("Drag Sensitivity", "Higher = shorter drag", &sens, 50.0f, 500.0f, "%.0f")) {
+    persistent_float["fAngleDragSensitivity"] = sens;
+    need_save = true;
+}
+            Dummy(ImVec2(0, 8));
+
 
             /*need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
