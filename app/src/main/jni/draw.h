@@ -1104,8 +1104,6 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         case 0: { 
 
            Dummy(ImVec2(0,4));
-            DrawTableCalibration();
-            Dummy(ImVec2(0,10));
 
             need_save |= GoldToggle(L("Draw Prediction Lines","ﻁﻮﻄﺧ ﻢﺳﺭ"),
                                     L("",""),
