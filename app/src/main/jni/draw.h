@@ -1086,13 +1086,14 @@ static float g_calibRight = 665.0f;
 static float g_calibTop = 200.0f;
 static float g_calibBottom = 1180.0f;
 
-// ===== DRAW TABLE CALIBRATION UI =====
+// ===== DRAW TABLE CALIBRATION UI (VERSI TERBARU) =====
 static void DrawTableCalibration() {
     ImDrawList* dl = GetWindowDrawList();
 
     if (!g_calibEnabled) {
         if (Button(O("Calibrate Table Position"), ImVec2(GetContentRegionAvail().x, 0))) {
             g_calibEnabled = true;
+            // Load current values
             g_calibLeft = (float)TABLE_LEFT;
             g_calibRight = (float)TABLE_RIGHT;
             g_calibTop = (float)TABLE_TOP;
@@ -1178,48 +1179,44 @@ static void DrawTableCalibration() {
     ImDrawList* fg = ImGui::GetForegroundDrawList();
     ImVec2 center = ImVec2(Width / 2.0f, Height / 2.0f);
 
+    // Gunakan nilai g_calib* untuk preview
+    float L = g_calibLeft;
+    float R = g_calibRight;
+    float T = g_calibTop;
+    float B = g_calibBottom;
+
     // Garis tepi meja (merah terang)
     float bt = 3.0f;
-    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_TOP),
-                IM_COL32(255, 0, 0, 255), bt);
-    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_BOTTOM), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 255), bt);
-    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_LEFT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 255), bt);
-    fg->AddLine(ImVec2(TABLE_RIGHT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(L, T), ImVec2(R, T), IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(L, B), ImVec2(R, B), IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(L, T), ImVec2(L, B), IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(R, T), ImVec2(R, B), IM_COL32(255, 0, 0, 255), bt);
 
     // Glow
-    fg->AddLine(ImVec2(TABLE_LEFT-2, TABLE_TOP-2), ImVec2(TABLE_RIGHT+2, TABLE_TOP-2),
-                IM_COL32(255,50,50,60), 8.0f);
-    fg->AddLine(ImVec2(TABLE_LEFT-2, TABLE_BOTTOM+2), ImVec2(TABLE_RIGHT+2, TABLE_BOTTOM+2),
-                IM_COL32(255,50,50,60), 8.0f);
-    fg->AddLine(ImVec2(TABLE_LEFT-2, TABLE_TOP-2), ImVec2(TABLE_LEFT-2, TABLE_BOTTOM+2),
-                IM_COL32(255,50,50,60), 8.0f);
-    fg->AddLine(ImVec2(TABLE_RIGHT+2, TABLE_TOP-2), ImVec2(TABLE_RIGHT+2, TABLE_BOTTOM+2),
-                IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(L-2, T-2), ImVec2(R+2, T-2), IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(L-2, B+2), ImVec2(R+2, B+2), IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(L-2, T-2), ImVec2(L-2, B+2), IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(R+2, T-2), ImVec2(R+2, B+2), IM_COL32(255,50,50,60), 8.0f);
 
     // Titik sudut
     float dr = 8.0f;
-    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_TOP), dr, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_TOP), dr, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_BOTTOM), dr, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_BOTTOM), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(L, T), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(R, T), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(L, B), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(R, B), dr, IM_COL32(255,0,0,255));
 
     // Label koordinat
     char buf[64];
-    snprintf(buf, sizeof(buf), "L:%.0f  R:%.0f  T:%.0f  B:%.0f",
-             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
+    snprintf(buf, sizeof(buf), "L:%.0f  R:%.0f  T:%.0f  B:%.0f", L, R, T, B);
     ImVec2 ts = CalcTextSize(buf);
-    float labelY = TABLE_BOTTOM + 30.0f;
-    if (labelY + ts.y + 20 > Height) labelY = TABLE_TOP - 40.0f;
+    float labelY = B + 30.0f;
+    if (labelY + ts.y + 20 > Height) labelY = T - 40.0f;
     fg->AddRectFilled(ImVec2(center.x - ts.x/2 - 8, labelY - 4),
                       ImVec2(center.x + ts.x/2 + 8, labelY + ts.y + 6),
                       IM_COL32(0,0,0,200), 6.0f);
     fg->AddText(ImVec2(center.x - ts.x/2, labelY),
                 IM_COL32(255,255,255,255), buf);
 }
-
 
 static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPos){
     bool need_save = false;
