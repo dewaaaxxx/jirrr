@@ -1081,31 +1081,25 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
 
 // ===== TABLE CALIBRATION STATE =====
 static bool g_calibEnabled = false;
-static float g_calibLeft = 0.0f;
-static float g_calibRight = 0.0f;
-static float g_calibTop = 0.0f;
-static float g_calibBottom = 0.0f;
+static float g_calibLeft = 55.0f;
+static float g_calibRight = 665.0f;
+static float g_calibTop = 200.0f;
+static float g_calibBottom = 1180.0f;
 
-// ===== DRAW TABLE CALIBRATION UI (VERSI TERBARU) =====
-
+// ===== DRAW TABLE CALIBRATION UI =====
 static void DrawTableCalibration() {
     ImDrawList* dl = GetWindowDrawList();
 
-    // ===== KALO BELUM DI-SET, AMBIL DARI TABLE_* =====
-    if (g_calibLeft == 0.0f && g_calibRight == 0.0f) {
-        g_calibLeft = (float)TABLE_LEFT;
-        g_calibRight = (float)TABLE_RIGHT;
-        g_calibTop = (float)TABLE_TOP;
-        g_calibBottom = (float)TABLE_BOTTOM;
-    }
-
+    // Tampilkan status default
     if (!g_calibEnabled) {
-        // ===== TAMPILKAN STATUS KALIBRASI =====
+        // Cek apakah lagi pake kalibrasi atau default
         if (g_useCalibration) {
             TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("CALIBRATION ACTIVE"));
             TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using custom table position"));
         } else {
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using default table position from ScreenTable"));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using default table position"));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Default: L=%.0f R=%.0f T=%.0f B=%.0f"),
+                        TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
         }
         Dummy(ImVec2(0, 5));
         
@@ -1135,26 +1129,22 @@ static void DrawTableCalibration() {
     if (SliderFloat("Left", &g_calibLeft, 0.0f, 300.0f, "%.0f")) {
         TABLE_LEFT = g_calibLeft;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        g_useCalibration = true;
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
     if (SliderFloat("Right", &g_calibRight, 500.0f, 1400.0f, "%.0f")) {
         TABLE_RIGHT = g_calibRight;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        g_useCalibration = true;
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
     if (SliderFloat("Top", &g_calibTop, 50.0f, 500.0f, "%.0f")) {
         TABLE_TOP = g_calibTop;
-        g_useCalibration = true;
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
     if (SliderFloat("Bottom", &g_calibBottom, 500.0f, 1600.0f, "%.0f")) {
         TABLE_BOTTOM = g_calibBottom;
-        g_useCalibration = true;
     }
 
     PopStyleColor(3);
@@ -1179,7 +1169,7 @@ static void DrawTableCalibration() {
     SameLine();
 
     if (Button(O("Reset Default"), ImVec2(bw, 0))) {
-        // ===== RESET KE NILAI DEFAULT DARI SCREEN TABLE =====
+        // ===== RESET KE DEFAULT DARI SCREEN TABLE =====
         g_useCalibration = false;
         persistent_float["fTableLeft"] = 0.0f;
         persistent_float["fTableRight"] = 0.0f;
@@ -1187,7 +1177,7 @@ static void DrawTableCalibration() {
         persistent_float["fTableBottom"] = 0.0f;
         save_persistence();
         
-        // Paksa UpdateScreenTable() pake default
+        // Panggil UpdateScreenTable() biar balik ke default
         UpdateScreenTable();
         
         g_calibLeft = (float)TABLE_LEFT;
