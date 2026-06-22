@@ -1081,19 +1081,37 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
 
 // ===== TABLE CALIBRATION STATE =====
 static bool g_calibEnabled = false;
-static float g_calibLeft = 207.0;
-static float g_calibRight = 1072.0;
-static float g_calibTop = 171.0;
-static float g_calibBottom = 584.0;
+static bool g_useCalibration = false;  // ← TAMBAHKAN INI
+static float g_calibLeft = 0.0f;
+static float g_calibRight = 0.0f;
+static float g_calibTop = 0.0f;
+static float g_calibBottom = 0.0f;
 
 // ===== DRAW TABLE CALIBRATION UI (VERSI TERBARU) =====
+
 static void DrawTableCalibration() {
     ImDrawList* dl = GetWindowDrawList();
 
+    // ===== KALO BELUM DI-SET, AMBIL DARI TABLE_* =====
+    if (g_calibLeft == 0.0f && g_calibRight == 0.0f) {
+        g_calibLeft = (float)TABLE_LEFT;
+        g_calibRight = (float)TABLE_RIGHT;
+        g_calibTop = (float)TABLE_TOP;
+        g_calibBottom = (float)TABLE_BOTTOM;
+    }
+
     if (!g_calibEnabled) {
+        // ===== TAMPILKAN STATUS KALIBRASI =====
+        if (g_useCalibration) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("CALIBRATION ACTIVE"));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using custom table position"));
+        } else {
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using default table position from ScreenTable"));
+        }
+        Dummy(ImVec2(0, 5));
+        
         if (Button(O("Calibrate Table Position"), ImVec2(GetContentRegionAvail().x, 0))) {
             g_calibEnabled = true;
-            // Load current values
             g_calibLeft = (float)TABLE_LEFT;
             g_calibRight = (float)TABLE_RIGHT;
             g_calibTop = (float)TABLE_TOP;
@@ -1104,6 +1122,8 @@ static void DrawTableCalibration() {
 
     TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("TABLE CALIBRATION"));
     TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Adjust until RED lines align with table edges"));
+    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Default: L=%.0f R=%.0f T=%.0f B=%.0f"),
+                TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
     Dummy(ImVec2(0, 10));
 
     PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
@@ -1113,25 +1133,29 @@ static void DrawTableCalibration() {
     PushStyleColor(ImGuiCol_SliderGrabActive, ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT));
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Left", &g_calibLeft, 0.0f, 2000.0f, "%.0f")) {
+    if (SliderFloat("Left", &g_calibLeft, 0.0f, 300.0f, "%.0f")) {
         TABLE_LEFT = g_calibLeft;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+        g_useCalibration = true;
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Right", &g_calibRight, 500.0f, 2000.0f, "%.0f")) {
+    if (SliderFloat("Right", &g_calibRight, 500.0f, 1400.0f, "%.0f")) {
         TABLE_RIGHT = g_calibRight;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+        g_useCalibration = true;
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Top", &g_calibTop, 50.0f, 2000.0f, "%.0f")) {
+    if (SliderFloat("Top", &g_calibTop, 50.0f, 500.0f, "%.0f")) {
         TABLE_TOP = g_calibTop;
+        g_useCalibration = true;
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Bottom", &g_calibBottom, 900.0f, 1600.0f, "%.0f")) {
+    if (SliderFloat("Bottom", &g_calibBottom, 500.0f, 1600.0f, "%.0f")) {
         TABLE_BOTTOM = g_calibBottom;
+        g_useCalibration = true;
     }
 
     PopStyleColor(3);
@@ -1139,13 +1163,14 @@ static void DrawTableCalibration() {
 
     Dummy(ImVec2(0, 10));
 
-    float bw = (GetContentRegionAvail().x - 10) / 2.0f;
+    float bw = (GetContentRegionAvail().x - 10) / 3.0f;
 
     if (Button(O("Save & Apply"), ImVec2(bw, 0))) {
         persistent_float["fTableLeft"] = g_calibLeft;
         persistent_float["fTableRight"] = g_calibRight;
         persistent_float["fTableTop"] = g_calibTop;
         persistent_float["fTableBottom"] = g_calibBottom;
+        g_useCalibration = true;
         save_persistence();
         g_calibEnabled = false;
         LOGI("Table calibration saved: L=%.1f R=%.1f T=%.1f B=%.1f",
@@ -1155,62 +1180,56 @@ static void DrawTableCalibration() {
     SameLine();
 
     if (Button(O("Reset Default"), ImVec2(bw, 0))) {
-        g_calibLeft = 207.0;
-        g_calibRight = 1072.0;
-        g_calibTop = 171.0;
-        g_calibBottom = 584.0;
-        TABLE_LEFT = g_calibLeft;
-        TABLE_RIGHT = g_calibRight;
-        TABLE_TOP = g_calibTop;
-        TABLE_BOTTOM = g_calibBottom;
-        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        LOGI("Table reset to default");
+        // ===== RESET KE NILAI DEFAULT DARI SCREEN TABLE =====
+        g_useCalibration = false;
+        persistent_float["fTableLeft"] = 0.0f;
+        persistent_float["fTableRight"] = 0.0f;
+        persistent_float["fTableTop"] = 0.0f;
+        persistent_float["fTableBottom"] = 0.0f;
+        save_persistence();
+        
+        // Paksa UpdateScreenTable() pake default
+        UpdateScreenTable();
+        
+        g_calibLeft = (float)TABLE_LEFT;
+        g_calibRight = (float)TABLE_RIGHT;
+        g_calibTop = (float)TABLE_TOP;
+        g_calibBottom = (float)TABLE_BOTTOM;
+        
+        g_calibEnabled = false;
+        LOGI("Table reset to default from ScreenTable");
     }
 
-    Dummy(ImVec2(0, 10));
+    SameLine();
 
-    if (Button(O("Close Calibration"), ImVec2(GetContentRegionAvail().x, 0))) {
+    if (Button(O("Close"), ImVec2(bw, 0))) {
         g_calibEnabled = false;
     }
 
-    // ================================================================
-    // ===== PREVIEW GUIDE LINES - DI FOREGROUND =====
-    // ================================================================
+    // ===== PREVIEW GUIDE LINES =====
     ImDrawList* fg = ImGui::GetForegroundDrawList();
     ImVec2 center = ImVec2(Width / 2.0f, Height / 2.0f);
 
-    // Gunakan nilai g_calib* untuk preview
-    float L = g_calibLeft;
-    float R = g_calibRight;
-    float T = g_calibTop;
-    float B = g_calibBottom;
+    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_TOP),
+                IM_COL32(255, 0, 0, 255), 3.0f);
+    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_BOTTOM), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 255), 3.0f);
+    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_LEFT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 255), 3.0f);
+    fg->AddLine(ImVec2(TABLE_RIGHT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 255), 3.0f);
 
-    // Garis tepi meja (merah terang)
-    float bt = 3.0f;
-    fg->AddLine(ImVec2(L, T), ImVec2(R, T), IM_COL32(255, 0, 0, 255), bt);
-    fg->AddLine(ImVec2(L, B), ImVec2(R, B), IM_COL32(255, 0, 0, 255), bt);
-    fg->AddLine(ImVec2(L, T), ImVec2(L, B), IM_COL32(255, 0, 0, 255), bt);
-    fg->AddLine(ImVec2(R, T), ImVec2(R, B), IM_COL32(255, 0, 0, 255), bt);
+    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_TOP), 8.0f, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_TOP), 8.0f, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_BOTTOM), 8.0f, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_BOTTOM), 8.0f, IM_COL32(255,0,0,255));
 
-    // Glow
-    fg->AddLine(ImVec2(L-2, T-2), ImVec2(R+2, T-2), IM_COL32(255,50,50,60), 8.0f);
-    fg->AddLine(ImVec2(L-2, B+2), ImVec2(R+2, B+2), IM_COL32(255,50,50,60), 8.0f);
-    fg->AddLine(ImVec2(L-2, T-2), ImVec2(L-2, B+2), IM_COL32(255,50,50,60), 8.0f);
-    fg->AddLine(ImVec2(R+2, T-2), ImVec2(R+2, B+2), IM_COL32(255,50,50,60), 8.0f);
-
-    // Titik sudut
-    float dr = 8.0f;
-    fg->AddCircleFilled(ImVec2(L, T), dr, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(R, T), dr, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(L, B), dr, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(R, B), dr, IM_COL32(255,0,0,255));
-
-    // Label koordinat
     char buf[64];
-    snprintf(buf, sizeof(buf), "L:%.0f  R:%.0f  T:%.0f  B:%.0f", L, R, T, B);
+    snprintf(buf, sizeof(buf), "L:%.0f  R:%.0f  T:%.0f  B:%.0f",
+             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
     ImVec2 ts = CalcTextSize(buf);
-    float labelY = B + 30.0f;
-    if (labelY + ts.y + 20 > Height) labelY = T - 40.0f;
+    float labelY = TABLE_BOTTOM + 30.0f;
+    if (labelY + ts.y + 20 > Height) labelY = TABLE_TOP - 40.0f;
     fg->AddRectFilled(ImVec2(center.x - ts.x/2 - 8, labelY - 4),
                       ImVec2(center.x + ts.x/2 + 8, labelY + ts.y + 6),
                       IM_COL32(0,0,0,200), 6.0f);
