@@ -1079,153 +1079,6 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
     EndGroup();
 }
 
-// ===== TABLE CALIBRATION STATE =====
-static bool g_calibEnabled = false;
-static float g_calibLeft = 55.0f;
-static float g_calibRight = 665.0f;
-static float g_calibTop = 200.0f;
-static float g_calibBottom = 1180.0f;
-
-// ===== DRAW TABLE CALIBRATION UI =====
-static void DrawTableCalibration() {
-    ImDrawList* dl = GetWindowDrawList();
-
-    // Tampilkan status default
-    if (!g_calibEnabled) {
-        // Cek apakah lagi pake kalibrasi atau default
-        if (g_useCalibration) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("CALIBRATION ACTIVE"));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using custom table position"));
-        } else {
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Using default table position"));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Default: L=%.0f R=%.0f T=%.0f B=%.0f"),
-                        TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
-        }
-        Dummy(ImVec2(0, 5));
-        
-        if (Button(O("Calibrate Table Position"), ImVec2(GetContentRegionAvail().x, 0))) {
-            g_calibEnabled = true;
-            g_calibLeft = (float)TABLE_LEFT;
-            g_calibRight = (float)TABLE_RIGHT;
-            g_calibTop = (float)TABLE_TOP;
-            g_calibBottom = (float)TABLE_BOTTOM;
-        }
-        return;
-    }
-
-    TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("TABLE CALIBRATION"));
-    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Adjust until RED lines align with table edges"));
-    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Default: L=%.0f R=%.0f T=%.0f B=%.0f"),
-                TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
-    Dummy(ImVec2(0, 10));
-
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-    PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
-    PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-    PushStyleColor(ImGuiCol_SliderGrab, ImGui::ColorConvertU32ToFloat4(COL_GOLD));
-    PushStyleColor(ImGuiCol_SliderGrabActive, ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT));
-
-    SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Left", &g_calibLeft, 0.0f, (float)(Width * 0.4f), "%.0f")) {
-        TABLE_LEFT  = g_calibLeft;
-        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-    }
-
-    SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Right", &g_calibRight, (float)(Width * 0.3f), (float)Width, "%.0f")) {
-        TABLE_RIGHT = g_calibRight;
-        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-    }
-
-    SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Top", &g_calibTop, 0.0f, (float)(Height * 0.5f), "%.0f")) {
-        TABLE_TOP = g_calibTop;
-    }
-
-    SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Bottom", &g_calibBottom, (float)(Height * 0.3f), (float)Height, "%.0f")) {
-        TABLE_BOTTOM = g_calibBottom;
-    }
-
-    PopStyleColor(3);
-    PopStyleVar(2);
-
-    Dummy(ImVec2(0, 10));
-
-    float bw = (GetContentRegionAvail().x - 10) / 3.0f;
-
-    if (Button(O("Save & Apply"), ImVec2(bw, 0))) {
-        persistent_float["fTableLeft"] = g_calibLeft;
-        persistent_float["fTableRight"] = g_calibRight;
-        persistent_float["fTableTop"] = g_calibTop;
-        persistent_float["fTableBottom"] = g_calibBottom;
-        g_useCalibration = true;
-        save_persistence();
-        g_calibEnabled = false;
-        LOGI("Table calibration saved: L=%.1f R=%.1f T=%.1f B=%.1f",
-             g_calibLeft, g_calibRight, g_calibTop, g_calibBottom);
-    }
-
-    SameLine();
-
-    if (Button(O("Reset Default"), ImVec2(bw, 0))) {
-        // ===== RESET KE DEFAULT DARI SCREEN TABLE =====
-        g_useCalibration = false;
-        persistent_float["fTableLeft"] = 0.0f;
-        persistent_float["fTableRight"] = 0.0f;
-        persistent_float["fTableTop"] = 0.0f;
-        persistent_float["fTableBottom"] = 0.0f;
-        save_persistence();
-        
-        // Panggil UpdateScreenTable() biar balik ke default
-        UpdateScreenTable();
-        
-        g_calibLeft = (float)TABLE_LEFT;
-        g_calibRight = (float)TABLE_RIGHT;
-        g_calibTop = (float)TABLE_TOP;
-        g_calibBottom = (float)TABLE_BOTTOM;
-        
-        g_calibEnabled = false;
-        LOGI("Table reset to default from ScreenTable");
-    }
-
-    SameLine();
-
-    if (Button(O("Close"), ImVec2(bw, 0))) {
-        g_calibEnabled = false;
-    }
-
-    // ===== PREVIEW GUIDE LINES =====
-    ImDrawList* fg = ImGui::GetForegroundDrawList();
-    ImVec2 center = ImVec2(Width / 2.0f, Height / 2.0f);
-
-    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_TOP),
-                IM_COL32(255, 0, 0, 255), 3.0f);
-    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_BOTTOM), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 255), 3.0f);
-    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_LEFT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 255), 3.0f);
-    fg->AddLine(ImVec2(TABLE_RIGHT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 255), 3.0f);
-
-    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_TOP), 8.0f, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_TOP), 8.0f, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_BOTTOM), 8.0f, IM_COL32(255,0,0,255));
-    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_BOTTOM), 8.0f, IM_COL32(255,0,0,255));
-
-    char buf[64];
-    snprintf(buf, sizeof(buf), "L:%.0f  R:%.0f  T:%.0f  B:%.0f",
-             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
-    ImVec2 ts = CalcTextSize(buf);
-    float labelY = TABLE_BOTTOM + 30.0f;
-    if (labelY + ts.y + 20 > Height) labelY = TABLE_TOP - 40.0f;
-    fg->AddRectFilled(ImVec2(center.x - ts.x/2 - 8, labelY - 4),
-                      ImVec2(center.x + ts.x/2 + 8, labelY + ts.y + 6),
-                      IM_COL32(0,0,0,200), 6.0f);
-    fg->AddText(ImVec2(center.x - ts.x/2, labelY),
-                IM_COL32(255,255,255,255), buf);
-}
-
 static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPos){
     bool need_save = false;
     ImDrawList* dl = GetWindowDrawList();
@@ -1377,6 +1230,52 @@ PopStyleVar();*/
                 persistent_float["fShotDelay"] = delay;
                 need_save = true;
             }
+            Dummy(ImVec2(0,8));
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Power Slider Position"));
+    Dummy(ImVec2(0, 8));
+
+    // ── Slider X ──
+    float sliderX = persistent_float["fPSliderX"];
+    if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.00f, 0.50f, "%.3f")) {
+    persistent_float["fPSliderX"] = sliderX;
+    need_save = true;
+    }
+    Dummy(ImVec2(0, 4));
+
+    // ── Slider Top ──
+    float sliderTop = persistent_float["fPSliderTop"];
+    if (GoldSliderFloat(O("Top Position"), O("Vertical start"), &sliderTop, 0.05f, 0.50f, "%.3f")) {
+        persistent_float["fPSliderTop"] = sliderTop;
+        need_save = true;
+    }
+    Dummy(ImVec2(0, 4));
+
+    // ── Slider Height ──
+    float sliderH = persistent_float["fPSliderH"];
+    if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.90f, "%.3f")) {
+        persistent_float["fPSliderH"] = sliderH;
+        need_save = true;
+    }
+    Dummy(ImVec2(0, 10));
+
+    // ── GoldToggle Preview ──
+    need_save |= GoldToggle(O("Preview Power Slider"), O("Show guide line on screen"), &persistent_bool["bPSliderPreview"]);
+    Dummy(ImVec2(0, 10));
+
+    // ── PREVIEW GAMBAR ──
+    if (persistent_bool["bPSliderPreview"]) {
+        ImDrawList* fgdl = GetForegroundDrawList();
+        if (fgdl) {
+            ImGuiIO& io = GetIO();
+            float px = io.DisplaySize.x * persistent_float["fPSliderX"];
+            float pt = io.DisplaySize.y * persistent_float["fPSliderTop"];
+            float ph = io.DisplaySize.y * persistent_float["fPSliderH"];
+
+            fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
+            fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
+            fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
+        }
+    }
             break;
         }
         case 2: { 
