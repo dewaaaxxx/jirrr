@@ -1155,10 +1155,10 @@ static void DrawTableCalibration() {
     SameLine();
 
     if (Button(O("Reset Default"), ImVec2(bw, 0))) {
-        g_calibLeft = 55.0f;
-        g_calibRight = 665.0f;
-        g_calibTop = 200.0f;
-        g_calibBottom = 1180.0f;
+        g_calibLeft = 207.0;
+        g_calibRight = 1072.0;
+        g_calibTop = 171.0;
+        g_calibBottom = 584.0;
         TABLE_LEFT = g_calibLeft;
         TABLE_RIGHT = g_calibRight;
         TABLE_TOP = g_calibTop;
