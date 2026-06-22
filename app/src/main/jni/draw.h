@@ -1529,7 +1529,7 @@ INLINE void DrawLogin(ImGuiIO& io) {
     SetCursorPosY(110);
 
 
-    int curL = persistent_int["iLang"];
+   /* int curL = persistent_int["iLang"];
     PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
     SetCursorPosX(20);
     PushStyleColor(ImGuiCol_Button, curL==0 ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
@@ -1539,7 +1539,7 @@ INLINE void DrawLogin(ImGuiIO& io) {
     PushStyleColor(ImGuiCol_Button, curL==1 ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
     if (Button("ﺔﻴﺑﺮﻌﻟﺍ", ImVec2(120, 32))) { persistent_int["iLang"] = 1; save_persistence(); }
     PopStyleColor();
-    PopStyleVar();
+    PopStyleVar();*/
 
     Dummy(ImVec2(0, 20));
 
