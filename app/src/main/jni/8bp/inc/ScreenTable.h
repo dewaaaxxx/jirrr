@@ -24,6 +24,10 @@ inline double TABLE_RIGHT = 0.0;
 inline double TABLE_BOTTOM = 0.0;
 inline double TABLE_SCALE = 1.0;
 
+// Half dimensions in world units — recalculated every time TABLE_* changes
+inline double TABLE_HALF_WIDTH = 0.0;
+inline double TABLE_HALF_HEIGHT = 0.0;
+
 ImVec2 WorldToScreen(Vec2d worldPos) {
     double positionX = worldPos.x + TABLE_HALF_WIDTH;
     double positionY = -(worldPos.y + TABLE_HALF_HEIGHT);
@@ -42,8 +46,11 @@ void UpdateScreenTable() {
         TABLE_TOP = persistent_float["fTableTop"];
         TABLE_BOTTOM = persistent_float["fTableBottom"];
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        LOGI("TABLE [CALIBRATION]: L=%.1f R=%.1f T=%.1f B=%.1f", 
-             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
+        TABLE_HALF_WIDTH  = (TABLE_RIGHT - TABLE_LEFT) / (2.0 * TABLE_SCALE);
+        TABLE_HALF_HEIGHT = (TABLE_BOTTOM - TABLE_TOP)  / (2.0 * TABLE_SCALE);
+        LOGI("TABLE [CALIBRATION]: L=%.1f R=%.1f T=%.1f B=%.1f HALF_W=%.1f HALF_H=%.1f", 
+             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM,
+             TABLE_HALF_WIDTH, TABLE_HALF_HEIGHT);
         return;
     }
 
@@ -59,7 +66,10 @@ void UpdateScreenTable() {
     TABLE_TOP = heightScale * REF_TABLE_TOP;
     TABLE_BOTTOM = heightScale * REF_TABLE_BOTTOM;
     TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+    TABLE_HALF_WIDTH  = (TABLE_RIGHT - TABLE_LEFT) / (2.0 * TABLE_SCALE);
+    TABLE_HALF_HEIGHT = (TABLE_BOTTOM - TABLE_TOP)  / (2.0 * TABLE_SCALE);
     
-    LOGI("TABLE [DEFAULT SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f", 
-         TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
+    LOGI("TABLE [DEFAULT SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f HALF_W=%.1f HALF_H=%.1f", 
+         TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM,
+         TABLE_HALF_WIDTH, TABLE_HALF_HEIGHT);
 }
