@@ -257,23 +257,32 @@ struct HumanAngleDrag {
     }
 
     void BeginSegment(double angleDelta) {
-        float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 220.0f;
+    float sens = persistent_float["fAngleDragSensitivity"];
+    if (sens <= 1.0f) sens = 220.0f;
 
-        float originX = (float)((TABLE_LEFT + TABLE_RIGHT) * 0.5) + (float)((rand() % 40) - 20);
-        float originY = (float)((TABLE_TOP + TABLE_BOTTOM) * 0.5) + (float)((rand() % 20) - 10);
-        dragOrigin = ImVec2(originX, originY);
-        dragCurrent = dragOrigin;
+    // ===== AMBIL POSISI CUE BALL DI LAYAR =====
+    auto& cueBall = gPrediction->guiData.balls[0];
+    ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
 
-        float dx = (float)(angleDelta * sens);
-        dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y);
+    // ===== MULAI DRAG DARI SAMPING KANAN BAWAH CUE BALL =====
+    // Ini menghindari area "draggable" cue ball saat free ball
+    float originX = cueScreen.x + 150.0f + (float)((rand() % 60) - 30);
+    float originY = cueScreen.y + 100.0f + (float)((rand() % 40) - 20);
 
-        elapsed = 0.f;
-        duration = 0.45f + (rand() % 250) * 0.001f;
+    dragOrigin = ImVec2(originX, originY);
+    dragCurrent = dragOrigin;
 
-        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
-        state = HAD_DRAGGING;
-    }
+    // ===== HITUNG POSISI AKHIR DRAG (target) =====
+    float dx = (float)(angleDelta * sens);
+    float dy = (float)(angleDelta * sens * 0.12f); // sedikit miring agar natural
+    dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
+
+    elapsed = 0.f;
+    duration = 0.7f + (rand() % 300) * 0.001f; // durasi lebih lama untuk smooth
+
+    NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
+    state = HAD_DRAGGING;
+}
 
     void Begin(double angle) {
         if (active) return;
