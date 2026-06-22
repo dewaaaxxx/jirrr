@@ -23,10 +23,8 @@ inline double TABLE_TOP = 0.0;
 inline double TABLE_RIGHT = 0.0;
 inline double TABLE_BOTTOM = 0.0;
 inline double TABLE_SCALE = 1.0;
-
-// Half dimensions in world units — recalculated every time TABLE_* changes
-inline double TABLE_HALF_WIDTH = 0.0;
-inline double TABLE_HALF_HEIGHT = 0.0;
+// NOTE: TABLE_HALF_WIDTH / TABLE_HALF_HEIGHT are constexpr world-space constants
+// defined in GameConstants.h — do NOT redefine or assign them here.
 
 ImVec2 WorldToScreen(Vec2d worldPos) {
     double positionX = worldPos.x + TABLE_HALF_WIDTH;
@@ -41,35 +39,29 @@ void UpdateScreenTable() {
     // 1. CEK APAKAH ADA KALIBRASI YANG DISIMPAN
     // ============================================================
     if (g_useCalibration && persistent_float["fTableLeft"] > 0.0f && persistent_float["fTableRight"] > 0.0f) {
-        TABLE_LEFT = persistent_float["fTableLeft"];
-        TABLE_RIGHT = persistent_float["fTableRight"];
-        TABLE_TOP = persistent_float["fTableTop"];
+        TABLE_LEFT   = persistent_float["fTableLeft"];
+        TABLE_RIGHT  = persistent_float["fTableRight"];
+        TABLE_TOP    = persistent_float["fTableTop"];
         TABLE_BOTTOM = persistent_float["fTableBottom"];
-        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        TABLE_HALF_WIDTH  = (TABLE_RIGHT - TABLE_LEFT) / (2.0 * TABLE_SCALE);
-        TABLE_HALF_HEIGHT = (TABLE_BOTTOM - TABLE_TOP)  / (2.0 * TABLE_SCALE);
-        LOGI("TABLE [CALIBRATION]: L=%.1f R=%.1f T=%.1f B=%.1f HALF_W=%.1f HALF_H=%.1f", 
-             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM,
-             TABLE_HALF_WIDTH, TABLE_HALF_HEIGHT);
+        TABLE_SCALE  = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+        LOGI("TABLE [CALIBRATION]: L=%.1f R=%.1f T=%.1f B=%.1f SCALE=%.4f",
+             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM, TABLE_SCALE);
         return;
     }
 
     // ============================================================
     // 2. DEFAULT: SCALING OTOMATIS DARI REF_TABLE_*
     // ============================================================
-    double heightScale = Height / REF_HEIGHT;
+    double heightScale    = Height / REF_HEIGHT;
     double scaledRefWidth = heightScale * REF_WIDTH;
-    double offsetX = (Width - scaledRefWidth) / 2.0;
-    
-    TABLE_LEFT = offsetX + (heightScale * REF_TABLE_LEFT);
-    TABLE_RIGHT = offsetX + (heightScale * REF_TABLE_RIGHT);
-    TABLE_TOP = heightScale * REF_TABLE_TOP;
+    double offsetX        = (Width - scaledRefWidth) / 2.0;
+
+    TABLE_LEFT   = offsetX + (heightScale * REF_TABLE_LEFT);
+    TABLE_RIGHT  = offsetX + (heightScale * REF_TABLE_RIGHT);
+    TABLE_TOP    = heightScale * REF_TABLE_TOP;
     TABLE_BOTTOM = heightScale * REF_TABLE_BOTTOM;
-    TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-    TABLE_HALF_WIDTH  = (TABLE_RIGHT - TABLE_LEFT) / (2.0 * TABLE_SCALE);
-    TABLE_HALF_HEIGHT = (TABLE_BOTTOM - TABLE_TOP)  / (2.0 * TABLE_SCALE);
-    
-    LOGI("TABLE [DEFAULT SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f HALF_W=%.1f HALF_H=%.1f", 
-         TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM,
-         TABLE_HALF_WIDTH, TABLE_HALF_HEIGHT);
+    TABLE_SCALE  = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+
+    LOGI("TABLE [DEFAULT SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f SCALE=%.4f",
+         TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM, TABLE_SCALE);
 }
