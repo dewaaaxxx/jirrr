@@ -1,10 +1,5 @@
 #pragma once
 
-// ============================================================
-// TABLE CALIBRATION STATE
-// ============================================================
-inline bool g_useCalibration = false;
-
 // Reference resolution from the game (1280x640)
 inline constexpr double REF_WIDTH = 1280.0;
 inline constexpr double REF_HEIGHT = 640.0;
@@ -23,8 +18,6 @@ inline double TABLE_TOP = 0.0;
 inline double TABLE_RIGHT = 0.0;
 inline double TABLE_BOTTOM = 0.0;
 inline double TABLE_SCALE = 1.0;
-// NOTE: TABLE_HALF_WIDTH / TABLE_HALF_HEIGHT are constexpr world-space constants
-// defined in GameConstants.h — do NOT redefine or assign them here.
 
 ImVec2 WorldToScreen(Vec2d worldPos) {
     double positionX = worldPos.x + TABLE_HALF_WIDTH;
@@ -35,33 +28,19 @@ ImVec2 WorldToScreen(Vec2d worldPos) {
 }
 
 void UpdateScreenTable() {
-    // ============================================================
-    // 1. CEK APAKAH ADA KALIBRASI YANG DISIMPAN
-    // ============================================================
-    if (g_useCalibration && persistent_float["fTableLeft"] > 0.0f && persistent_float["fTableRight"] > 0.0f) {
-        TABLE_LEFT   = persistent_float["fTableLeft"];
-        TABLE_RIGHT  = persistent_float["fTableRight"];
-        TABLE_TOP    = persistent_float["fTableTop"];
-        TABLE_BOTTOM = persistent_float["fTableBottom"];
-        TABLE_SCALE  = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        LOGI("TABLE [CALIBRATION]: L=%.1f R=%.1f T=%.1f B=%.1f SCALE=%.4f",
-             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM, TABLE_SCALE);
-        return;
-    }
-
-    // ============================================================
-    // 2. DEFAULT: SCALING OTOMATIS DARI REF_TABLE_*
-    // ============================================================
-    double heightScale    = Height / REF_HEIGHT;
+    // Calculate scale based on screen height (matches Java implementation)
+    double heightScale = Height / REF_HEIGHT;
+    
+    // Calculate horizontal offset for centering
     double scaledRefWidth = heightScale * REF_WIDTH;
-    double offsetX        = (Width - scaledRefWidth) / 2.0;
-
-    TABLE_LEFT   = offsetX + (heightScale * REF_TABLE_LEFT);
-    TABLE_RIGHT  = offsetX + (heightScale * REF_TABLE_RIGHT);
-    TABLE_TOP    = heightScale * REF_TABLE_TOP;
+    double offsetX = (Width - scaledRefWidth) / 2.0;
+    
+    // Apply scaling and centering to anchor points
+    TABLE_LEFT = offsetX + (heightScale * REF_TABLE_LEFT);
+    TABLE_RIGHT = offsetX + (heightScale * REF_TABLE_RIGHT);
+    TABLE_TOP = heightScale * REF_TABLE_TOP;
     TABLE_BOTTOM = heightScale * REF_TABLE_BOTTOM;
-    TABLE_SCALE  = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-
-    LOGI("TABLE [DEFAULT SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f SCALE=%.4f",
-         TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM, TABLE_SCALE);
+    
+    // Calculate scale factor for world-to-screen conversion
+    TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / TABLE_WIDTH;
 }
