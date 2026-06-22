@@ -4,6 +4,8 @@
 // SCREEN TABLE - FIX UNTUK 720x1600
 // ============================================================
 
+static bool g_useCalibration = false;  // ← TAMBAHKAN INI
+
 // Reference resolution (dari game)
 inline constexpr double REF_WIDTH = 1280.0;
 inline constexpr double REF_HEIGHT = 640.0;
