@@ -1126,25 +1126,29 @@ static void DrawTableCalibration() {
     PushStyleColor(ImGuiCol_SliderGrabActive, ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT));
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Left", &g_calibLeft, 0.0f, 300.0f, "%.0f")) {
+    if (SliderFloat("Left", &g_calibLeft, 0.0f, (float)(Width * 0.4f), "%.0f")) {
         TABLE_LEFT = g_calibLeft;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+        TABLE_HALF_WIDTH  = (TABLE_RIGHT - TABLE_LEFT) / (2.0 * TABLE_SCALE);
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Right", &g_calibRight, 500.0f, 1400.0f, "%.0f")) {
+    if (SliderFloat("Right", &g_calibRight, (float)(Width * 0.3f), (float)Width, "%.0f")) {
         TABLE_RIGHT = g_calibRight;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+        TABLE_HALF_WIDTH  = (TABLE_RIGHT - TABLE_LEFT) / (2.0 * TABLE_SCALE);
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Top", &g_calibTop, 50.0f, 500.0f, "%.0f")) {
+    if (SliderFloat("Top", &g_calibTop, 0.0f, (float)(Height * 0.5f), "%.0f")) {
         TABLE_TOP = g_calibTop;
+        TABLE_HALF_HEIGHT = (TABLE_BOTTOM - TABLE_TOP) / (2.0 * TABLE_SCALE);
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Bottom", &g_calibBottom, 500.0f, 1600.0f, "%.0f")) {
+    if (SliderFloat("Bottom", &g_calibBottom, (float)(Height * 0.3f), (float)Height, "%.0f")) {
         TABLE_BOTTOM = g_calibBottom;
+        TABLE_HALF_HEIGHT = (TABLE_BOTTOM - TABLE_TOP) / (2.0 * TABLE_SCALE);
     }
 
     PopStyleColor(3);
