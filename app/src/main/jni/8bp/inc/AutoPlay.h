@@ -43,14 +43,16 @@ constexpr double IMPACT_FORCE_THRESHOLD = 2.0;          // Detect dynamic collis
  * Where: μ = friction coefficient, g = gravity, d = distance, s = spin factor, k = english multiplier
  */
 inline double CalculateOptimalPowerAdvanced(double distance, double spinFactor = 0.0, double englishInfluence = 1.0) {
-    double effectiveDistance = distance + (ENGLISH_MULTIPLIER * englishInfluence * abs(spinFactor) * 0.5);
-    double optimalPower = sqrt(2.0 * FRICTION_COEFFICIENT * GRAVITATIONAL_CONSTANT * effectiveDistance);
-    
-    // Apply exponential curve for smoother power delivery
-    optimalPower = optimalPower * (1.0 + (spinFactor * 0.1));
-    
-    // Cap at maximum safe power
-    return std::min(optimalPower, 666.0);
+    // FIX: use the real engine deceleration constant (196.0) instead of
+    // FRICTION_COEFFICIENT * GRAVITATIONAL_CONSTANT (0.12 * 9.81 ≈ 1.18),
+    // which was ~83x too weak — causing almost every shot to be massively
+    // underpowered and miss the pocket.
+    double cueDist   = distance * 0.4;  // rough 40/60 split cue-to-ball / ball-to-pocket
+    double ballDist  = distance * 0.6;
+    double vForBall  = sqrt(2.0 * BALL_DECELERATION * ballDist);
+    double vForCue   = sqrt(2.0 * BALL_DECELERATION * cueDist);
+    double optimalPower = (vForCue + vForBall) * 1.25;
+    return std::min(std::max(optimalPower, 80.0), 666.0);
 }
 
 /**
@@ -188,14 +190,32 @@ bool IsShotValid() {
     if (gPrediction->guiData.balls[cand.idx].onTable) return false;
     if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) return false;
 
+    // FIX: block premature 8-ball pot for ALL classifications, not just ANY.
+    // Previously only blocked when myclass==ANY (open table). If player is
+    // assigned SOLID/STRIPE but their balls aren't all cleared yet, potting
+    // the 8-ball is still a foul/loss — must block it here too.
     auto& ball8 = gPrediction->guiData.balls[8];
-    if (myclass == Ball::Classification::ANY && ball8.originalOnTable && !ball8.onTable) return false;
+    bool only8BallLeft = false;
+    if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+        bool foundOwn = false;
+        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+            auto& b = gPrediction->guiData.balls[i];
+            if (b.originalOnTable && b.classification == myclass) { foundOwn = true; break; }
+        }
+        if (!foundOwn) only8BallLeft = true;
+    }
+    if (ball8.originalOnTable && !ball8.onTable && !only8BallLeft &&
+        myclass != Ball::Classification::EIGHT_BALL) return false;
 
     auto& firstHit = gPrediction->guiData.collision.firstHitBall;
     if (firstHit) {
-        if (myclass == Ball::Classification::ANY) {
+        if (only8BallLeft) {
+            if (firstHit->classification != Ball::Classification::EIGHT_BALL) return false;
+        } else if (myclass == Ball::Classification::ANY) {
             if (firstHit->classification == Ball::Classification::EIGHT_BALL) return false;
-        } else if (firstHit->classification != myclass) return false;
+        } else {
+            if (firstHit->classification != myclass) return false;
+        }
     }
 
     return true;
@@ -556,11 +576,13 @@ namespace AutoPlay {
             }
         }
         
-        // EXPLOSIVE RANKING: Sort with advanced physics-based scoring
+        // FIX: sort ascending (lowest score = closest/easiest shot first).
+        // Previously used descending order, which put the hardest/longest
+        // shots at the front and discarded easy shots entirely.
         std::sort(candidates.begin(), candidates.end(), [&](const Candidate& a, const Candidate& b) {
             double scoreA = RankCandidate(a, a.power, true, ballsRemaining, spinMagnitude);
             double scoreB = RankCandidate(b, b.power, true, ballsRemaining, spinMagnitude);
-            return scoreA > scoreB;  // Descending order (best first)
+            return scoreA < scoreB;  // Ascending: lowest (easiest) first
         });
         
         bool foundShot = false;
@@ -611,8 +633,22 @@ namespace AutoPlay {
 
             if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
             
+            // FIX: check only8BallLeft same way as IsShotValid — don't reject
+            // the 8-ball pot when it IS the right time to shoot it.
             auto& eightBallRef = gPrediction->guiData.balls[8];
-            if (isAngleGood && (eightBallRef.originalOnTable && !eightBallRef.onTable) && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
+            bool only8Left = false;
+            if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+                bool foundOwn = false;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& b = gPrediction->guiData.balls[i];
+                    if (b.originalOnTable && b.classification == myclass) { foundOwn = true; break; }
+                }
+                if (!foundOwn) only8Left = true;
+            }
+            if (isAngleGood && eightBallRef.originalOnTable && !eightBallRef.onTable
+                && !only8Left && myclass != Ball::Classification::EIGHT_BALL) {
+                isAngleGood = false;
+            }
             
             if (isAngleGood) {
                 g_CurrentCandidate = cand;
@@ -651,7 +687,7 @@ namespace AutoPlay {
         
         buttonClicker.Update();
 
-      //  if (isAnimationActive()) return;
+        if (isAnimationActive()) return;
 
         /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             state = IDLE;
