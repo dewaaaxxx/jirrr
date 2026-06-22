@@ -1079,6 +1079,119 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
     EndGroup();
 }
 
+// ===== TABLE CALIBRATION STATE =====
+static bool g_calibEnabled = false;
+static float g_calibLeft = 55.0f;
+static float g_calibRight = 665.0f;
+static float g_calibTop = 200.0f;
+static float g_calibBottom = 1180.0f;
+
+// ===== DRAW TABLE CALIBRATION UI =====
+static void DrawTableCalibration() {
+    ImDrawList* dl = GetWindowDrawList();
+
+    if (!g_calibEnabled) {
+        if (Button(O("Calibrate Table Position"), ImVec2(GetContentRegionAvail().x, 0))) {
+            g_calibEnabled = true;
+            // Load current values
+            g_calibLeft = (float)TABLE_LEFT;
+            g_calibRight = (float)TABLE_RIGHT;
+            g_calibTop = (float)TABLE_TOP;
+            g_calibBottom = (float)TABLE_BOTTOM;
+        }
+        return;
+    }
+
+    TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("TABLE CALIBRATION"));
+    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Adjust until prediction lines align with table"));
+    Dummy(ImVec2(0, 10));
+
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+    PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+    PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+    PushStyleColor(ImGuiCol_SliderGrab, ImGui::ColorConvertU32ToFloat4(COL_GOLD));
+    PushStyleColor(ImGuiCol_SliderGrabActive, ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT));
+
+    SetNextItemWidth(GetContentRegionAvail().x);
+    if (SliderFloat("Left", &g_calibLeft, 0.0f, 200.0f, "%.0f")) {
+        TABLE_LEFT = g_calibLeft;
+        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+    }
+
+    SetNextItemWidth(GetContentRegionAvail().x);
+    if (SliderFloat("Right", &g_calibRight, 500.0f, 800.0f, "%.0f")) {
+        TABLE_RIGHT = g_calibRight;
+        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+    }
+
+    SetNextItemWidth(GetContentRegionAvail().x);
+    if (SliderFloat("Top", &g_calibTop, 50.0f, 400.0f, "%.0f")) {
+        TABLE_TOP = g_calibTop;
+    }
+
+    SetNextItemWidth(GetContentRegionAvail().x);
+    if (SliderFloat("Bottom", &g_calibBottom, 900.0f, 1500.0f, "%.0f")) {
+        TABLE_BOTTOM = g_calibBottom;
+    }
+
+    PopStyleColor(3);
+    PopStyleVar(2);
+
+    Dummy(ImVec2(0, 10));
+
+    float bw = (GetContentRegionAvail().x - 10) / 2.0f;
+
+    if (Button(O("Save & Apply"), ImVec2(bw, 0))) {
+        persistent_float["fTableLeft"] = g_calibLeft;
+        persistent_float["fTableRight"] = g_calibRight;
+        persistent_float["fTableTop"] = g_calibTop;
+        persistent_float["fTableBottom"] = g_calibBottom;
+        save_persistence();
+        g_calibEnabled = false;
+        LOGI("Table calibration saved: L=%.1f R=%.1f T=%.1f B=%.1f",
+             g_calibLeft, g_calibRight, g_calibTop, g_calibBottom);
+    }
+
+    SameLine();
+
+    if (Button(O("Reset Default"), ImVec2(bw, 0))) {
+        g_calibLeft = 55.0f;
+        g_calibRight = 665.0f;
+        g_calibTop = 200.0f;
+        g_calibBottom = 1180.0f;
+        TABLE_LEFT = g_calibLeft;
+        TABLE_RIGHT = g_calibRight;
+        TABLE_TOP = g_calibTop;
+        TABLE_BOTTOM = g_calibBottom;
+        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
+        LOGI("Table reset to default");
+    }
+
+    Dummy(ImVec2(0, 10));
+
+    if (Button(O("Close Calibration"), ImVec2(GetContentRegionAvail().x, 0))) {
+        g_calibEnabled = false;
+    }
+
+    // ===== PREVIEW GUIDE LINES =====
+    ImVec2 center = ImVec2(Width / 2.0f, Height / 2.0f);
+    dl->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_TOP),
+                IM_COL32(255, 0, 0, 150), 2.0f);
+    dl->AddLine(ImVec2(TABLE_LEFT, TABLE_BOTTOM), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 150), 2.0f);
+    dl->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_LEFT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 150), 2.0f);
+    dl->AddLine(ImVec2(TABLE_RIGHT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 150), 2.0f);
+
+    char buf[64];
+    snprintf(buf, sizeof(buf), "L:%.0f R:%.0f T:%.0f B:%.0f",
+             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
+    ImVec2 ts = CalcTextSize(buf);
+    dl->AddText(ImVec2(center.x - ts.x/2, TABLE_BOTTOM + 30),
+                IM_COL32(255, 255, 255, 200), buf);
+}
+
 
 static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPos){
     bool need_save = false;
@@ -1105,31 +1218,8 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         case 0: { 
 
            Dummy(ImVec2(0,4));
-           /* TextColored(ImVec4(0.95f,0.82f,0.36f,1.0f), "%s", L("Language","ﺔﻐﻠﻟﺍ"));
-            Dummy(ImVec2(0,8));
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            int curLang = persistent_int["iLang"];
-            float bw = (GetContentRegionAvail().x - 10) * 0.5f;
-            PushStyleColor(ImGuiCol_Button,        curLang==0 ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
-            PushStyleColor(ImGuiCol_Text,          curLang==0 ? ImVec4(1,1,1,1) : ImVec4(0.7f,0.75f,0.85f,1));
-            if (Button("English", ImVec2(bw, 44))) { persistent_int["iLang"] = 0; need_save = true; }
-            PopStyleColor(3);
-            SameLine();
-            PushStyleColor(ImGuiCol_Button,        curLang==1 ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
-            PushStyleColor(ImGuiCol_Text,          curLang==1 ? ImVec4(1,1,1,1) : ImVec4(0.7f,0.75f,0.85f,1));
-            if (Button("ﺔﻴﺑﺮﻌﻟﺍ", ImVec2(bw, 44))) { persistent_int["iLang"] = 1; need_save = true; }
-            PopStyleColor(3);
-            PopStyleVar();
-            Dummy(ImVec2(0,16));*/
-
-
-/*            need_save |= GoldToggle(L("Hide overlay while capturing","ﺮﻳﻮﺼﺘﻠﻟ ﻙﺎﻬﻟﺍ ﺀﺎﻨﺛﺃ ﺀﺎﻔﺧﺍ"),
-                                    L("",""),
-                                    &g_menu.hideForCapture);*/
-            Dummy(ImVec2(0,8));
-
+            DrawTableCalibration();
+            Dummy(ImVec2(0,10));
 
             need_save |= GoldToggle(L("Draw Prediction Lines","ﻁﻮﻄﺧ ﻢﺳﺭ"),
                                     L("",""),
