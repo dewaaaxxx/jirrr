@@ -1081,7 +1081,6 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
 
 // ===== TABLE CALIBRATION STATE =====
 static bool g_calibEnabled = false;
-static bool g_useCalibration = false;  // ← TAMBAHKAN INI
 static float g_calibLeft = 0.0f;
 static float g_calibRight = 0.0f;
 static float g_calibTop = 0.0f;
