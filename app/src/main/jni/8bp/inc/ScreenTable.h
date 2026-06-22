@@ -1,5 +1,10 @@
 #pragma once
 
+// ============================================================
+// TABLE CALIBRATION STATE
+// ============================================================
+inline bool g_useCalibration = false;
+
 // Reference resolution from the game (1280x640)
 inline constexpr double REF_WIDTH = 1280.0;
 inline constexpr double REF_HEIGHT = 640.0;
