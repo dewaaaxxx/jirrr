@@ -33,41 +33,29 @@ ImVec2 WorldToScreen(Vec2d worldPos) {
 
 // ===== UpdateScreenTable - FIX UNTUK 720x1600 =====
 void UpdateScreenTable() {
-    // ===== CEK APAKAH ADA DATA CALIBRATION =====
-    if (persistent_float["fTableLeft"] > 0.0f && persistent_float["fTableRight"] > 0.0f) {
+    // ===== CEK APAKAH KALIBRASI DIGUNAKAN =====
+    if (g_useCalibration && persistent_float["fTableLeft"] > 0.0f && persistent_float["fTableRight"] > 0.0f) {
         TABLE_LEFT = persistent_float["fTableLeft"];
         TABLE_RIGHT = persistent_float["fTableRight"];
         TABLE_TOP = persistent_float["fTableTop"];
         TABLE_BOTTOM = persistent_float["fTableBottom"];
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        LOGI("TABLE [LOADED]: L=%.1f R=%.1f T=%.1f B=%.1f",
+        LOGI("TABLE [CALIBRATION]: L=%.1f R=%.1f T=%.1f B=%.1f", 
              TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
         return;
     }
 
-    // ===== KALO BELUM ADA, PAKE DEFAULT 720x1600 =====
-    if (Width == 720 && Height == 1600) {
-        TABLE_LEFT = 207.0;
-        TABLE_RIGHT = 1072.0;
-        TABLE_TOP = 171.0;
-        TABLE_BOTTOM = 584.0;
-        TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-        LOGI("TABLE [720x1600 DEFAULT]: L=%.1f R=%.1f T=%.1f B=%.1f",
-             TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
-        return;
-    }
-
-    // ===== UNTUK RESOLUSI LAIN: PAKE SCALING OTOMATIS =====
+    // ===== DEFAULT: PAKE SCALING DARI REF_TABLE_* =====
     double heightScale = Height / REF_HEIGHT;
     double scaledRefWidth = heightScale * REF_WIDTH;
     double offsetX = (Width - scaledRefWidth) / 2.0;
-
+    
     TABLE_LEFT = offsetX + (heightScale * REF_TABLE_LEFT);
     TABLE_RIGHT = offsetX + (heightScale * REF_TABLE_RIGHT);
     TABLE_TOP = heightScale * REF_TABLE_TOP;
     TABLE_BOTTOM = heightScale * REF_TABLE_BOTTOM;
     TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
-
-    LOGI("TABLE [SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f",
+    
+    LOGI("TABLE [DEFAULT SCALED]: L=%.1f R=%.1f T=%.1f B=%.1f", 
          TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
 }
