@@ -1081,10 +1081,10 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
 
 // ===== TABLE CALIBRATION STATE =====
 static bool g_calibEnabled = false;
-static float g_calibLeft = 55.0f;
-static float g_calibRight = 665.0f;
-static float g_calibTop = 200.0f;
-static float g_calibBottom = 1180.0f;
+static float g_calibLeft = 207.0;
+static float g_calibRight = 1072.0;
+static float g_calibTop = 171.0;
+static float g_calibBottom = 584.0;
 
 // ===== DRAW TABLE CALIBRATION UI (VERSI TERBARU) =====
 static void DrawTableCalibration() {
