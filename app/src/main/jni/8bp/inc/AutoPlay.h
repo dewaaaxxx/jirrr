@@ -576,14 +576,17 @@ namespace AutoPlay {
             }
         }
         
-        // FIX: sort ascending (lowest score = closest/easiest shot first).
-        // Previously used descending order, which put the hardest/longest
-        // shots at the front and discarded easy shots entirely.
-        std::sort(candidates.begin(), candidates.end(), [&](const Candidate& a, const Candidate& b) {
-            double scoreA = RankCandidate(a, a.power, true, ballsRemaining, spinMagnitude);
-            double scoreB = RankCandidate(b, b.power, true, ballsRemaining, spinMagnitude);
-            return scoreA < scoreB;  // Ascending: lowest (easiest) first
-        });
+        // Sort by total distance (cue->ball + ball->pocket) — closest/easiest
+        // shot first. The previous RankCandidate() function used
+        // `cos(cand.angle - atan2(0, cand.power))` as "angle quality", but
+        // atan2(0, positiveNumber) is always 0, so this was really just
+        // cos(cand.angle) — a bonus/penalty based on the shot's absolute
+        // direction in world space, completely unrelated to shot difficulty.
+        // That caused shots aimed roughly rightward (~0 rad) to score higher
+        // than easy direct shots aimed in other directions, and sometimes
+        // preferred bank shots that happened to have a "good" absolute angle
+        // over simpler direct shots.
+        std::sort(candidates.begin(), candidates.end());
         
         bool foundShot = false;
         for (const auto& cand : candidates) {
