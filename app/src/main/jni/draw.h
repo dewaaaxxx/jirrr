@@ -1087,14 +1087,6 @@ static float g_calibTop = 200.0f;
 static float g_calibBottom = 1180.0f;
 
 // ===== DRAW TABLE CALIBRATION UI =====
-// ===== TABLE CALIBRATION STATE =====
-static bool g_calibEnabled = false;
-static float g_calibLeft = 55.0f;
-static float g_calibRight = 665.0f;
-static float g_calibTop = 200.0f;
-static float g_calibBottom = 1180.0f;
-
-// ===== DRAW TABLE CALIBRATION UI =====
 static void DrawTableCalibration() {
     ImDrawList* dl = GetWindowDrawList();
 
