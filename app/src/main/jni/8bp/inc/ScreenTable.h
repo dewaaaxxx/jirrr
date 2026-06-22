@@ -47,10 +47,10 @@ void UpdateScreenTable() {
 
     // ===== KALO BELUM ADA, PAKE DEFAULT 720x1600 =====
     if (Width == 720 && Height == 1600) {
-        TABLE_LEFT = 55.0;
-        TABLE_RIGHT = 665.0;
-        TABLE_TOP = 200.0;
-        TABLE_BOTTOM = 1180.0;
+        TABLE_LEFT = 207.0;
+        TABLE_RIGHT = 1072.0;
+        TABLE_TOP = 171.0;
+        TABLE_BOTTOM = 584.0;
         TABLE_SCALE = (TABLE_RIGHT - TABLE_LEFT) / REF_TABLE_WIDTH;
         LOGI("TABLE [720x1600 DEFAULT]: L=%.1f R=%.1f T=%.1f B=%.1f",
              TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
