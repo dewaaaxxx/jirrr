@@ -1087,13 +1087,20 @@ static float g_calibTop = 200.0f;
 static float g_calibBottom = 1180.0f;
 
 // ===== DRAW TABLE CALIBRATION UI =====
+// ===== TABLE CALIBRATION STATE =====
+static bool g_calibEnabled = false;
+static float g_calibLeft = 55.0f;
+static float g_calibRight = 665.0f;
+static float g_calibTop = 200.0f;
+static float g_calibBottom = 1180.0f;
+
+// ===== DRAW TABLE CALIBRATION UI =====
 static void DrawTableCalibration() {
     ImDrawList* dl = GetWindowDrawList();
 
     if (!g_calibEnabled) {
         if (Button(O("Calibrate Table Position"), ImVec2(GetContentRegionAvail().x, 0))) {
             g_calibEnabled = true;
-            // Load current values
             g_calibLeft = (float)TABLE_LEFT;
             g_calibRight = (float)TABLE_RIGHT;
             g_calibTop = (float)TABLE_TOP;
@@ -1103,7 +1110,7 @@ static void DrawTableCalibration() {
     }
 
     TextColored(ImGui::ColorConvertU32ToFloat4(COL_GOLD_BRIGHT), O("TABLE CALIBRATION"));
-    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Adjust until prediction lines align with table"));
+    TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Adjust until RED lines align with table edges"));
     Dummy(ImVec2(0, 10));
 
     PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
@@ -1173,23 +1180,52 @@ static void DrawTableCalibration() {
         g_calibEnabled = false;
     }
 
-    // ===== PREVIEW GUIDE LINES =====
+    // ================================================================
+    // ===== PREVIEW GUIDE LINES - DI FOREGROUND =====
+    // ================================================================
+    ImDrawList* fg = ImGui::GetForegroundDrawList();
     ImVec2 center = ImVec2(Width / 2.0f, Height / 2.0f);
-    dl->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_TOP),
-                IM_COL32(255, 0, 0, 150), 2.0f);
-    dl->AddLine(ImVec2(TABLE_LEFT, TABLE_BOTTOM), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 150), 2.0f);
-    dl->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_LEFT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 150), 2.0f);
-    dl->AddLine(ImVec2(TABLE_RIGHT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
-                IM_COL32(255, 0, 0, 150), 2.0f);
 
+    // Garis tepi meja (merah terang)
+    float bt = 3.0f;
+    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_TOP),
+                IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_BOTTOM), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(TABLE_LEFT, TABLE_TOP), ImVec2(TABLE_LEFT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 255), bt);
+    fg->AddLine(ImVec2(TABLE_RIGHT, TABLE_TOP), ImVec2(TABLE_RIGHT, TABLE_BOTTOM),
+                IM_COL32(255, 0, 0, 255), bt);
+
+    // Glow
+    fg->AddLine(ImVec2(TABLE_LEFT-2, TABLE_TOP-2), ImVec2(TABLE_RIGHT+2, TABLE_TOP-2),
+                IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(TABLE_LEFT-2, TABLE_BOTTOM+2), ImVec2(TABLE_RIGHT+2, TABLE_BOTTOM+2),
+                IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(TABLE_LEFT-2, TABLE_TOP-2), ImVec2(TABLE_LEFT-2, TABLE_BOTTOM+2),
+                IM_COL32(255,50,50,60), 8.0f);
+    fg->AddLine(ImVec2(TABLE_RIGHT+2, TABLE_TOP-2), ImVec2(TABLE_RIGHT+2, TABLE_BOTTOM+2),
+                IM_COL32(255,50,50,60), 8.0f);
+
+    // Titik sudut
+    float dr = 8.0f;
+    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_TOP), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_TOP), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(TABLE_LEFT, TABLE_BOTTOM), dr, IM_COL32(255,0,0,255));
+    fg->AddCircleFilled(ImVec2(TABLE_RIGHT, TABLE_BOTTOM), dr, IM_COL32(255,0,0,255));
+
+    // Label koordinat
     char buf[64];
-    snprintf(buf, sizeof(buf), "L:%.0f R:%.0f T:%.0f B:%.0f",
+    snprintf(buf, sizeof(buf), "L:%.0f  R:%.0f  T:%.0f  B:%.0f",
              TABLE_LEFT, TABLE_RIGHT, TABLE_TOP, TABLE_BOTTOM);
     ImVec2 ts = CalcTextSize(buf);
-    dl->AddText(ImVec2(center.x - ts.x/2, TABLE_BOTTOM + 30),
-                IM_COL32(255, 255, 255, 200), buf);
+    float labelY = TABLE_BOTTOM + 30.0f;
+    if (labelY + ts.y + 20 > Height) labelY = TABLE_TOP - 40.0f;
+    fg->AddRectFilled(ImVec2(center.x - ts.x/2 - 8, labelY - 4),
+                      ImVec2(center.x + ts.x/2 + 8, labelY + ts.y + 6),
+                      IM_COL32(0,0,0,200), 6.0f);
+    fg->AddText(ImVec2(center.x - ts.x/2, labelY),
+                IM_COL32(255,255,255,255), buf);
 }
 
 
