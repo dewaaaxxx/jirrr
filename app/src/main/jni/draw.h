@@ -1130,7 +1130,7 @@ static void DrawTableCalibration() {
     }
 
     SetNextItemWidth(GetContentRegionAvail().x);
-    if (SliderFloat("Bottom", &g_calibBottom, 2000.0f, 1500.0f, "%.0f")) {
+    if (SliderFloat("Bottom", &g_calibBottom, 900.0f, 1600.0f, "%.0f")) {
         TABLE_BOTTOM = g_calibBottom;
     }
 
