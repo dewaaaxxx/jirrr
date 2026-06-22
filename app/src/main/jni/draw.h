@@ -1154,6 +1154,9 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
 
+            need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
+            Dummy(ImVec2(0, 8));
+
 
             /*need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
