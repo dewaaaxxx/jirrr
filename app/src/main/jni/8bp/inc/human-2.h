@@ -435,173 +435,145 @@ struct HumanAngleDrag {
 
     // ── Per-frame update ──────────────────────────────────────────────────────
     void Update() {
-        if (!active) return;
+    if (!active) return;
 
-        float dt = ImGui::GetIO().DeltaTime;
-        elapsed += dt;
+    float dt = ImGui::GetIO().DeltaTime;
+    elapsed += dt;
 
-        switch (phase) {
+    switch (phase) {
 
-        // ── 1. Finger baru mendarat, diam sebentar ─────────────────────────
-        case HAD_PRESS_DELAY: {
-            NativeTouchesMove(touchIndex, dragOrigin.x, dragOrigin.y);
-            if (elapsed >= pressDelay) {
-                elapsed       = 0.f;
-                phaseDuration = _approachDur;
-                phaseStart    = dragOrigin;
-                phaseEnd      = _approachPos;
-                phase         = HAD_APPROACH;
+    // ── 1. Finger baru mendarat, diam sebentar ─────────────────────────
+    case HAD_PRESS_DELAY: {
+        NativeTouchesMove(touchIndex, dragOrigin.x, dragOrigin.y);
+        if (elapsed >= pressDelay) {
+            elapsed       = 0.f;
+            phaseDuration = _approachDur;
+            phaseStart    = dragOrigin;
+            phaseEnd      = _approachPos;
+            phase         = HAD_APPROACH;
+        }
+        break;
+    }
+
+    // ── 2. Gerakan utama: 0% → 80% target ─────────────────────────────
+    case HAD_APPROACH: {
+        float t    = std::min(1.f, elapsed / phaseDuration);
+        float ease = EaseOutCubic(t);
+
+        dragCurrent = ImVec2(
+            phaseStart.x + (phaseEnd.x - phaseStart.x) * ease,
+            phaseStart.y + (phaseEnd.y - phaseStart.y) * ease
+        );
+        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+
+        if (t >= 1.f) {
+            elapsed = 0.f;
+            phase   = HAD_PAUSE_MID;
+            LOGI("HumanDrag: PAUSE_MID at 80%%");
+        }
+        break;
+    }
+
+    // ── 3. Pause di ~80% — seolah player cek bidikan ──────────────────
+    case HAD_PAUSE_MID: {
+        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+
+        if (elapsed >= pauseMidTime) {
+            elapsed       = 0.f;
+            phaseStart    = dragCurrent;
+            phaseEnd      = hasOvershoot ? overshootPos : exactTargetPos;
+            phaseDuration = 0.15f + (rand() % 100) * 0.001f;
+            phase         = HAD_SETTLE;
+            LOGI("HumanDrag: SETTLE (overshoot=%d)", (int)hasOvershoot);
+        }
+        break;
+    }
+
+    // ── 4. Sisa gerakan ke target (+ overshoot jika ada) ──────────────
+    case HAD_SETTLE: {
+        float t    = std::min(1.f, elapsed / phaseDuration);
+        float ease = EaseInOutQuint(t);
+
+        dragCurrent = ImVec2(
+            phaseStart.x + (phaseEnd.x - phaseStart.x) * ease,
+            phaseStart.y + (phaseEnd.y - phaseStart.y) * ease
+        );
+        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+
+        if (t >= 1.f) {
+            elapsed = 0.f;
+            if (hasOvershoot) {
+                phase = HAD_OVERSHOOT_PAUSE;
+                LOGI("HumanDrag: OVERSHOOT_PAUSE");
+            } else {
+                phase = HAD_LIFT_DELAY;
             }
-            break;
         }
+        break;
+    }
 
-        // ── 2. Gerakan utama: 0% → 80% target ─────────────────────────────
-        case HAD_APPROACH: {
-            float t    = std::min(1.f, elapsed / phaseDuration);
-            float ease = EaseOutCubic(t); // melambat mendekati 80%
+    // ── 5. Tahan di titik overshoot sejenak ───────────────────────────
+    case HAD_OVERSHOOT_PAUSE: {
+        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
 
-            float jx = Jitter(t, seed,       2.0f);
-            float jy = Jitter(t, seed + 7.f, 0.8f);
-
-            dragCurrent = ImVec2(
-                phaseStart.x + (phaseEnd.x - phaseStart.x) * ease + jx,
-                phaseStart.y + (phaseEnd.y - phaseStart.y) * ease + jy
-            );
-            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-            if (t >= 1.f) {
-                elapsed = 0.f;
-                phase   = HAD_PAUSE_MID;
-                LOGI("HumanDrag: PAUSE_MID at 80%%");
-            }
-            break;
+        if (elapsed >= overshootPauseTime) {
+            elapsed       = 0.f;
+            phaseStart    = dragCurrent;
+            phaseEnd      = exactTargetPos;
+            phaseDuration = 0.20f + (rand() % 120) * 0.001f;
+            phase         = HAD_CORRECT_BACK;
+            LOGI("HumanDrag: CORRECT_BACK");
         }
+        break;
+    }
 
-        // ── 3. Pause di ~80% — seolah player cek bidikan ──────────────────
-        case HAD_PAUSE_MID: {
-            // Finger tetap di tempat, tapi ada micro-tremor kecil
-            float microJx = sinf(elapsed * 8.3f + seed) * 0.4f;
-            float microJy = sinf(elapsed * 5.7f + seed + 2.f) * 0.2f;
-            NativeTouchesMove(touchIndex,
-                dragCurrent.x + microJx,
-                dragCurrent.y + microJy);
+    // ── 6. Koreksi balik ke exact target ──────────────────────────────
+    case HAD_CORRECT_BACK: {
+        float t    = std::min(1.f, elapsed / phaseDuration);
+        float ease = EaseOutSine(t);
 
-            if (elapsed >= pauseMidTime) {
-                elapsed       = 0.f;
-                phaseStart    = dragCurrent;
-                // Tuju overshoot atau langsung exact target
-                phaseEnd      = hasOvershoot ? overshootPos : exactTargetPos;
-                // Durasi sisa gerakan: lebih cepat dari approach (tinggal 20-28%)
-                phaseDuration = 0.15f + (rand() % 100) * 0.001f;
-                phase         = HAD_SETTLE;
-                LOGI("HumanDrag: SETTLE (overshoot=%d)", (int)hasOvershoot);
-            }
-            break;
+        dragCurrent = ImVec2(
+            phaseStart.x + (phaseEnd.x - phaseStart.x) * ease,
+            phaseStart.y + (phaseEnd.y - phaseStart.y) * ease
+        );
+        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+
+        if (t >= 1.f) {
+            elapsed = 0.f;
+            phase   = HAD_LIFT_DELAY;
+            LOGI("HumanDrag: at target, LIFT_DELAY");
         }
+        break;
+    }
 
-        // ── 4. Sisa gerakan ke target (+ overshoot jika ada) ──────────────
-        case HAD_SETTLE: {
-            float t    = std::min(1.f, elapsed / phaseDuration);
-            float ease = EaseInOutQuint(t);
+    // ── 7. Tahan di target sebelum angkat finger ───────────────────────
+    case HAD_LIFT_DELAY: {
+        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
 
-            // Jitter lebih kecil di fase akhir (tangan sudah hampir berhenti)
-            float jx = Jitter(t, seed + 3.f, 0.7f);
-            float jy = Jitter(t, seed + 9.f, 0.3f);
-
-            dragCurrent = ImVec2(
-                phaseStart.x + (phaseEnd.x - phaseStart.x) * ease + jx,
-                phaseStart.y + (phaseEnd.y - phaseStart.y) * ease + jy
-            );
-            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-            if (t >= 1.f) {
-                elapsed = 0.f;
-                if (hasOvershoot) {
-                    phase = HAD_OVERSHOOT_PAUSE;
-                    LOGI("HumanDrag: OVERSHOOT_PAUSE");
-                } else {
-                    phase = HAD_LIFT_DELAY;
-                }
-            }
-            break;
+        if (elapsed >= liftDelay) {
+            NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
+            OnDragEnd();
         }
+        break;
+    }
 
-        // ── 5. Tahan di titik overshoot sejenak ───────────────────────────
-        case HAD_OVERSHOOT_PAUSE: {
-            float microJx = sinf(elapsed * 9.1f + seed) * 0.5f;
-            float microJy = sinf(elapsed * 6.3f + seed + 3.f) * 0.25f;
-            NativeTouchesMove(touchIndex,
-                dragCurrent.x + microJx,
-                dragCurrent.y + microJy);
-
-            if (elapsed >= overshootPauseTime) {
-                elapsed       = 0.f;
-                phaseStart    = dragCurrent;
-                phaseEnd      = exactTargetPos;
-                // Koreksi balik: lebih lambat dan deliberate (terlihat sadar)
-                phaseDuration = 0.20f + (rand() % 120) * 0.001f;
-                phase         = HAD_CORRECT_BACK;
-                LOGI("HumanDrag: CORRECT_BACK");
-            }
-            break;
-        }
-
-        // ── 6. Koreksi balik ke exact target ──────────────────────────────
-        case HAD_CORRECT_BACK: {
-            float t    = std::min(1.f, elapsed / phaseDuration);
-            float ease = EaseOutSine(t); // sangat smooth, tidak tergesa
-
-            // Hampir tidak ada jitter — tangan sudah stabil
-            float jx = Jitter(t, seed + 1.f, 0.3f);
-            float jy = Jitter(t, seed + 4.f, 0.15f);
-
-            dragCurrent = ImVec2(
-                phaseStart.x + (phaseEnd.x - phaseStart.x) * ease + jx,
-                phaseStart.y + (phaseEnd.y - phaseStart.y) * ease + jy
-            );
-            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-            if (t >= 1.f) {
-                elapsed = 0.f;
-                phase   = HAD_LIFT_DELAY;
-                LOGI("HumanDrag: at target, LIFT_DELAY");
-            }
-            break;
-        }
-
-        // ── 7. Tahan di target sebelum angkat finger ───────────────────────
-        case HAD_LIFT_DELAY: {
-            // Tremor sangat kecil — tangan hampir diam
-            float microJx = sinf(elapsed * 7.f + seed) * 0.2f;
-            float microJy = sinf(elapsed * 4.f + seed + 1.f) * 0.1f;
-            NativeTouchesMove(touchIndex,
-                dragCurrent.x + microJx,
-                dragCurrent.y + microJy);
-
-            if (elapsed >= liftDelay) {
-                NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
-                OnDragEnd();
-            }
-            break;
-        }
-
-        default: break;
-        }
+    default: break;
+    }
 
 #ifdef DEBUG_TOUCH
-        if (dynamic_bool["DebugTouch"]) {
-            auto* fg = ImGui::GetForegroundDrawList();
-            fg->AddCircleFilled(dragCurrent, 10.f, IM_COL32(80, 200, 255, 180));
-            fg->AddCircleFilled(exactTargetPos, 6.f, IM_COL32(0, 255, 100, 200));
-            if (hasOvershoot)
-                fg->AddCircleFilled(overshootPos, 6.f, IM_COL32(255, 160, 0, 200));
-            char buf[64];
-            snprintf(buf, sizeof(buf), "phase=%d", (int)phase);
-            fg->AddText(ImVec2(dragCurrent.x + 16, dragCurrent.y - 12),
-                        IM_COL32(255, 255, 255, 200), buf);
-        }
-#endif
+    if (dynamic_bool["DebugTouch"]) {
+        auto* fg = ImGui::GetForegroundDrawList();
+        fg->AddCircleFilled(dragCurrent, 10.f, IM_COL32(80, 200, 255, 180));
+        fg->AddCircleFilled(exactTargetPos, 6.f, IM_COL32(0, 255, 100, 200));
+        if (hasOvershoot)
+            fg->AddCircleFilled(overshootPos, 6.f, IM_COL32(255, 160, 0, 200));
+        char buf[64];
+        snprintf(buf, sizeof(buf), "phase=%d", (int)phase);
+        fg->AddText(ImVec2(dragCurrent.x + 16, dragCurrent.y - 12),
+                    IM_COL32(255, 255, 255, 200), buf);
     }
+#endif
+}
 
     // ── Dipanggil setelah finger diangkat ─────────────────────────────────────
     void OnDragEnd() {
