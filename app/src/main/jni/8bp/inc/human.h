@@ -271,127 +271,142 @@ struct HumanAngleDrag {
     }
 
     void BeginSegment(double angleDelta) {
-        float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 200.0f;
+    float sens = persistent_float["fAngleDragSensitivity"];
+    if (sens <= 1.0f) sens = 200.0f;
 
-        // ===== POSISI AWAL = POSISI TERAKHIR (biar nyambung) =====
-        if (segmentIndex == 0) {
-            auto& cueBall = gPrediction->guiData.balls[0];
-            ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
-            lastDragPos = ImVec2(
-                cueScreen.x + 130.0f + (float)((rand() % 60) - 30),
-                cueScreen.y + 90.0f + (float)((rand() % 40) - 20)
-            );
-        }
-        
-        dragOrigin = lastDragPos;
-        dragCurrent = dragOrigin;
+    // ===== POSISI AWAL =====
+    if (segmentIndex == 0) {
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
+        // Mulai dari dekat cue ball (seperti video contoh)
+        lastDragPos = ImVec2(
+            cueScreen.x + 100.0f + (float)((rand() % 40) - 20),
+            cueScreen.y + 70.0f + (float)((rand() % 30) - 15)
+        );
+    }
+    
+    dragOrigin = lastDragPos;
+    dragCurrent = dragOrigin;
 
-        // ===== HITUNG POSISI AKHIR SEGMEN =====
-        float dx = (float)(angleDelta * sens);
-        float dy = (float)(angleDelta * sens * 0.10f);
-        dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
+    // ===== HITUNG POSISI AKHIR =====
+    float dx = (float)(angleDelta * sens);
+    float dy = (float)(angleDelta * sens * 0.10f);
+    dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
 
-        elapsed = 0.f;
-        duration = 0.6f + (rand() % 250) * 0.001f; // 0.6-0.85 detik per segmen
+    elapsed = 0.f;
+    // ===== DURASI PENDEK: 0.3-0.5 DETIK PER SEGMEN =====
+    duration = 0.35f + (rand() % 150) * 0.001f;
 
-        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
-        state = HAD_DRAGGING;
+    NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
+    state = HAD_DRAGGING;
     }
 
     void Begin(double angle) {
-        if (active) return;
-        
-        targetAngle = angle;
-        correctionAttempts = 0;
-        active = true;
-        done = false;
+    if (active) return;
+    
+    targetAngle = angle;
+    correctionAttempts = 0;
+    active = true;
+    done = false;
 
-        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double delta = AngleDiff(targetAngle, currentAngle);
-        
-        LOGI("HumanDrag: current=%.4f -> target=%.4f (delta=%.4f)", 
-             currentAngle, targetAngle, delta);
-        
-        // ===== HITUNG SEGMEN =====
-        int numSegments = 1 + (int)(fabs(delta) / 0.2);
-        if (numSegments > 15) numSegments = 15;
-        if (numSegments < 1) numSegments = 1;
-        
-        segmentIndex = 0;
-        totalSegments = numSegments;
-        startAngle = currentAngle;
-        totalDelta = delta;
-        
-        BeginSegment(totalDelta / totalSegments);
+    double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+    double delta = AngleDiff(targetAngle, currentAngle);
+    
+    // ===== DRAG LANGSUNG: MAKSIMAL 2 SEGMEN =====
+    int numSegments = 1; // Cukup 1 segmen untuk drag utama
+    if (fabs(delta) > 1.5) { // Kalo sudutnya besar banget, baru 2 segmen
+        numSegments = 2;
+    }
+    
+    segmentIndex = 0;
+    totalSegments = numSegments;
+    startAngle = currentAngle;
+    totalDelta = delta;
+    
+    BeginSegment(totalDelta / totalSegments);
     }
 
     void Update() {
-        if (!active || state != HAD_DRAGGING) return;
+    if (!active || state != HAD_DRAGGING) return;
 
-        float dt = ImGui::GetIO().DeltaTime;
-        elapsed += dt;
-        float t = std::min(1.f, elapsed / duration);
+    float dt = ImGui::GetIO().DeltaTime;
+    elapsed += dt;
+    float t = std::min(1.f, elapsed / duration);
 
-        // ===== SMOOTH EASE IN-OUT QUINTIC =====
-        float ease = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    // ===== SMOOTH EASE IN-OUT QUINTIC =====
+    float ease = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
+    
+    // ===== JITTER NATURAL (gemetar halus seperti tangan manusia) =====
+    float jamp = 1.2f * (ease * (1.0f - ease) * 4.0f);
+    float jitterX = sinf(t * 15.0f + 1.7f) * jamp * 0.5f +
+                    sinf(t * 27.0f + 3.2f) * jamp * 0.25f;
+    float jitterY = sinf(t * 19.0f + 2.3f) * jamp * 0.3f +
+                    sinf(t * 31.0f + 4.1f) * jamp * 0.15f;
+
+    // ===== HITUNG POSISI DRAG SAAT INI =====
+    dragCurrent = ImVec2(
+        dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jitterX,
+        dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jitterY + ease * 4.0f
+    );
+    
+    // ===== SIMPAN POSISI TERAKHIR UNTUK SEGMEN BERIKUTNYA =====
+    lastDragPos = dragCurrent;
+    
+    // ===== KIRIM TOUCH EVENT =====
+    NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+
+    // ===== DEBUG VISUAL =====
+    if (dynamic_bool["DebugTouch"]) {
+        ImDrawList* fg = ImGui::GetForegroundDrawList();
+        fg->AddCircleFilled(dragCurrent, 14.f, IM_COL32(80, 200, 255, 150));
+        fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 90), 2.f);
         
-        // ===== JITTER NATURAL =====
-        float jamp = 1.2f * (ease * (1.0f - ease) * 4.0f);
-        float jx = SmoothJitter(t, 1.7f, jamp * 0.5f);
-        float jy = SmoothJitter(t, 3.2f, jamp * 0.3f);
+        // Tampilkan progress segmen
+        char buf[32];
+        snprintf(buf, sizeof(buf), "Seg %d/%d %.0f%%", segmentIndex+1, totalSegments, t*100);
+        fg->AddText(ImVec2(dragCurrent.x + 20, dragCurrent.y - 10), 
+                    IM_COL32(255, 255, 255, 200), buf);
+    }
 
-        dragCurrent = ImVec2(
-            dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jx,
-            dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jy + ease * 4.0f
-        );
+    // ===== CEK APAKAH SEGMEN SELESAI =====
+    if (t >= 1.f) {
+        NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
         
-        lastDragPos = dragCurrent;
-        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-        // ===== DEBUG =====
-        if (dynamic_bool["DebugTouch"]) {
-            ImDrawList* fg = ImGui::GetForegroundDrawList();
-            fg->AddCircleFilled(dragCurrent, 14.f, IM_COL32(80, 200, 255, 150));
-            fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 90), 2.f);
-            char buf[48];
-            snprintf(buf, sizeof(buf), "Seg %d/%d %.0f%%", segmentIndex+1, totalSegments, t*100);
-            fg->AddText(ImVec2(dragCurrent.x + 20, dragCurrent.y - 10), 
-                        IM_COL32(255,255,255,200), buf);
-        }
-
-        // ===== SEGMEN SELESAI =====
-        if (t >= 1.f) {
-            NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
+        segmentIndex++;
+        if (segmentIndex < totalSegments) {
+            // ===== JEDA SINGKAT SEBELUM SEGMEN BERIKUTNYA =====
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
             
-            segmentIndex++;
-            if (segmentIndex < totalSegments) {
-                double remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
-                BeginSegment(remainingDelta / (totalSegments - segmentIndex));
+            // ===== LANJUT KE SEGMEN BERIKUTNYA =====
+            double remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
+            BeginSegment(remainingDelta / (totalSegments - segmentIndex));
+        } else {
+            // ===== SEMUA SEGMEN SELESAI =====
+            // ===== SET AIM ANGLE LANGSUNG KE TARGET =====
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            
+            // ===== CEK AKURASI =====
+            double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+            double remaining = AngleDiff(targetAngle, actualAngle);
+
+            if (std::abs(remaining) < ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
+                active = false;
+                done = true;
+                state = HAD_FINISHED;
+                LOGI("=== HumanAngleDrag: FINISHED SUCCESS (target=%.4f, actual=%.4f) ===", 
+                     targetAngle, actualAngle);
             } else {
-                // ===== FINISH: CEK SUDAH SAMPAI TARGET =====
-                double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
-                double remaining = AngleDiff(targetAngle, actualAngle);
-                
-                if (std::abs(remaining) < ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
-                    // ===== SUKSES: SET AIM ANGLE KE TARGET =====
-                    AutoPlay::setAimAngle(targetAngle);
-                    active = false;
-                    done = true;
-                    state = HAD_FINISHED;
-                    LOGI("HumanDrag: SUCCESS (actual=%.4f)", actualAngle);
-                } else {
-                    // ===== KOREKSI =====
-                    correctionAttempts++;
-                    LOGI("HumanDrag: Correction %d (remaining=%.4f)", correctionAttempts, remaining);
-                    totalSegments = 2;
-                    segmentIndex = 0;
-                    totalDelta = remaining;
-                    BeginSegment(totalDelta / totalSegments);
-                }
+                // ===== KOREKSI CEPAT (1 SEGMEN SAJA) =====
+                correctionAttempts++;
+                LOGI("HumanAngleDrag: Correction %d, remaining=%.4f", correctionAttempts, remaining);
+                totalSegments = 1;
+                segmentIndex = 0;
+                totalDelta = remaining;
+                BeginSegment(totalDelta);
             }
         }
     }
+}
 };
 
 static HumanAngleDrag humanAngleDrag;
