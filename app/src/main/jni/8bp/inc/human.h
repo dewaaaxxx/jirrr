@@ -231,173 +231,208 @@ namespace AutoPlay {
 // ============================================================================
 // HUMAN ANGLE DRAG (Simulasi gerakan tangan manusia - SMOOTH VERSION)
 // ============================================================================
+// Flow:
+//   1. Baca angle SEKARANG dari memory (getShotAngle)
+//   2. Hitung delta ke target angle
+//   3. Drag dari titik awal yang natural (area meja tengah-bawah)
+//      ke titik akhir = titik awal + (delta * sensitivity) pixels
+//   4. Setiap frame: update posisi drag dengan easing quintic + micro-jitter
+//      Kirim NativeTouchesMove() → game rotate cue secara real
+//   5. Setelah drag selesai, baca ulang angle dari memory
+//      Kalau masih ada selisih > tolerance → koreksi kecil (max 4x)
+//   6. Done → HumanShootUpdate lanjut ke H_THINK
+// ============================================================================
 struct HumanAngleDrag {
-    enum State { HAD_IDLE, HAD_DRAGGING, HAD_FINISHED } state = HAD_IDLE;
+    enum State { HAD_IDLE, HAD_PRESS_DELAY, HAD_DRAGGING, HAD_LIFT_DELAY, HAD_FINISHED } state = HAD_IDLE;
     int touchIndex = 10;
 
     double targetAngle = 0.0;
     ImVec2 dragOrigin{};
     ImVec2 dragTo{};
     ImVec2 dragCurrent{};
-    ImVec2 lastDragPos{};
 
-    float elapsed = 0.f;
-    float duration = 0.f;
+    float elapsed   = 0.f;
+    float duration  = 0.f;
+    float pressDelay = 0.f;   // brief pause after touch-down before starting move
+    float liftDelay  = 0.f;   // brief pause at end before lifting finger
+
     int correctionAttempts = 0;
-    static constexpr int MAX_CORRECTIONS = 4;
-    static constexpr double ANGLE_TOLERANCE = 0.015;
+    static constexpr int   MAX_CORRECTIONS   = 4;
+    static constexpr double ANGLE_TOLERANCE  = 0.012; // ~0.7 degrees — good enough
 
     bool active = false;
-    bool done = false;
-    
-    int segmentIndex = 0;
-    int totalSegments = 1;
-    double startAngle = 0.0;
-    double totalDelta = 0.0;
+    bool done   = false;
 
+    // ── Helpers ──────────────────────────────────────────────────────────────
     static double AngleDiff(double a, double b) {
         double d = a - b;
-        while (d > M_PI) d -= 2.0 * M_PI;
+        while (d >  M_PI) d -= 2.0 * M_PI;
         while (d < -M_PI) d += 2.0 * M_PI;
         return d;
     }
 
-    static float SmoothJitter(float t, float seed, float amp) {
-        return amp * (
-            sinf(t * 15.0f + seed)         * 0.5f +
-            sinf(t * 27.0f + seed * 1.7f)  * 0.25f +
-            sinf(t * 41.0f + seed * 2.3f)  * 0.1f
+    // Tiny natural tremor — amplitude proportional to (ease * (1-ease))
+    // so it's zero at start/end and peaks in the middle of the drag
+    static float Jitter(float t, float seed, float amp) {
+        float env = t * (1.0f - t) * 4.0f; // bell curve, peaks at t=0.5
+        return amp * env * (
+            sinf(t * 13.7f + seed)         * 0.50f +
+            sinf(t * 27.3f + seed * 1.6f)  * 0.30f +
+            sinf(t * 43.1f + seed * 2.4f)  * 0.20f
         );
     }
 
-    void BeginSegment(double angleDelta) {
-    float sens = persistent_float["fAngleDragSensitivity"];
-    if (sens <= 1.0f) sens = 350.0f; // <-- TINGKATKAN SENSITIVITAS
-
-    if (segmentIndex == 0) {
-        auto& cueBall = gPrediction->guiData.balls[0];
-        ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
-        lastDragPos = ImVec2(
-            cueScreen.x + 100.0f + (float)((rand() % 40) - 20),
-            cueScreen.y + 70.0f + (float)((rand() % 30) - 15)
-        );
-    }
-    
-    dragOrigin = lastDragPos;
-    dragCurrent = dragOrigin;
-
-    float dx = (float)(angleDelta * sens);
-    float dy = (float)(angleDelta * sens * 0.10f);
-    dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
-
-    elapsed = 0.f;
-    
-    // ===== DURASI DRAG BERDASARKAN BESARNYA PERUBAHAN SUDUT =====
-    // Semakin besar perubahan sudut, semakin lama durasinya
-    float absDelta = fabs(angleDelta);
-    duration = 0.5f + (absDelta * 0.8f); // 0.5-1.5 detik
-    duration += (rand() % 150) * 0.001f; // variasi acak
-
-    NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
-    state = HAD_DRAGGING;
+    // Ease-in-out quintic — smooth start, smooth stop
+    static float EaseInOutQuint(float t) {
+        return t < 0.5f
+            ? 16.0f * t * t * t * t * t
+            : 1.0f - powf(-2.0f * t + 2.0f, 5.0f) / 32.0f;
     }
 
+    // ── Pick a drag origin: natural hand position for rotating cue ───────────
+    // In 8BP, players drag roughly in the LOWER-CENTER of the visible table
+    // (below the cue ball, where the thumb would rest). We stay away from
+    // the power slider (right edge) and UI elements (top).
+    static ImVec2 PickDragOrigin() {
+        float cx = (TABLE_LEFT + TABLE_RIGHT)  * 0.50f;
+        float cy = (TABLE_TOP  + TABLE_BOTTOM) * 0.62f; // slightly below center
+        // Small random spread so consecutive shots don't look identical
+        cx += (float)((rand() % 60) - 30);
+        cy += (float)((rand() % 30) - 15);
+        return ImVec2(cx, cy);
+    }
+
+    // ── Start one drag segment toward `target` from the current angle ────────
+    void BeginDrag(double currentAngle, double target) {
+        float sens = persistent_float["fAngleDragSensitivity"];
+        if (sens <= 1.0f) sens = 280.0f; // px / radian — sane default
+
+        double delta = AngleDiff(target, currentAngle);
+
+        dragOrigin  = PickDragOrigin();
+        dragCurrent = dragOrigin;
+
+        // Horizontal drag maps to angle change; tiny vertical drift adds
+        // realism (a real hand doesn't move in a perfectly straight line)
+        float dx = (float)(delta * (double)sens);
+        float dy = dx * 0.06f * ((rand() % 2) ? 1.f : -1.f); // ±6% vertical drift
+        dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
+
+        // Duration: 0.30–0.65 s for small moves, up to ~1.0 s for large ones
+        float absDelta = fabsf((float)delta);
+        duration  = 0.30f + absDelta * 0.45f + (rand() % 120) * 0.001f;
+        duration  = std::min(duration, 1.0f);
+
+        // Tiny delay after touch-down (finger lands before it starts moving)
+        pressDelay = 0.04f + (rand() % 40) * 0.001f;
+        // Tiny delay before lift (finger slows to a stop)
+        liftDelay  = 0.03f + (rand() % 30) * 0.001f;
+
+        elapsed = 0.f;
+        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
+        state = HAD_PRESS_DELAY;
+    }
+
+    // ── Entry point ──────────────────────────────────────────────────────────
     void Begin(double angle) {
-    if (active) return;
-    
-    targetAngle = angle;
-    correctionAttempts = 0;
-    active = true;
-    done = false;
+        if (active) return;
+        targetAngle        = angle;
+        correctionAttempts = 0;
+        active             = true;
+        done               = false;
 
-    double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-    double delta = AngleDiff(targetAngle, currentAngle);
-    
-    // ===== SATU SEGMEN UNTUK DRAG UTAMA =====
-    segmentIndex = 0;
-    totalSegments = 1;
-    startAngle = currentAngle;
-    totalDelta = delta;
-    
-    BeginSegment(totalDelta);
+        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+        BeginDrag(currentAngle, targetAngle);
     }
 
+    // ── Per-frame update ─────────────────────────────────────────────────────
     void Update() {
-    if (!active || state != HAD_DRAGGING) return;
+        if (!active) return;
 
-    float dt = ImGui::GetIO().DeltaTime;
-    elapsed += dt;
-    float t = std::min(1.f, elapsed / duration);
+        float dt = ImGui::GetIO().DeltaTime;
 
-    // ===== SMOOTH EASE IN-OUT QUINTIC =====
-    float ease = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
-    
-    // ===== JITTER NATURAL (gemetar halus seperti tangan manusia) =====
-    float jamp = 1.2f * (ease * (1.0f - ease) * 4.0f);
-    float jitterX = sinf(t * 15.0f + 1.7f) * jamp * 0.5f +
-                    sinf(t * 27.0f + 3.2f) * jamp * 0.25f;
-    float jitterY = sinf(t * 19.0f + 2.3f) * jamp * 0.3f +
-                    sinf(t * 31.0f + 4.1f) * jamp * 0.15f;
+        switch (state) {
 
-    // ===== HITUNG POSISI DRAG SAAT INI =====
-    dragCurrent = ImVec2(
-        dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jitterX,
-        dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jitterY + ease * 4.0f
-    );
-    
-    // ===== SIMPAN POSISI TERAKHIR UNTUK SEGMEN BERIKUTNYA =====
-    lastDragPos = dragCurrent;
-    
-    // ===== KIRIM TOUCH EVENT =====
-    NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+        case HAD_PRESS_DELAY: {
+            // Hold finger still for a moment after touch-down
+            elapsed += dt;
+            NativeTouchesMove(touchIndex, dragOrigin.x, dragOrigin.y);
+            if (elapsed >= pressDelay) {
+                elapsed = 0.f;
+                state   = HAD_DRAGGING;
+            }
+            break;
+        }
 
-    // ===== DEBUG VISUAL =====
-    if (dynamic_bool["DebugTouch"]) {
-        ImDrawList* fg = ImGui::GetForegroundDrawList();
-        fg->AddCircleFilled(dragCurrent, 14.f, IM_COL32(80, 200, 255, 150));
-        fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 90), 2.f);
-        
-        // Tampilkan progress segmen
-        char buf[32];
-        snprintf(buf, sizeof(buf), "Seg %d/%d %.0f%%", segmentIndex+1, totalSegments, t*100);
-        fg->AddText(ImVec2(dragCurrent.x + 20, dragCurrent.y - 10), 
-                    IM_COL32(255, 255, 255, 200), buf);
-    }
+        case HAD_DRAGGING: {
+            elapsed += dt;
+            float t    = std::min(1.f, elapsed / duration);
+            float ease = EaseInOutQuint(t);
 
-    // ===== CEK APAKAH SEGMEN SELESAI =====
-    if (t >= 1.f) {
-    NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
-    
-    segmentIndex++;
-    if (segmentIndex < totalSegments) {
-        // JIKA ADA SEGMEN KEDUA (HANYA UNTUK KOREKSI)
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        double remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
-        BeginSegment(remainingDelta / (totalSegments - segmentIndex));
-    } else {
-        // ===== DRAG UTAMA SELESAI =====
-        // Set sudut ke target, tapi jangan paksa jika sudah dekat
-        double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double remaining = AngleDiff(targetAngle, actualAngle);
-        
-        if (std::abs(remaining) < 0.05) { // Toleransi 0.05 rad
-            // Sudah cukup dekat, lanjutkan
-            active = false;
-            done = true;
-            state = HAD_FINISHED;
-            LOGI("HumanDrag: SUCCESS (target=%.4f)", targetAngle);
-        } else {
-            // Jika masih meleset, lakukan koreksi dengan 1 segmen cepat
-            correctionAttempts++;
-            LOGI("HumanDrag: Correction %d (remaining=%.4f)", correctionAttempts, remaining);
-            totalSegments = 1;
-            segmentIndex = 0;
-            totalDelta = remaining;
-            BeginSegment(totalDelta);
+            // Natural micro-jitter (zero at start/end, peak mid-drag)
+            float seed = (float)touchIndex * 2.3f;
+            float jx = Jitter(t, seed,        1.5f);
+            float jy = Jitter(t, seed + 5.f,  0.6f);
+
+            dragCurrent = ImVec2(
+                dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jx,
+                dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jy
+            );
+            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+
+#ifdef DEBUG_TOUCH
+            if (dynamic_bool["DebugTouch"]) {
+                auto* fg = ImGui::GetForegroundDrawList();
+                fg->AddCircleFilled(dragCurrent, 12.f, IM_COL32(80, 200, 255, 160));
+                fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 100), 1.5f);
+                char buf[48];
+                snprintf(buf, sizeof(buf), "drag %.0f%%", t * 100.f);
+                fg->AddText(ImVec2(dragCurrent.x + 18, dragCurrent.y - 10),
+                            IM_COL32(255, 255, 255, 200), buf);
+            }
+#endif
+
+            if (t >= 1.f) {
+                elapsed = 0.f;
+                state   = HAD_LIFT_DELAY;
+            }
+            break;
+        }
+
+        case HAD_LIFT_DELAY: {
+            // Hold at endpoint — finger decelerates to a stop
+            elapsed += dt;
+            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+            if (elapsed >= liftDelay) {
+                NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
+                OnDragEnd();
+            }
+            break;
+        }
+
+        default: break;
         }
     }
-}
-}
+
+    // ── Called when one drag segment finishes ────────────────────────────────
+    void OnDragEnd() {
+        double actualAngle  = sharedGameManager.mVisualCue().getShotAngle();
+        double remaining    = AngleDiff(targetAngle, actualAngle);
+
+        if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
+            // Close enough (or ran out of correction attempts)
+            active = false;
+            done   = true;
+            state  = HAD_FINISHED;
+            LOGI("HumanDrag: DONE target=%.4f actual=%.4f err=%.4f attempts=%d",
+                 targetAngle, actualAngle, remaining, correctionAttempts);
+        } else {
+            // Small follow-up correction drag (same flow, shorter duration)
+            correctionAttempts++;
+            LOGI("HumanDrag: correction %d remaining=%.4f", correctionAttempts, remaining);
+            BeginDrag(actualAngle, targetAngle);
+        }
+    }
 };
 
 static HumanAngleDrag humanAngleDrag;
@@ -473,8 +508,11 @@ void HumanShootUpdate() {
         case H_ANGLE: {
             humanAngleDrag.Update();
             if (humanAngleDrag.done) {
-                setAimAngle(humanAngleDrag.targetAngle);
-                humanThinkTimer = 0.50f + (rand() % 400) * 0.001f;
+                // No setAimAngle() here — HumanAngleDrag already verified
+                // the angle via getShotAngle() readback and corrected if
+                // needed. Overwriting via memory right after risks
+                // conflicting with the engine state from the touch event.
+                humanThinkTimer = 0.40f + (rand() % 300) * 0.001f;
                 humanExecState = H_THINK;
             }
             break;
