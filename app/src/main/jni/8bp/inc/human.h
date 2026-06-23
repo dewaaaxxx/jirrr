@@ -221,6 +221,11 @@ bool IsShotValid() {
     return true;
 }
 
+// ===== FORWARD DECLARATION =====
+namespace AutoPlay {
+    void setAimAngle(double angle);
+}
+
 // ============================================================================
 // HUMAN ANGLE DRAG (Simulasi gerakan tangan manusia - SMOOTH VERSION)
 // ============================================================================
