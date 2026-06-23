@@ -221,6 +221,13 @@ bool IsShotValid() {
     return true;
 }
 
+// ============================================================
+// FORWARD DECLARATION: biar HumanAngleDrag bisa panggil AutoPlay::setAimAngle
+// ============================================================
+namespace AutoPlay {
+    void setAimAngle(double angle);
+}
+
 // ============================================================================
 // HUMAN ANGLE DRAG (Simulasi gerakan tangan manusia - SMOOTH VERSION)
 // ============================================================================
