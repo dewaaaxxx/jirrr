@@ -516,58 +516,80 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
-    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
+    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
+
         auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call_time).count() > 500) counting = false;
+
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call_time).count() > 500) {
+            counting = false;
+        }
         last_call_time = now;
-        if (!counting) { counting = true; countdown_start = now; }
+
+        if (!counting) {
+            counting = true;
+            countdown_start = now;
+        }
+
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
         int remaining_ms = 3000 - elapsed;
+
         if (remaining_ms <= 0) {
             if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
             StartLastMatch();
             counting = false;
             return;
         }
-        SetNextWindowPos(ImVec2(Width/2.0f, Height/2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-        SetNextWindowSize(ImVec2(360, 240), ImGuiCond_Always);
-        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.08f, 0.13f, 0.98f));
-        PushStyleVar(ImGuiStyleVar_WindowRounding, 18.0f);
-        if (Begin(O("##AutoQueue"), nullptr, ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings)) {
-            ImDrawList* dl = GetWindowDrawList();
-            ImVec2 wp = GetWindowPos(); ImVec2 ws = GetWindowSize();
-            DrawGradientRect(dl, wp, ImVec2(wp.x+ws.x, wp.y+60), COL_GOLD_DEEP, COL_GOLD, true);
-            dl->AddRectFilled(wp, ImVec2(wp.x+ws.x, wp.y+18), COL_GOLD_DEEP, 18.0f, ImDrawFlags_RoundCornersTop);
-            const char* t = L("Auto Queue", "ﻲﺋﺎﻘﻠﺘﻟﺍ ﻝﻮﺧﺪﻟﺍ");
-            ImVec2 tz = CalcTextSize(t);
-            dl->AddText(ImVec2(wp.x + (ws.x-tz.x)*0.5f, wp.y + 18), IM_COL32(20,20,28,255), t);
 
-            SetCursorPosY(80);
-            SetWindowFontScale(3.2f);
-            std::string c = std::to_string((remaining_ms/1000)+1);
-            ImVec2 cs = CalcTextSize(c.c_str());
-            SetCursorPosX((ws.x - cs.x)*0.5f);
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", c.c_str());
+        SetNextWindowPos(ImVec2(Width / 2.0f, Height / 2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        SetNextWindowSize(ImVec2(360, 260), ImGuiCond_Always);
+        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.12f, 0.98f));
+        PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
+
+        if (Begin(O("##AutoQueue"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+            ImDrawList* dl = GetWindowDrawList();
+            ImVec2 winPos = GetWindowPos();
+            ImVec2 winSize = GetWindowSize();
+            
+            DrawGradientRect(dl, winPos, ImVec2(winPos.x + winSize.x, winPos.y + 70), IM_COL32(40, 100, 180, 255), IM_COL32(60, 140, 200, 255), true);
+            dl->AddRectFilled(winPos, ImVec2(winPos.x + winSize.x, winPos.y + 20), IM_COL32(40, 100, 180, 255), 20.0f, ImDrawFlags_RoundCornersTop);
+            
+            ImVec2 titleSize = CalcTextSize(O("Auto Queue"));
+            dl->AddText(ImVec2(winPos.x + (winSize.x - titleSize.x) * 0.5f, winPos.y + 22), IM_COL32(255, 255, 255, 255), O("Auto Queue"));
+
+            SetCursorPosY(90);
+            float font_scale = 3.5f;
+            SetWindowFontScale(font_scale);
+
+            std::string count_str = std::to_string((remaining_ms / 1000) + 1);
+            auto text_size = CalcTextSize(count_str.c_str());
+            SetCursorPosX((winSize.x - text_size.x) * 0.5f);
+            TextColored(ImVec4(0.35f, 0.7f, 1.0f, 1.0f), "%s", count_str.c_str());
+
             SetWindowFontScale(1.0f);
 
-            SetCursorPosY(ws.y - 65);
-            SetCursorPosX(20);
-            PushStyleColor(ImGuiCol_Button,        ImVec4(0.75f,0.25f,0.25f,1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f,0.35f,0.35f,1.0f));
+            SetCursorPosY(winSize.y - 75);
+            SetCursorPosX(25);
+            PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.25f, 0.25f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.35f, 1.0f));
             PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-            if (Button(L("Cancel","ﺀﺎﻐﻟﺇ"), ImVec2(ws.x-40, 45))) {
+            
+            if (Button(O("Cancel"), ImVec2(winSize.x - 50, 50))) {
                 persistent_bool[O("bAutoQueue")] = false;
                 counting = false;
             }
-            PopStyleVar(); PopStyleColor(2);
+            
+            PopStyleVar();
+            PopStyleColor(2);
             End();
         }
-        PopStyleVar(); PopStyleColor();
+        PopStyleVar();
+        PopStyleColor();
     }
 }
+
 
 /*static void DrawLiveStatusOverlay(ImGuiIO& io) {
     if (!persistent_bool[O("bAutoPlay")]) return;
@@ -803,9 +825,11 @@ INLINE void DrawESP(ImDrawList* draw) {
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
         if (!mainStateManager.isInGame()) {
-            if (persistent_bool[O("bAutoQueue")]) { if (!sharedMenuManager.isInQueue()) DrawAutoQueue(); }
-            return;
+        if (persistent_bool[O("bAutoQueue")]) {
+            if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
+        } return;
         }
+        
         auto visualCue = sharedGameManager.mVisualCue();
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         Table table = sharedGameManager.mTable;
@@ -1289,17 +1313,38 @@ PopStyleVar();*/
         }
         case 2: { 
             Dummy(ImVec2(0,4));
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Coming Soon","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
-          /*  need_save |= GoldToggle(L("Enable Auto Queue","ﻲﺋﺎﻘﻠﺘﻟﺍ ﻝﻮﺧﺪﻟﺍ ﻞﻴﻌﻔﺗ"),
-                                    L("","ً"),
-                                    &persistent_bool[O("bAutoQueue")]);
-            Dummy(ImVec2(0,12));
-            const char* items = "Last Selected\0Smart\0";
-            const char* itemsAr = "ﻪﻟﻭﺎﻃ ﺮﺧﺍ\0ﻲﻛﺫ\0";
-            need_save |= GoldCombo(L("Mode","ﻊﺿﻮﻟﺍ"),
-                                   L("Queue selection mode","ﺔﻟﻭﺎﻄﻟﺍ ﺭﺎﻴﺘﺧﺍ ﺔﻘﻳﺮﻃ"),
-                                   &persistent_int["iAutoQueue_Mode"],
-                                   persistent_int["iLang"]==1 ? itemsAr : items);*/
+            need_save |= GoldToggle(O("Enable Auto Queue"), O(""), &persistent_bool[("bAutoQueue")]);
+            Dummy(ImVec2(0, 20));
+            
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
+            Dummy(ImVec2(0, 8));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+            SetNextItemWidth(GetContentRegionAvail().x);
+            need_save |= GoldCombo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
+            PopStyleColor(2);
+            PopStyleVar(2);
+            
+            if (persistent_int["iAutoQueue_Mode"] == 1) {
+                Dummy(ImVec2(0, 15));
+                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Bet Percent"));
+                Dummy(ImVec2(0, 8));
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.3f, 0.6f, 0.95f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
+                SetNextItemWidth(GetContentRegionAvail().x);
+                need_save |= SliderInt("##betpercent", &persistent_int["iAutoQueue_BetPercent"], 1, 100, "%d%%");
+                PopStyleColor(3);
+                PopStyleVar(2);
+            }
+            
+            Dummy(ImVec2(0, 25));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
             break;
         }
         case 3: { 
