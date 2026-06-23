@@ -805,16 +805,7 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 INLINE void DrawESP(ImDrawList* draw) {
-    if (!sharedGameManager) return;
-    auto stateMgr = sharedGameManager.mStateManager();
-    if (!stateMgr) return;
-    int stateId = stateMgr.getCurrentStateId();
-    
-    // ========== HANYA BLOKIR LOBBY (0-3) ==========
-    if (stateId >= 0 && stateId <= 3) return;
-    
-    if (g_menu.hideForCapture) return; 
-    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
+    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
@@ -825,9 +816,8 @@ INLINE void DrawESP(ImDrawList* draw) {
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
         if (!mainStateManager.isInGame()) {
-        if (persistent_bool[O("bAutoQueue")]) {
-            if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
-        } return;
+            if (persistent_bool[O("bAutoQueue")]) { if (!sharedMenuManager.isInQueue()) DrawAutoQueue(); }
+            return;
         }
         
         auto visualCue = sharedGameManager.mVisualCue();
