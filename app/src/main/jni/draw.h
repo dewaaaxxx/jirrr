@@ -1323,7 +1323,8 @@ PopStyleVar();*/
             PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
             PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
             SetNextItemWidth(GetContentRegionAvail().x);
-            need_save |= GoldCombo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
+         //   need_save |= GoldCombo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
+            need_save |= GoldCombo("Mode", "Queue selection mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
             PopStyleColor(2);
             PopStyleVar(2);
             
