@@ -232,6 +232,7 @@ struct HumanAngleDrag {
     ImVec2 dragOrigin{};
     ImVec2 dragTo{};
     ImVec2 dragCurrent{};
+    ImVec2 lastDragPos{};
     
     int segmentIndex = 0;
     int totalSegments = 1;
@@ -265,27 +266,30 @@ struct HumanAngleDrag {
     float sens = persistent_float["fAngleDragSensitivity"];
     if (sens <= 1.0f) sens = 220.0f;
 
-    // ===== AMBIL POSISI CUE BALL DI LAYAR =====
-    auto& cueBall = gPrediction->guiData.balls[0];
-    ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
-
-    // ===== POSISI AWAL DRAG (dekat cue ball) =====
-    float originX = cueScreen.x + 120.0f + (float)((rand() % 60) - 30);
-    float originY = cueScreen.y + 80.0f + (float)((rand() % 40) - 20);
-    dragOrigin = ImVec2(originX, originY);
+    // ===== GANTI: POSISI AWAL = POSISI TERAKHIR =====
+    // Jika ini segmen pertama, gunakan posisi dekat cue ball
+    if (segmentIndex == 0) {
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
+        lastDragPos = ImVec2(
+            cueScreen.x + 120.0f + (float)((rand() % 60) - 30),
+            cueScreen.y + 80.0f + (float)((rand() % 40) - 20)
+        );
+    }
+    
+    dragOrigin = lastDragPos; // <-- MULAI DARI POSISI TERAKHIR
     dragCurrent = dragOrigin;
 
-    // ===== POSISI AKHIR DRAG (berdasarkan delta) =====
     float dx = (float)(angleDelta * sens);
     float dy = (float)(angleDelta * sens * 0.12f);
     dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
 
     elapsed = 0.f;
-    duration = 0.5f + (rand() % 200) * 0.001f; // 0.5-0.7 detik per segmen
+    duration = 0.6f + (rand() % 250) * 0.001f; // 0.6-0.85 detik per segmen
 
     NativeTouchesBegin(10, dragOrigin.x, dragOrigin.y);
     state = HAD_DRAGGING;
-}
+    }
 
     void Begin(double angle) {
     if (active) return;
@@ -319,34 +323,49 @@ struct HumanAngleDrag {
     elapsed += dt;
     float t = std::min(1.f, elapsed / duration);
 
-    // ===== EASE IN-OUT QUINTIC (lebih smooth) =====
+    // ===== SMOOTH EASE IN-OUT QUINTIC =====
     float ease = t * t * t * (t * (t * 6.0f - 15.0f) + 10.0f);
-    float jamp = 1.2f * (ease * (1.0f - ease) * 4.0f);
     
+    // ===== JITTER NATURAL (gemetar halus seperti tangan manusia) =====
+    float jamp = 1.2f * (ease * (1.0f - ease) * 4.0f);
     float jitterX = sinf(t * 15.0f + 1.7f) * jamp * 0.5f +
                     sinf(t * 27.0f + 3.2f) * jamp * 0.25f;
     float jitterY = sinf(t * 19.0f + 2.3f) * jamp * 0.3f +
                     sinf(t * 31.0f + 4.1f) * jamp * 0.15f;
 
+    // ===== HITUNG POSISI DRAG SAAT INI =====
     dragCurrent = ImVec2(
         dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jitterX,
         dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jitterY + ease * 4.0f
     );
+    
+    // ===== SIMPAN POSISI TERAKHIR UNTUK SEGMEN BERIKUTNYA =====
+    lastDragPos = dragCurrent;
+    
+    // ===== KIRIM TOUCH EVENT =====
     NativeTouchesMove(10, dragCurrent.x, dragCurrent.y);
 
+    // ===== DEBUG VISUAL =====
     if (dynamic_bool["DebugTouch"]) {
         ImDrawList* fg = ImGui::GetForegroundDrawList();
         fg->AddCircleFilled(dragCurrent, 14.f, IM_COL32(80, 200, 255, 150));
         fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 90), 2.f);
+        
+        // Tampilkan progress segmen
+        char buf[32];
+        snprintf(buf, sizeof(buf), "Seg %d/%d %.0f%%", segmentIndex+1, totalSegments, t*100);
+        fg->AddText(ImVec2(dragCurrent.x + 20, dragCurrent.y - 10), 
+                    IM_COL32(255, 255, 255, 200), buf);
     }
 
+    // ===== CEK APAKAH SEGMEN SELESAI =====
     if (t >= 1.f) {
         NativeTouchesEnd(10, dragCurrent.x, dragCurrent.y);
         
         segmentIndex++;
         if (segmentIndex < totalSegments) {
             // ===== LANJUT KE SEGMEN BERIKUTNYA =====
-            float remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
+            double remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
             BeginSegment(remainingDelta / (totalSegments - segmentIndex));
         } else {
             // ===== SEMUA SEGMEN SELESAI =====
@@ -357,9 +376,11 @@ struct HumanAngleDrag {
                 active = false;
                 done = true;
                 state = HAD_FINISHED;
+                LOGI("=== HumanAngleDrag: FINISHED ===");
             } else {
                 correctionAttempts++;
-                // KOREKSI KECIL
+                LOGI("HumanAngleDrag: Correction %d, remaining=%.4f", correctionAttempts, remaining);
+                // KOREKSI DENGAN 2 SEGMEN
                 totalSegments = 2;
                 segmentIndex = 0;
                 totalDelta = remaining;
@@ -367,7 +388,7 @@ struct HumanAngleDrag {
             }
         }
     }
-}
+  }
 };
 
 static HumanAngleDrag humanAngleDrag;
