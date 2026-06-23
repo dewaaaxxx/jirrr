@@ -1156,8 +1156,8 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0, 8));
 
             float sens = persistent_float["fAngleDragSensitivity"];
-if (sens < 1.0f) sens = 220.0f;
-if (GoldSliderFloat("Drag Sensitivity", "Higher = shorter drag", &sens, 50.0f, 500.0f, "%.0f")) {
+if (sens < 1.0f) sens = 350.0f;
+if (GoldSliderFloat("Drag Sensitivity", "Higher = shorter drag", &sens, 100.0f, 600.0f, "%.0f")) {
     persistent_float["fAngleDragSensitivity"] = sens;
     need_save = true;
 }
