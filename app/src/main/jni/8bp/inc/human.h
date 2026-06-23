@@ -221,11 +221,6 @@ bool IsShotValid() {
     return true;
 }
 
-// ===== FORWARD DECLARATION =====
-namespace AutoPlay {
-    void setAimAngle(double angle);
-}
-
 // ============================================================================
 // HUMAN ANGLE DRAG (Simulasi gerakan tangan manusia - SMOOTH VERSION)
 // ============================================================================
@@ -373,7 +368,7 @@ struct HumanAngleDrag {
                 
                 if (std::abs(remaining) < ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
                     // ===== SUKSES: SET AIM ANGLE KE TARGET =====
-                    setAimAngle(targetAngle);
+                    AutoPlay::setAimAngle(targetAngle);
                     active = false;
                     done = true;
                     state = HAD_FINISHED;
