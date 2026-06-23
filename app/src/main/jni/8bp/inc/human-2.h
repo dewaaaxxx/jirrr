@@ -298,7 +298,7 @@ struct HumanAngleDrag {
     bool  hasOvershoot  = false;
     ImVec2 overshootPos{};   // posisi overshoot (melewati target)
     ImVec2 exactTargetPos{}; // posisi pixel exact target angle
-
+    double totalDelta = 0.0;
     int correctionAttempts = 0;
     static constexpr int    MAX_CORRECTIONS  = 3;
     static constexpr double ANGLE_TOLERANCE  = 0.012; // ~0.7°
@@ -368,55 +368,42 @@ struct HumanAngleDrag {
 
     // ── Mulai satu siklus drag lengkap ────────────────────────────────────────
     void BeginFullDrag(double currentAngle, double target) {
-        seed = (float)(rand() % 1000) * 0.1f;
+    seed = (float)(rand() % 1000) * 0.1f;
 
-        double totalDelta = AngleDiff(target, currentAngle);
+    // Hitung delta total sekali di awal
+    totalDelta = AngleDiff(target, currentAngle);
 
-        dragOrigin  = PickDragOrigin();
-        dragCurrent = dragOrigin;
+    dragOrigin = PickDragOrigin();
+    dragCurrent = dragOrigin;
 
-        // Titik 80% approach (belum sampai target)
-        double approachDelta = totalDelta * 0.80;
-        ImVec2 approachPos   = AngleDeltaToPixel(approachDelta, dragOrigin);
+    // Titik target exact (100%)
+    exactTargetPos = AngleDeltaToPixel(totalDelta, dragOrigin);
 
-        // Titik exact target (100%)
-        exactTargetPos = AngleDeltaToPixel(totalDelta, dragOrigin);
+    // Tidak ada overshoot, langsung ke target
+    hasOvershoot = false;
 
-        // Overshoot: 60% kemungkinan, magnitude 2–8% dari delta
-        hasOvershoot = (rand() % 100) < 60;
-        if (hasOvershoot) {
-            float overshootFrac = 0.02f + (rand() % 60) * 0.001f; // 2–8%
-            double overshootDelta = totalDelta * (1.0 + overshootFrac);
-            overshootPos = AngleDeltaToPixel(overshootDelta, dragOrigin);
-        }
+    // Durasi approach: proporsional ke delta, 0.35–0.90s
+    float absDelta = fabsf((float)totalDelta);
+    float approachDur = 0.40f + absDelta * 0.50f + (rand() % 150) * 0.001f;
+    approachDur = std::min(approachDur, 0.90f);
 
-        // Durasi approach: proporsional ke delta, 0.35–0.90s
-        float absDelta   = fabsf((float)totalDelta);
-        float approachDur = 0.35f + absDelta * 0.50f + (rand() % 150) * 0.001f;
-        approachDur = std::min(approachDur, 0.90f);
+    pressDelay = 0.04f + (rand() % 50) * 0.001f;
+    liftDelay = 0.05f + (rand() % 70) * 0.001f;
 
-        // Setup phase pertama
-        pressDelay    = 0.04f + (rand() % 50) * 0.001f;
-        pauseMidTime  = 0.15f + (rand() % 200) * 0.001f;  // 0.15–0.35s
-        overshootPauseTime = 0.10f + (rand() % 150) * 0.001f; // 0.10–0.25s
-        liftDelay     = 0.05f + (rand() % 70) * 0.001f;   // 0.05–0.12s
+    elapsed = 0.f;
+    phaseDuration = pressDelay;
+    phaseStart = dragOrigin;
+    phaseEnd = exactTargetPos; // Langsung ke target
 
-        elapsed       = 0.f;
-        phaseDuration = pressDelay;
-        phaseStart    = dragOrigin;
-        phaseEnd      = approachPos; // akan dipakai di APPROACH
+    NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
+    phase = HAD_PRESS_DELAY;
 
-        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
-        phase = HAD_PRESS_DELAY;
+    // Simpan durasi approach
+    _approachDur = approachDur;
+    _approachPos = exactTargetPos; // Tidak perlu approach 80%
 
-        // Simpan approach duration untuk dipakai saat transisi ke APPROACH
-        _approachDur  = approachDur;
-        _approachPos  = approachPos;
-
-        LOGI("HumanDrag: BEGIN delta=%.4f approach=%.4f overshoot=%d",
-             totalDelta, approachDelta, (int)hasOvershoot);
+    LOGI("HumanDrag: BEGIN delta=%.4f", totalDelta);
     }
-
     // Internal: durasi & target approach disimpan sementara saat setup
     float  _approachDur = 0.f;
     ImVec2 _approachPos{};
@@ -442,24 +429,23 @@ struct HumanAngleDrag {
 
     switch (phase) {
 
-    // ── 1. Finger baru mendarat, diam sebentar ─────────────────────────
     case HAD_PRESS_DELAY: {
         NativeTouchesMove(touchIndex, dragOrigin.x, dragOrigin.y);
         if (elapsed >= pressDelay) {
-            elapsed       = 0.f;
+            elapsed = 0.f;
             phaseDuration = _approachDur;
-            phaseStart    = dragOrigin;
-            phaseEnd      = _approachPos;
-            phase         = HAD_APPROACH;
+            phaseStart = dragOrigin;
+            phaseEnd = _approachPos;
+            phase = HAD_APPROACH;
         }
         break;
     }
 
-    // ── 2. Gerakan utama: 0% → 80% target ─────────────────────────────
     case HAD_APPROACH: {
-        float t    = std::min(1.f, elapsed / phaseDuration);
-        float ease = EaseOutCubic(t);
+        float t = std::min(1.f, elapsed / phaseDuration);
+        float ease = EaseOutCubic(t); // Mulai cepat, melambat di akhir
 
+        // Tanpa jitter
         dragCurrent = ImVec2(
             phaseStart.x + (phaseEnd.x - phaseStart.x) * ease,
             phaseStart.y + (phaseEnd.y - phaseStart.y) * ease
@@ -467,87 +453,18 @@ struct HumanAngleDrag {
         NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
 
         if (t >= 1.f) {
+            // === PASTIKAN POSISI AKHIR PERSIS ===
+            dragCurrent = phaseEnd;
+            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
             elapsed = 0.f;
-            phase   = HAD_PAUSE_MID;
-            LOGI("HumanDrag: PAUSE_MID at 80%%");
+            phase = HAD_LIFT_DELAY;
+            LOGI("HumanDrag: APPROACH DONE");
         }
         break;
     }
 
-    // ── 3. Pause di ~80% — seolah player cek bidikan ──────────────────
-    case HAD_PAUSE_MID: {
-        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-        if (elapsed >= pauseMidTime) {
-            elapsed       = 0.f;
-            phaseStart    = dragCurrent;
-            phaseEnd      = hasOvershoot ? overshootPos : exactTargetPos;
-            phaseDuration = 0.15f + (rand() % 100) * 0.001f;
-            phase         = HAD_SETTLE;
-            LOGI("HumanDrag: SETTLE (overshoot=%d)", (int)hasOvershoot);
-        }
-        break;
-    }
-
-    // ── 4. Sisa gerakan ke target (+ overshoot jika ada) ──────────────
-    case HAD_SETTLE: {
-        float t    = std::min(1.f, elapsed / phaseDuration);
-        float ease = EaseInOutQuint(t);
-
-        dragCurrent = ImVec2(
-            phaseStart.x + (phaseEnd.x - phaseStart.x) * ease,
-            phaseStart.y + (phaseEnd.y - phaseStart.y) * ease
-        );
-        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-        if (t >= 1.f) {
-            elapsed = 0.f;
-            if (hasOvershoot) {
-                phase = HAD_OVERSHOOT_PAUSE;
-                LOGI("HumanDrag: OVERSHOOT_PAUSE");
-            } else {
-                phase = HAD_LIFT_DELAY;
-            }
-        }
-        break;
-    }
-
-    // ── 5. Tahan di titik overshoot sejenak ───────────────────────────
-    case HAD_OVERSHOOT_PAUSE: {
-        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-        if (elapsed >= overshootPauseTime) {
-            elapsed       = 0.f;
-            phaseStart    = dragCurrent;
-            phaseEnd      = exactTargetPos;
-            phaseDuration = 0.20f + (rand() % 120) * 0.001f;
-            phase         = HAD_CORRECT_BACK;
-            LOGI("HumanDrag: CORRECT_BACK");
-        }
-        break;
-    }
-
-    // ── 6. Koreksi balik ke exact target ──────────────────────────────
-    case HAD_CORRECT_BACK: {
-        float t    = std::min(1.f, elapsed / phaseDuration);
-        float ease = EaseOutSine(t);
-
-        dragCurrent = ImVec2(
-            phaseStart.x + (phaseEnd.x - phaseStart.x) * ease,
-            phaseStart.y + (phaseEnd.y - phaseStart.y) * ease
-        );
-        NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-        if (t >= 1.f) {
-            elapsed = 0.f;
-            phase   = HAD_LIFT_DELAY;
-            LOGI("HumanDrag: at target, LIFT_DELAY");
-        }
-        break;
-    }
-
-    // ── 7. Tahan di target sebelum angkat finger ───────────────────────
     case HAD_LIFT_DELAY: {
+        // Jeda singkat sebelum angkat, tetap di posisi target
         NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
 
         if (elapsed >= liftDelay) {
@@ -565,8 +482,6 @@ struct HumanAngleDrag {
         auto* fg = ImGui::GetForegroundDrawList();
         fg->AddCircleFilled(dragCurrent, 10.f, IM_COL32(80, 200, 255, 180));
         fg->AddCircleFilled(exactTargetPos, 6.f, IM_COL32(0, 255, 100, 200));
-        if (hasOvershoot)
-            fg->AddCircleFilled(overshootPos, 6.f, IM_COL32(255, 160, 0, 200));
         char buf[64];
         snprintf(buf, sizeof(buf), "phase=%d", (int)phase);
         fg->AddText(ImVec2(dragCurrent.x + 16, dragCurrent.y - 12),
@@ -574,26 +489,27 @@ struct HumanAngleDrag {
     }
 #endif
 }
-
+    
     // ── Dipanggil setelah finger diangkat ─────────────────────────────────────
     void OnDragEnd() {
-        double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double remaining   = AngleDiff(targetAngle, actualAngle);
+    double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+    double remaining = AngleDiff(targetAngle, actualAngle);
 
-        if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
-            active = false;
-            done   = true;
-            phase  = HAD_FINISHED;
-            LOGI("HumanDrag: DONE target=%.4f actual=%.4f err=%.4f attempts=%d",
-                 targetAngle, actualAngle, remaining, correctionAttempts);
-        } else {
-            // Koreksi sisa: BeginFullDrag ulang dengan delta kecil
-            correctionAttempts++;
-            LOGI("HumanDrag: correction %d remaining=%.4f", correctionAttempts, remaining);
-            // Koreksi punya overshoot lebih kecil (25% chance) dan tanpa pause mid
-            hasOvershoot = (rand() % 100) < 25;
-            BeginFullDrag(actualAngle, targetAngle);
-        }
+    if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
+        // === SUKSES: SET AIM ANGLE KE TARGET ===
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+        active = false;
+        done = true;
+        phase = HAD_FINISHED;
+        LOGI("HumanDrag: DONE target=%.4f actual=%.4f err=%.4f",
+             targetAngle, actualAngle, remaining);
+    } else {
+        // Koreksi kecil: tanpa overshoot, langsung ke target
+        correctionAttempts++;
+        LOGI("HumanDrag: correction %d remaining=%.4f", correctionAttempts, remaining);
+        hasOvershoot = false;
+        BeginFullDrag(actualAngle, targetAngle);
+    }
     }
 };
 
