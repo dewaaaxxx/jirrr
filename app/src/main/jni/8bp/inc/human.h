@@ -272,13 +272,11 @@ struct HumanAngleDrag {
 
     void BeginSegment(double angleDelta) {
     float sens = persistent_float["fAngleDragSensitivity"];
-    if (sens <= 1.0f) sens = 200.0f;
+    if (sens <= 1.0f) sens = 350.0f; // <-- TINGKATKAN SENSITIVITAS
 
-    // ===== POSISI AWAL =====
     if (segmentIndex == 0) {
         auto& cueBall = gPrediction->guiData.balls[0];
         ImVec2 cueScreen = WorldToScreen(cueBall.initialPosition);
-        // Mulai dari dekat cue ball (seperti video contoh)
         lastDragPos = ImVec2(
             cueScreen.x + 100.0f + (float)((rand() % 40) - 20),
             cueScreen.y + 70.0f + (float)((rand() % 30) - 15)
@@ -288,14 +286,17 @@ struct HumanAngleDrag {
     dragOrigin = lastDragPos;
     dragCurrent = dragOrigin;
 
-    // ===== HITUNG POSISI AKHIR =====
     float dx = (float)(angleDelta * sens);
     float dy = (float)(angleDelta * sens * 0.10f);
     dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
 
     elapsed = 0.f;
-    // ===== DURASI PENDEK: 0.3-0.5 DETIK PER SEGMEN =====
-    duration = 0.35f + (rand() % 150) * 0.001f;
+    
+    // ===== DURASI DRAG BERDASARKAN BESARNYA PERUBAHAN SUDUT =====
+    // Semakin besar perubahan sudut, semakin lama durasinya
+    float absDelta = fabs(angleDelta);
+    duration = 0.5f + (absDelta * 0.8f); // 0.5-1.5 detik
+    duration += (rand() % 150) * 0.001f; // variasi acak
 
     NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
     state = HAD_DRAGGING;
@@ -312,18 +313,13 @@ struct HumanAngleDrag {
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
     double delta = AngleDiff(targetAngle, currentAngle);
     
-    // ===== DRAG LANGSUNG: MAKSIMAL 2 SEGMEN =====
-    int numSegments = 1; // Cukup 1 segmen untuk drag utama
-    if (fabs(delta) > 1.5) { // Kalo sudutnya besar banget, baru 2 segmen
-        numSegments = 2;
-    }
-    
+    // ===== SATU SEGMEN UNTUK DRAG UTAMA =====
     segmentIndex = 0;
-    totalSegments = numSegments;
+    totalSegments = 1;
     startAngle = currentAngle;
     totalDelta = delta;
     
-    BeginSegment(totalDelta / totalSegments);
+    BeginSegment(totalDelta);
     }
 
     void Update() {
@@ -370,42 +366,37 @@ struct HumanAngleDrag {
 
     // ===== CEK APAKAH SEGMEN SELESAI =====
     if (t >= 1.f) {
-        NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
+    NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
+    
+    segmentIndex++;
+    if (segmentIndex < totalSegments) {
+        // JIKA ADA SEGMEN KEDUA (HANYA UNTUK KOREKSI)
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        double remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
+        BeginSegment(remainingDelta / (totalSegments - segmentIndex));
+    } else {
+        // ===== DRAG UTAMA SELESAI =====
+        // Set sudut ke target, tapi jangan paksa jika sudah dekat
+        double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+        double remaining = AngleDiff(targetAngle, actualAngle);
         
-        segmentIndex++;
-        if (segmentIndex < totalSegments) {
-            // ===== JEDA SINGKAT SEBELUM SEGMEN BERIKUTNYA =====
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            
-            // ===== LANJUT KE SEGMEN BERIKUTNYA =====
-            double remainingDelta = totalDelta - (totalDelta / totalSegments) * segmentIndex;
-            BeginSegment(remainingDelta / (totalSegments - segmentIndex));
+        if (std::abs(remaining) < 0.05) { // Toleransi 0.05 rad
+            // Sudah cukup dekat, lanjutkan
+            active = false;
+            done = true;
+            state = HAD_FINISHED;
+            LOGI("HumanDrag: SUCCESS (target=%.4f)", targetAngle);
         } else {
-            // ===== SEMUA SEGMEN SELESAI =====
-            // ===== SET AIM ANGLE LANGSUNG KE TARGET =====
-            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-            
-            // ===== CEK AKURASI =====
-            double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
-            double remaining = AngleDiff(targetAngle, actualAngle);
-
-            if (std::abs(remaining) < ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
-                active = false;
-                done = true;
-                state = HAD_FINISHED;
-                LOGI("=== HumanAngleDrag: FINISHED SUCCESS (target=%.4f, actual=%.4f) ===", 
-                     targetAngle, actualAngle);
-            } else {
-                // ===== KOREKSI CEPAT (1 SEGMEN SAJA) =====
-                correctionAttempts++;
-                LOGI("HumanAngleDrag: Correction %d, remaining=%.4f", correctionAttempts, remaining);
-                totalSegments = 1;
-                segmentIndex = 0;
-                totalDelta = remaining;
-                BeginSegment(totalDelta);
-            }
+            // Jika masih meleset, lakukan koreksi dengan 1 segmen cepat
+            correctionAttempts++;
+            LOGI("HumanDrag: Correction %d (remaining=%.4f)", correctionAttempts, remaining);
+            totalSegments = 1;
+            segmentIndex = 0;
+            totalDelta = remaining;
+            BeginSegment(totalDelta);
         }
     }
+}
 }
 };
 
