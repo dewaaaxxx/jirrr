@@ -94,34 +94,6 @@ struct PowerSlider {
         this->HoldDuration = HoldTime;
     }
 
-    void StartFromPos(ImVec4 rect, ImVec2 startPos, float power, float dragTime = 0.7f, float holdTime = 0.25f) {
-    if (Active) return;
-
-    float powerRatio = std::min(power / 666.0f, 1.0f);
-    
-    StartPos = startPos;  // <-- POSISI DARI DRAG
-    CurrentPos = StartPos;
-
-    EndPos = ImVec2(
-        rect.x + rect.z * 0.5f,
-        rect.y + rect.w
-    );
-
-    TargetPos = ImVec2(
-        StartPos.x,
-        StartPos.y + (EndPos.y - StartPos.y) * powerRatio
-    );
-
-    Duration = dragTime * powerRatio;
-    HoldDuration = holdTime;
-    ElapsedTime = 0.f;
-    HoldTime = 0.f;
-    Active = true;
-    state = STARTING;
-
-    NativeTouchesBegin(TouchIndex, StartPos.x, StartPos.y);
-    }
-
     void Update() {
         if (!this->Active) return;
         
