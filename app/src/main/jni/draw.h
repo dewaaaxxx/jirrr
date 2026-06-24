@@ -21,7 +21,7 @@ using namespace std;
 #include <GLES3/gl3.h>
 
 #include "ButtonClicker.h"
-#include "8bp/inc/human.h"
+#include "8bp/inc/human-2.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
