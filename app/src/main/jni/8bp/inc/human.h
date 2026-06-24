@@ -443,40 +443,25 @@ struct HumanAngleDrag {
     elapsed = 0.f;
     holdTimer = 0.f;
 
-    // ===== SET ANGLE KE TARGET =====
-    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-    auto& cueBall = gPrediction->guiData.balls[0];
-    ImVec2 targetScreen = WorldToScreen(cueBall.initialPosition);
-
-    // ===== KEMBALI KE POSISI AWAL =====
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(currentAngle);
-    ImVec2 startScreen = WorldToScreen(cueBall.initialPosition);
+    double delta = AngleDiff(targetAngle, currentAngle);
 
-    // ===== POSISI DRAG =====
-    float randOffsetX = (float)((rand() % 60) - 30);
-    float randOffsetY = (float)((rand() % 40) - 20);
+    // ===== PAKE SENS BUAT DRAG UTAMA =====
+    float sens = 320.0f;
+    startPos = GetStartPos();
+    currentPos = startPos;
 
-    startPos = ImVec2(
-        startScreen.x + 130.0f + randOffsetX,
-        startScreen.y + 90.0f + randOffsetY
-    );
+    float dx = (float)(delta * sens);
+    float dy = dx * 0.06f;
+    endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
-    endPos = ImVec2(
-        targetScreen.x + 130.0f + randOffsetX,
-        targetScreen.y + 90.0f + randOffsetY
-    );
-
-    // ===== DURASI =====
-    float dx = endPos.x - startPos.x;
-    float dy = endPos.y - startPos.y;
-    float distance = sqrtf(dx*dx + dy*dy);
-    duration = 0.40f + (distance / 1200.0f);
+    float absDelta = fabsf((float)delta);
+    duration = 0.50f + absDelta * 0.50f;
     duration = std::min(duration, 0.90f);
     duration += (rand() % 80) * 0.001f;
 
     NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
-}
+    }
 
     void Update() {
     if (!active || state == FINISHED) return;
@@ -515,6 +500,7 @@ struct HumanAngleDrag {
     double remaining = AngleDiff(targetAngle, actualAngle);
 
     if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
+        // ===== KALO UDAH PAS, LANGSUNG SET ANGLE =====
         sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
         active = false;
         done = true;
@@ -524,15 +510,26 @@ struct HumanAngleDrag {
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
         double delta = AngleDiff(targetAngle, currentAngle);
 
-        float sens = 320.0f;  // <-- SAMA KAYA DI BEGIN
-        startPos = currentPos;
-        float dx = (float)(delta * sens);
-        float dy = dx * 0.06f;
-        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+        // ===== KOREKSI PAKE WorldToScreen =====
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 targetScreen = WorldToScreen(cueBall.initialPosition);
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(currentAngle);
 
-        float absDelta = fabsf((float)delta);
-        duration = 0.25f + absDelta * 0.25f;
-        duration = std::min(duration, 0.45f);
+        float randOffsetX = (float)((rand() % 40) - 20);
+        float randOffsetY = (float)((rand() % 30) - 15);
+
+        startPos = currentPos;
+        endPos = ImVec2(
+            targetScreen.x + 130.0f + randOffsetX,
+            targetScreen.y + 90.0f + randOffsetY
+        );
+
+        float dx = endPos.x - startPos.x;
+        float dy = endPos.y - startPos.y;
+        float distance = sqrtf(dx*dx + dy*dy);
+        duration = 0.20f + (distance / 1200.0f);
+        duration = std::min(duration, 0.35f);
 
         elapsed = 0.f;
         holding = false;
