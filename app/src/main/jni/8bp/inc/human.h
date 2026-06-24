@@ -622,12 +622,22 @@ struct HumanAngleDrag {
             currentPos = endPos;
             NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
             NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
+
+            double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+            LOGI("[SYNC] Drag END - targetAngle: %.4f, actualAngle: %.4f, diff: %.4f", 
+                  targetAngle, actualAngle, targetAngle - actualAngle);
             OnFinish();
         }
     }
 
     void OnFinish() {
+        double beforeSet = sharedGameManager.mVisualCue().getShotAngle();
+    LOGI("[SYNC] OnFinish BEFORE - targetAngle: %.4f, currentAngle: %.4f", 
+         targetAngle, beforeSet);
      //   sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+        double afterSet = sharedGameManager.mVisualCue().getShotAngle();
+    LOGI("[SYNC] OnFinish AFTER - targetAngle: %.4f, currentAngle: %.4f", 
+         targetAngle, afterSet);
         active = false;
         done = true;
         state = H_DONE;  // <-- GANTI
@@ -710,10 +720,12 @@ namespace AutoPlay {
         case H_ANGLE: {
             humanAngleDrag.Update();
             if (humanAngleDrag.done) {
-                LOGI("[DRAG] Angle drag done, setting angle and moving to POWER");
+                double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+                LOGI("[SYNC] H_ANGLE done - targetAngle: %.4f, currentAngle: %.4f", 
+             humanAngleDrag.targetAngle, currentAngle);
 
                 // ===== SET ANGLE DI SINI =====
-                setAimAngle(humanAngleDrag.targetAngle);
+               // setAimAngle(humanAngleDrag.targetAngle);
 
                 ImGuiIO& io = ImGui::GetIO();
                 float sliderX = 0.082f;
@@ -736,13 +748,19 @@ namespace AutoPlay {
         }
         case H_POWER: {
             if (!powerSlider.Active) {
-                LOGI("[DRAG] Power slider done, firing shot");
+                double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+        LOGI("[SYNC] H_POWER before shot - targetAngle: %.4f, currentAngle: %.4f", 
+             humanAngleDrag.targetAngle, currentAngle);
                 double finalPower = humanPendingPower;
                 if (finalPower < 100.0) finalPower = 100.0;
                 if (finalPower > 666.0) finalPower = 666.0;
 
                 // ===== HAPUS setAimAngle DARI SINI =====
-                // setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
+                 setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
+
+                double afterSetAngle = sharedGameManager.mVisualCue().getShotAngle();
+        LOGI("[SYNC] H_POWER after setAimAngle - targetAngle: %.4f, afterSetAngle: %.4f", 
+             humanAngleDrag.targetAngle, afterSetAngle);
 
                 setShotPower(finalPower);
                 gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
