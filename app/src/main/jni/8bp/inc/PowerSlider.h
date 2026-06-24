@@ -24,7 +24,7 @@ struct PowerSlider {
     ImVec2 CurrentPos;
 
     float ShotPower = 666.0f;
-    int TouchIndex = 10; // High touch index
+    int TouchIndex = 8; // High touch index
 
     enum State {
         IDLE,
