@@ -732,10 +732,9 @@ namespace AutoPlay {
         case H_ANGLE: {
     humanAngleDrag.Update();
     if (humanAngleDrag.done) {
-        // ===== SET ANGLE =====
+        // ===== SET ANGLE DI SINI =====
         setAimAngle(humanAngleDrag.targetAngle);
         
-        // ===== POWER SLIDER MULAI DARI POSISI AKHIR DRAG =====
         ImGuiIO& io = ImGui::GetIO();
         float sliderX = 0.082f;
         float sliderTop = 0.267f;
@@ -748,15 +747,13 @@ namespace AutoPlay {
             io.DisplaySize.y * sliderH
         );
 
-        // ===== PAKE Start DARI POSISI AKHIR DRAG =====
-        powerSlider.StartFromPos(
-            rect,
-            humanAngleDrag.currentPos,  // <-- POSISI AKHIR DRAG
-            (float)humanPendingPower
-        );
-        
+        float dragTime = 0.70f + (rand() % 200) * 0.001f;
+        float holdTime = 0.25f + (rand() % 100) * 0.001f;
+        powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
         humanExecState = H_POWER;
     }
+    break;
+        }
     break;
         }
         case H_POWER: {
