@@ -302,6 +302,11 @@ struct HumanAngleDrag {
         float distance = sqrtf(dx*dx + dy*dy);
         duration = 0.45f + (distance / 1200.0f);
         duration = std::min(duration, 0.90f);
+
+        LOGI("=== BEGIN DRAG ===");
+        LOGI("duration: %.3f, distance: %.3f", duration, distance);
+        LOGI("startPos: (%.1f, %.1f), endPos: (%.1f, %.1f)", 
+            startPos.x, startPos.y, endPos.x, endPos.y);
     
         NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
     }
@@ -320,6 +325,7 @@ struct HumanAngleDrag {
                 startPos.x + (endPos.x - startPos.x) * ease,
                 startPos.y + (endPos.y - startPos.y) * ease
             );
+            LOGI("t: %.3f, currentPos: (%.1f, %.1f)", t, currentPos.x, currentPos.y);
             NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
 
             if (t >= 1.f) {
@@ -327,6 +333,7 @@ struct HumanAngleDrag {
                 NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
                 holding = true;
                 holdTimer = 0.f;
+                LOGI("=== DRAG DONE ===");
             }
         } else {
             holdTimer += dt;
