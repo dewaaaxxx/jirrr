@@ -268,7 +268,7 @@ namespace AutoPlay {
 // HUMAN ANGLE DRAG - FINAL VERSION (SIMPLE & SMOOTH)
 // ============================================================================
 struct HumanAngleDrag {
-    enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
+    enum State { _HIDLE, _HDRAGGING, _HFINISHED } state = _HIDLE;
     int touchIndex = 8;  // <-- PAKE INDEX 8 (SAMA KAYAK POWER, TAPI DI-PAUSE DULU)
     
     double targetAngle = 0.0;
@@ -294,42 +294,42 @@ struct HumanAngleDrag {
         if (active) return;
         
         targetAngle = angle;
-        
-        // ===== SET ANGLE DULU BUAT DAPET POSISI TARGET =====
-        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(angle);
-        auto& cueBall = gPrediction->guiData.balls[0];
-        ImVec2 targetScreen = WorldToScreen(cueBall.initialPosition);
-        
-        // ===== KEMBALI KE POSISI AWAL =====
+
+        // ===== AMBIL ANGLE SEKARANG SEBELUM DIUBAH =====
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(currentAngle);
-        ImVec2 startScreen = WorldToScreen(cueBall.initialPosition);
-        
-        // ===== HITUNG POSISI DRAG =====
-        float randOffsetX = (float)((rand() % 60) - 30);
-        float randOffsetY = (float)((rand() % 40) - 20);
-        
+
+        // ===== POSISI CUE BALL DI SCREEN =====
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 cueBallScreen = WorldToScreen(cueBall.initialPosition);
+
+        // ===== HITUNG startPos DAN endPos DARI ANGLE =====
+        // Drag dilakukan melingkar di sekitar cue ball.
+        // Radius drag ~120px dari cue ball di screen, offset sedikit random.
+        float radius = 120.0f + (float)(rand() % 30);  // 120-150px
+        float randOffsetX = (float)((rand() % 20) - 10);
+        float randOffsetY = (float)((rand() % 20) - 10);
+
+        // startPos = posisi jari di angle saat ini (berlawanan arah bidikan)
         startPos = ImVec2(
-            startScreen.x + 100.0f + randOffsetX,
-            startScreen.y + 80.0f + randOffsetY
+            cueBallScreen.x + radius * (float)cos(currentAngle + M_PI) + randOffsetX,
+            cueBallScreen.y + radius * (float)sin(currentAngle + M_PI) + randOffsetY
         );
-        
+
+        // endPos = posisi jari di angle target (berlawanan arah bidikan)
         endPos = ImVec2(
-            targetScreen.x + 100.0f + randOffsetX,
-            targetScreen.y + 80.0f + randOffsetY
+            cueBallScreen.x + radius * (float)cos(angle + M_PI) + randOffsetX,
+            cueBallScreen.y + radius * (float)sin(angle + M_PI) + randOffsetY
         );
-        
-        // ===== DURASI BERDASARKAN JARAK =====
-        float dx = endPos.x - startPos.x;
-        float dy = endPos.y - startPos.y;
-        float distance = sqrtf(dx*dx + dy*dy);
-        duration = 0.25f + (distance / 1500.0f);
+
+        // ===== DURASI BERDASARKAN DELTA ANGLE =====
+        double angleDelta = fabs(AngleDiff(angle, currentAngle));
+        duration = 0.25f + (float)(angleDelta / M_PI) * 0.45f;  // 0.25-0.70 detik
         duration = std::min(duration, 0.70f);
         
         elapsed = 0.f;
         active = true;
         done = false;
-        state = DRAGGING;
+        state = _HDRAGGING;
         currentPos = startPos;
         
         // ===== MATIKAN POWER SLIDER DULU =====
@@ -337,12 +337,13 @@ struct HumanAngleDrag {
         
         NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
         
-        LOGI("HumanDrag: start(%.0f,%.0f) end(%.0f,%.0f) dur=%.3f", 
+        LOGI("HumanDrag: cueball(%.0f,%.0f) curAngle=%.3f targetAngle=%.3f start(%.0f,%.0f) end(%.0f,%.0f) dur=%.3f",
+             cueBallScreen.x, cueBallScreen.y, currentAngle, angle,
              startPos.x, startPos.y, endPos.x, endPos.y, duration);
     }
     
     void Update() {
-        if (!active || state == FINISHED) return;
+        if (!active || state == _HFINISHED) return;
         
         float dt = ImGui::GetIO().DeltaTime;
         elapsed += dt;
@@ -373,7 +374,7 @@ struct HumanAngleDrag {
             
             active = false;
             done = true;
-            state = FINISHED;
+            state = _HFINISHED;
             LOGI("HumanDrag: DONE");
         }
     }
@@ -452,7 +453,20 @@ void HumanShootUpdate() {
         case H_ANGLE: {
             humanAngleDrag.Update();
             if (humanAngleDrag.done) {
-                // ===== MULAI POWER SLIDER =====
+                // ===== ANGLE SUDAH SAMPAI TARGET =====
+                // Jeda dulu sebentar (0.3 - 0.6 detik) sebelum tembak
+                // Simulasi player "melihat bidikan" setelah drag selesai
+                humanThinkTimer = 0.30f + (rand() % 300) * 0.001f;  // 0.30 - 0.60 detik
+                humanExecState = H_THINK;
+            }
+            break;
+        }
+        case H_THINK: {
+            // ===== JEDA SETELAH AIMING, SEBELUM TEMBAK =====
+            float dt = ImGui::GetIO().DeltaTime;
+            humanThinkTimer -= dt;
+            if (humanThinkTimer <= 0.f) {
+                // Jeda habis, sekarang mulai power slider
                 float sliderX = 0.082f;
                 float sliderTop = 0.267f;
                 float sliderH = 0.616f;
@@ -492,7 +506,7 @@ void HumanShootUpdate() {
 }
     
     void Shoot(double angle, double power = 0.f) {
-        setAimAngle(angle);
+      //  setAimAngle(angle);
         gPrediction->determineShotResult(false, angle, power);
 
         bool nominating = false;
