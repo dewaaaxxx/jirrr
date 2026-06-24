@@ -447,6 +447,7 @@ struct HumanAngleDrag {
 
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
         double delta = AngleDiff(targetAngle, currentAngle);
+        LOGI("[THUR] currentAngle=%.4f, targetAngle=%.4f, delta=%.4f", currentAngle, targetAngle, delta);
 
         float sens = 250.0f;
         LOGI("[DRAG] delta: %.4f, sens: %.1f", delta, sens);
@@ -625,6 +626,7 @@ namespace AutoPlay {
     
     void HumanShootBegin(double angle, double power) {
         humanPendingPower = power;
+        LOGI("[THUR] HumanShootBegin: angle=%.4f", angle);
         humanAngleDrag.Begin(angle);
         humanExecState = H_ANGLE;
     }
@@ -698,6 +700,7 @@ namespace AutoPlay {
             nominationFrameCounter = 0;
         } else {
             // ===== PAKE HUMAN MODE =====
+            LOGI("[THUR] Shoot: angle=%.4f", angle);
             HumanShootBegin(angle, power);
             state = EXECUTING;
         }
