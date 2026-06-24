@@ -605,7 +605,11 @@ struct HumanAngleDrag {
 }
 
     void Update() {
-    if (!active || state == H_DONE) return;
+    LOGI("[SYNC] humanAngleDrag.Update - ENTER");  // <-- TAMBAH DI AWAL
+    if (!active || state == H_DONE) {
+        LOGI("[SYNC] humanAngleDrag.Update - SKIP (active=%d, state=%d)", active, state);
+        return;
+    }
 
     float dt = ImGui::GetIO().DeltaTime;
     elapsed += dt;
@@ -711,7 +715,7 @@ namespace AutoPlay {
     }
     
     void HumanShootUpdate() {
-    LOGI("[DRAG] HumanShootUpdate: humanExecState=%d", humanExecState);
+    LOGI("[SYNC] H_ANGLE - calling humanAngleDrag.Update()");  // <-- TAMBAH LOG
     switch (humanExecState) {
         case H_ANGLE: {
             humanAngleDrag.Update();
@@ -1182,6 +1186,7 @@ namespace AutoPlay {
     
     void Update() {
         // ===== UPDATE POWER SLIDER & HUMAN DRAG =====
+        LOGI("[SYNC] AutoPlay Update - calling HumanShootUpdate");  // <-- TAMBAH
         powerSlider.Update();
         HumanShootUpdate();
         buttonClicker.Update();
