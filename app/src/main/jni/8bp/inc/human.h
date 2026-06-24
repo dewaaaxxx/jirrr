@@ -728,12 +728,11 @@ namespace AutoPlay {
     }
     
     void HumanShootUpdate() {
-    switch (humanExecState) {
-        case H_ANGLE: {
+    case H_ANGLE: {
     humanAngleDrag.Update();
     if (humanAngleDrag.done) {
-        // ===== SET ANGLE DI SINI =====
-        setAimAngle(humanAngleDrag.targetAngle);
+        // ===== JANGAN SET ANGLE DI SINI =====
+        // setAimAngle(humanAngleDrag.targetAngle);  // <-- HAPUS!
         
         ImGuiIO& io = ImGui::GetIO();
         float sliderX = 0.082f;
@@ -753,9 +752,7 @@ namespace AutoPlay {
         humanExecState = H_POWER;
     }
     break;
-        }
-    break;
-        }
+}
         case H_POWER: {
             if (!powerSlider.Active) {
                 double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
@@ -765,7 +762,8 @@ namespace AutoPlay {
                 if (finalPower < 100.0) finalPower = 100.0;
                 if (finalPower > 666.0) finalPower = 666.0;
 
-                // ===== HAPUS setAimAngle DARI SINI ===== setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
+                // ===== HAPUS setAimAngle DARI SINI ===== 
+                setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
 
                 double afterSetAngle = sharedGameManager.mVisualCue().getShotAngle();
         LOGI("[SYNC] H_POWER after setAimAngle - targetAngle: %.4f, afterSetAngle: %.4f", 
