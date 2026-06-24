@@ -546,7 +546,7 @@ static HumanAngleDrag humanAngleDrag;*/
 // HUMAN ANGLE DRAG - FINAL SMOOTH VERSION
 // ============================================================================
 struct HumanAngleDrag {
-    enum State { IDLE, DRAGGING, DONE } state = IDLE;
+    enum State { H_IDLE, H_DRAGGING, H_DONE } state = H_IDLE;  // <-- GANTI NAMA
     int touchIndex = 10;
 
     double targetAngle = 0.0;
@@ -581,7 +581,7 @@ struct HumanAngleDrag {
         targetAngle = angle;
         active = true;
         done = false;
-        state = DRAGGING;
+        state = H_DRAGGING;  // <-- GANTI
         elapsed = 0.f;
 
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
@@ -605,7 +605,7 @@ struct HumanAngleDrag {
     }
 
     void Update() {
-        if (!active || state == DONE) return;
+        if (!active || state == H_DONE) return;  // <-- GANTI
 
         float dt = ImGui::GetIO().DeltaTime;
         elapsed += dt;
@@ -630,7 +630,7 @@ struct HumanAngleDrag {
         sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
         active = false;
         done = true;
-        state = DONE;
+        state = H_DONE;  // <-- GANTI
     }
 };
 
