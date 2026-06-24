@@ -627,7 +627,7 @@ struct HumanAngleDrag {
     }
 
     void OnFinish() {
-        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+     //   sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
         active = false;
         done = true;
         state = H_DONE;  // <-- GANTI
