@@ -396,7 +396,7 @@ static HumanAngleDrag humanAngleDrag;*/
 // ============================================================================
 // HUMAN ANGLE DRAG - FULL CODE
 // ============================================================================
-struct HumanAngleDrag {
+/**struct HumanAngleDrag {
     enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
     int touchIndex = 10;
 
@@ -536,6 +536,105 @@ struct HumanAngleDrag {
         state = DRAGGING;
         NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
     }
+    }
+};
+
+static HumanAngleDrag humanAngleDrag;*/
+
+// ============================================================================
+// HUMAN ANGLE DRAG - FINAL SMOOTH VERSION
+// ============================================================================
+struct HumanAngleDrag {
+    enum State { IDLE, DRAGGING, DONE } state = IDLE;
+    int touchIndex = 10;
+
+    double targetAngle = 0.0;
+    ImVec2 startPos{};
+    ImVec2 endPos{};
+    ImVec2 currentPos{};
+
+    float elapsed = 0.f;
+    float duration = 0.f;
+    bool active = false;
+    bool done = false;
+
+    static double AngleDiff(double a, double b) {
+        double d = a - b;
+        while (d > M_PI) d -= 2.0 * M_PI;
+        while (d < -M_PI) d += 2.0 * M_PI;
+        return d;
+    }
+
+    static ImVec2 GetStartPos() {
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 screen = WorldToScreen(cueBall.initialPosition);
+        return ImVec2(
+            screen.x + 120.0f + (float)((rand() % 40) - 20),
+            screen.y + 80.0f + (float)((rand() % 30) - 15)
+        );
+    }
+
+    void Begin(double angle) {
+        if (active) return;
+
+        targetAngle = angle;
+        active = true;
+        done = false;
+        state = DRAGGING;
+        elapsed = 0.f;
+
+        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+        double delta = AngleDiff(targetAngle, currentAngle);
+
+        // Sensitivitas tetap, tapi durasi dibuat proporsional
+        float sens = 280.0f;
+
+        startPos = GetStartPos();
+        currentPos = startPos;
+
+        float dx = (float)(delta * sens);
+        float dy = dx * 0.06f;
+        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+
+        // Durasi: 0.3 detik untuk sudut kecil, hingga 0.8 detik untuk sudut besar
+        float absDelta = fabsf((float)delta);
+        duration = 0.30f + absDelta * 0.30f;
+        duration = std::min(duration, 0.80f);
+        duration += (rand() % 80) * 0.001f;
+
+        NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
+    }
+
+    void Update() {
+        if (!active || state == DONE) return;
+
+        float dt = ImGui::GetIO().DeltaTime;
+        elapsed += dt;
+        float t = std::min(1.f, elapsed / duration);
+
+        // Smoothstep yang konsisten
+        float ease = t * t * (3.f - 2.f * t);
+
+        currentPos = ImVec2(
+            startPos.x + (endPos.x - startPos.x) * ease,
+            startPos.y + (endPos.y - startPos.y) * ease
+        );
+        NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+
+        if (t >= 1.f) {
+            // Pastikan posisi akhir presisi
+            currentPos = endPos;
+            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+            NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
+            OnFinish();
+        }
+    }
+
+    void OnFinish() {
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+        active = false;
+        done = true;
+        state = DONE;
     }
 };
 
