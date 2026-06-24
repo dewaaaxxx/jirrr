@@ -1199,6 +1199,7 @@ namespace AutoPlay {
     
     void Update() {
         // ===== UPDATE POWER SLIDER & HUMAN DRAG =====
+        powerSlider.Update();
         HumanShootUpdate();
         buttonClicker.Update();
     
