@@ -432,93 +432,68 @@ struct HumanAngleDrag {
     }
 
     void Begin(double angle) {
-        LOGI("=== [DRAG] BEGIN ===");
-        LOGI("[DRAG] active before: %d", active);
-        if (active) return;
+    if (active) return;
 
-        targetAngle = angle;
-        active = true;
-        done = false;
-        state = DRAGGING;
-        holding = false;
-        correctionAttempts = 0;
-        elapsed = 0.f;
-        holdTimer = 0.f;
+    targetAngle = angle;
+    active = true;
+    done = false;
+    state = DRAGGING;
+    holding = false;
+    correctionAttempts = 0;
+    elapsed = 0.f;
+    holdTimer = 0.f;
 
-        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double delta = AngleDiff(targetAngle, currentAngle);
-        LOGI("[THUR] currentAngle=%.4f, targetAngle=%.4f, delta=%.4f", currentAngle, targetAngle, delta);
+    double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+    double delta = AngleDiff(targetAngle, currentAngle);
 
-        float sens = 250.0f;
-        LOGI("[DRAG] delta: %.4f, sens: %.1f", delta, sens);
+    float sens = 380.0f;  // <-- NAIKIN
 
-        startPos = GetStartPos();
-        currentPos = startPos;
+    startPos = GetStartPos();
+    currentPos = startPos;
 
-        float dx = (float)(delta * sens);
-        float dy = dx * 0.06f;
-        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+    float dx = (float)(delta * sens);
+    float dy = dx * 0.06f;
+    endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
-        LOGI("[DRAG] startPos: (%.1f, %.1f)", startPos.x, startPos.y);
-        LOGI("[DRAG] endPos: (%.1f, %.1f)", endPos.x, endPos.y);
-        LOGI("[DRAG] dx: %.1f, dy: %.1f", dx, dy);
+    float absDelta = fabsf((float)delta);
+    duration = 0.50f + absDelta * 0.50f;  // <-- NAIKIN
+    duration = std::min(duration, 0.90f);
+    duration += (rand() % 80) * 0.001f;
 
-        float absDelta = fabsf((float)delta);
-        duration = 0.30f + absDelta * 0.30f;
-        duration = std::min(duration, 0.70f);
-        duration += (rand() % 80) * 0.001f;
-
-        LOGI("[DRAG] duration: %.3f", duration);
-        LOGI("[DRAG] touchIndex: %d", touchIndex);
-
-        NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
-        LOGI("[DRAG] NativeTouchesBegin called");
-    }
+    NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
+}
 
     void Update() {
-        if (!active || state == FINISHED) {
-            LOGI("[DRAG] Update skipped: active=%d, state=%d", active, state);
-            return;
+    if (!active || state == FINISHED) return;
+
+    float dt = ImGui::GetIO().DeltaTime;
+
+    if (!holding) {
+        elapsed += dt;
+        float t = std::min(1.f, elapsed / duration);
+        float ease = 1.f - powf(1.f - t, 3.f);  // <-- EaseOutCubic
+
+        currentPos = ImVec2(
+            startPos.x + (endPos.x - startPos.x) * ease,
+            startPos.y + (endPos.y - startPos.y) * ease
+        );
+        NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+
+        if (t >= 1.f) {
+            currentPos = endPos;
+            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+            holding = true;
+            holdTimer = 0.f;
         }
-
-        float dt = ImGui::GetIO().DeltaTime;
-        LOGI("[DRAG] dt: %.4f", dt);
-
-        if (!holding) {
-            elapsed += dt;
-            float t = std::min(1.f, elapsed / duration);
-            float ease = t * t * (3.f - 2.f * t);
-
-            LOGI("[DRAG] elapsed: %.3f, duration: %.3f, t: %.3f, ease: %.3f", elapsed, duration, t, ease);
-
-            currentPos = ImVec2(
-                startPos.x + (endPos.x - startPos.x) * ease,
-                startPos.y + (endPos.y - startPos.y) * ease
-            );
-
-            LOGI("[DRAG] currentPos: (%.1f, %.1f)", currentPos.x, currentPos.y);
-
-            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-            LOGI("[DRAG] NativeTouchesMove called");
-
-            if (t >= 1.f) {
-                currentPos = endPos;
-                NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-                holding = true;
-                holdTimer = 0.f;
-                LOGI("[DRAG] === REACHED END ===");
-            }
-        } else {
-            holdTimer += dt;
-            LOGI("[DRAG] holding: %.3f", holdTimer);
-            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-            if (holdTimer >= 0.10f) {
-                NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
-                LOGI("[DRAG] NativeTouchesEnd called");
-                OnFinish();
-            }
+    } else {
+        holdTimer += dt;
+        NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+        if (holdTimer >= 0.10f) {  // <-- JEDA SEBELUM ANGKAT JARI
+            NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
+            OnFinish();
         }
     }
+}
 
     void OnFinish() {
         double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
