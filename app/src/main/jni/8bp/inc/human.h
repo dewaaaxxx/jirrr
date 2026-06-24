@@ -645,8 +645,7 @@ struct HumanAngleDrag {
     LOGI("[SYNC] OnFinish BEFORE - targetAngle: %.4f, currentAngle: %.4f", 
          targetAngle, beforeSet);
     
-    // ===== UNCOMMENT INI =====
-    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    // ===== UNCOMMENT INI =====/    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
     
     double afterSet = sharedGameManager.mVisualCue().getShotAngle();
     LOGI("[SYNC] OnFinish AFTER - targetAngle: %.4f, currentAngle: %.4f", 
