@@ -731,33 +731,34 @@ namespace AutoPlay {
     void HumanShootUpdate() {
     switch (humanExecState) {
         case H_ANGLE: {
-            humanAngleDrag.Update();
-            if (humanAngleDrag.done) {
-                double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-                LOGI("[SYNC] H_ANGLE done - targetAngle: %.4f, currentAngle: %.4f", 
-             humanAngleDrag.targetAngle, currentAngle);
+    humanAngleDrag.Update();
+    if (humanAngleDrag.done) {
+        // ===== SET ANGLE =====
+        setAimAngle(humanAngleDrag.targetAngle);
+        
+        // ===== POWER SLIDER MULAI DARI POSISI AKHIR DRAG =====
+        ImGuiIO& io = ImGui::GetIO();
+        float sliderX = 0.082f;
+        float sliderTop = 0.267f;
+        float sliderH = 0.616f;
 
-                // ===== SET ANGLE DI SINI =====
-               // setAimAngle(humanAngleDrag.targetAngle);
+        ImVec4 rect(
+            io.DisplaySize.x * sliderX,
+            io.DisplaySize.y * sliderTop,
+            io.DisplaySize.x * 0.04f,
+            io.DisplaySize.y * sliderH
+        );
 
-                ImGuiIO& io = ImGui::GetIO();
-                float sliderX = 0.082f;
-                float sliderTop = 0.267f;
-                float sliderH = 0.616f;
-
-                ImVec4 rect(
-                    io.DisplaySize.x * sliderX,
-                    io.DisplaySize.y * sliderTop,
-                    io.DisplaySize.x * 0.04f,
-                    io.DisplaySize.y * sliderH
-                );
-
-                float dragTime = 0.70f + (rand() % 200) * 0.001f;
-                float holdTime = 0.25f + (rand() % 100) * 0.001f;
-                powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
-                humanExecState = H_POWER;
-            }
-            break;
+        // ===== PAKE Start DARI POSISI AKHIR DRAG =====
+        powerSlider.StartFromPos(
+            rect,
+            humanAngleDrag.currentPos,  // <-- POSISI AKHIR DRAG
+            (float)humanPendingPower
+        );
+        
+        humanExecState = H_POWER;
+    }
+    break;
         }
         case H_POWER: {
             if (!powerSlider.Active) {
@@ -768,8 +769,7 @@ namespace AutoPlay {
                 if (finalPower < 100.0) finalPower = 100.0;
                 if (finalPower > 666.0) finalPower = 666.0;
 
-                // ===== HAPUS setAimAngle DARI SINI =====
-                 setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
+                // ===== HAPUS setAimAngle DARI SINI ===== setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
 
                 double afterSetAngle = sharedGameManager.mVisualCue().getShotAngle();
         LOGI("[SYNC] H_POWER after setAimAngle - targetAngle: %.4f, afterSetAngle: %.4f", 
