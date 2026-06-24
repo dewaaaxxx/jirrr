@@ -21,7 +21,7 @@ using namespace std;
 #include <GLES3/gl3.h>
 
 #include "ButtonClicker.h"
-#include "8bp/inc/human-2.h"
+#include "8bp/inc/AutoPlay.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
@@ -1166,7 +1166,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
 
-            need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
+            /*need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
             Dummy(ImVec2(0, 8));
 
             float sens = persistent_float["fAngleDragSensitivity"];
@@ -1258,7 +1258,7 @@ PopStyleVar();*/
     Dummy(ImVec2(0, 8));
 
     // ── Slider X ──
-    float sliderX = persistent_float["fPSliderX"];
+   /* float sliderX = persistent_float["fPSliderX"];
     if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.00f, 0.50f, "%.3f")) {
     persistent_float["fPSliderX"] = sliderX;
     need_save = true;
@@ -1298,7 +1298,7 @@ PopStyleVar();*/
             fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
             fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
         }
-    }
+    }*/
             break;
         }
         case 2: { 
