@@ -890,10 +890,6 @@ namespace AutoPlay {
         buttonClicker.Update();
     
         if (isAnimationActive()) return;
-    
-        void Update() {
-        powerSlider.Update();
-        HumanShootUpdate();
         
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (!HumanShootBusy()) state = IDLE;
