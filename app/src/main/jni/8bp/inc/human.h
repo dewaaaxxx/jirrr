@@ -542,6 +542,7 @@ static HumanAngleDrag humanAngleDrag;*/
 static HumanAngleDrag humanAngleDrag;*/
 
 // ============================================================================
+// ============================================================================
 // HUMAN ANGLE DRAG - FINAL SMOOTH VERSION
 // ============================================================================
 struct HumanAngleDrag {
@@ -586,7 +587,6 @@ struct HumanAngleDrag {
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
         double delta = AngleDiff(targetAngle, currentAngle);
 
-        // Sensitivitas tetap, tapi durasi dibuat proporsional
         float sens = 280.0f;
 
         startPos = GetStartPos();
@@ -596,7 +596,6 @@ struct HumanAngleDrag {
         float dy = dx * 0.06f;
         endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
-        // Durasi: 0.3 detik untuk sudut kecil, hingga 0.8 detik untuk sudut besar
         float absDelta = fabsf((float)delta);
         duration = 0.30f + absDelta * 0.30f;
         duration = std::min(duration, 0.80f);
@@ -611,8 +610,6 @@ struct HumanAngleDrag {
         float dt = ImGui::GetIO().DeltaTime;
         elapsed += dt;
         float t = std::min(1.f, elapsed / duration);
-
-        // Smoothstep yang konsisten
         float ease = t * t * (3.f - 2.f * t);
 
         currentPos = ImVec2(
@@ -622,7 +619,6 @@ struct HumanAngleDrag {
         NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
 
         if (t >= 1.f) {
-            // Pastikan posisi akhir presisi
             currentPos = endPos;
             NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
             NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
