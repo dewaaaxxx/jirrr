@@ -587,7 +587,7 @@ struct HumanAngleDrag {
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
     double delta = AngleDiff(targetAngle, currentAngle);
 
-    float sens = 350.0f;  // <-- NAIKIN
+    float sens = 600.0f;  // <-- NAIKIN
 
     startPos = GetStartPos();
     currentPos = startPos;
@@ -597,8 +597,8 @@ struct HumanAngleDrag {
     endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
     float absDelta = fabsf((float)delta);
-    duration = 0.50f + absDelta * 0.50f;  // <-- NAIKIN
-    duration = std::min(duration, 1.0f);
+    duration = 0.60f + absDelta * 0.60f;  // <-- NAIKIN
+    duration = std::min(duration, 1.2f);
     duration += (rand() % 80) * 0.001f;
 
     NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
