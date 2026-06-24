@@ -496,43 +496,34 @@ struct HumanAngleDrag {
 }
 
     void OnFinish() {
-        double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double remaining = AngleDiff(targetAngle, actualAngle);
+    double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+    double remaining = AngleDiff(targetAngle, actualAngle);
 
-        LOGI("[DRAG] === ON FINISH ===");
-        LOGI("[DRAG] targetAngle: %.4f, actualAngle: %.4f", targetAngle, actualAngle);
-        LOGI("[DRAG] remaining: %.4f, tolerance: %.4f", remaining, ANGLE_TOLERANCE);
+    if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+        active = false;
+        done = true;
+        state = FINISHED;
+    } else {
+        correctionAttempts++;
+        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+        double delta = AngleDiff(targetAngle, currentAngle);
 
-        if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
-            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-            active = false;
-            done = true;
-            state = FINISHED;
-            LOGI("[DRAG] === SUCCESS ===");
-        } else {
-            correctionAttempts++;
-            LOGI("[DRAG] === CORRECTION %d ===", correctionAttempts);
-            double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-            double delta = AngleDiff(targetAngle, currentAngle);
+        float sens = 380.0f;  // <-- SAMA KAYA DI BEGIN
+        startPos = currentPos;
+        float dx = (float)(delta * sens);
+        float dy = dx * 0.06f;
+        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
-            float sens = 250.0f;
-            startPos = currentPos;
-            float dx = (float)(delta * sens);
-            float dy = dx * 0.06f;
-            endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+        float absDelta = fabsf((float)delta);
+        duration = 0.20f + absDelta * 0.20f;
+        duration = std::min(duration, 0.35f);
 
-            LOGI("[DRAG] CORRECTION endPos: (%.1f, %.1f)", endPos.x, endPos.y);
-
-            float absDelta = fabsf((float)delta);
-            duration = 0.20f + absDelta * 0.20f;
-            duration = std::min(duration, 0.35f);
-
-            elapsed = 0.f;
-            holding = false;
-            state = DRAGGING;
-            NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
-            LOGI("[DRAG] CORRECTION NativeTouchesBegin called");
-        }
+        elapsed = 0.f;
+        holding = false;
+        state = DRAGGING;
+        NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
+    }
     }
 };
 
