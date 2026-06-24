@@ -587,7 +587,7 @@ struct HumanAngleDrag {
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
     double delta = AngleDiff(targetAngle, currentAngle);
 
-    float sens = 800.0f;  // <-- NAIKIN
+    float sens = 180.0f;  // <-- NAIKIN
 
     startPos = GetStartPos();
     currentPos = startPos;
@@ -645,7 +645,8 @@ struct HumanAngleDrag {
     LOGI("[SYNC] OnFinish BEFORE - targetAngle: %.4f, currentAngle: %.4f", 
          targetAngle, beforeSet);
     
-    // ===== UNCOMMENT INI =====/    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    // ===== UNCOMMENT INI =====/    s
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
     
     double afterSet = sharedGameManager.mVisualCue().getShotAngle();
     LOGI("[SYNC] OnFinish AFTER - targetAngle: %.4f, currentAngle: %.4f", 
@@ -754,8 +755,8 @@ namespace AutoPlay {
         }
         case H_POWER: {
             if (!powerSlider.Active) {
-                // ===== SET ANGLE & TEMBAK =====
-                setAimAngle(humanAngleDrag.targetAngle);
+                // ===== HAPUS setAimAngle =====
+                // setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
                 
                 double finalPower = humanPendingPower;
                 if (finalPower < 100.0) finalPower = 100.0;
