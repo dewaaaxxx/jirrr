@@ -637,9 +637,9 @@ namespace AutoPlay {
             if (humanAngleDrag.done) {
                 LOGI("[DRAG] Angle drag done, moving to POWER");
                 ImGuiIO& io = ImGui::GetIO();
-                float sliderX = 0.858f;
-                float sliderTop = 0.18f;
-                float sliderH = 0.67f;
+                float sliderX = 0.082f;
+                float sliderTop = 0.267f;
+                float sliderH = 0.616f;
 
                 ImVec4 rect(
                     io.DisplaySize.x * sliderX,
