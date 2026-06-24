@@ -576,59 +576,55 @@ struct HumanAngleDrag {
     }
 
     void Begin(double angle) {
-        if (active) return;
+    if (active) return;
 
-        targetAngle = angle;
-        active = true;
-        done = false;
-        state = H_DRAGGING;  // <-- GANTI
-        elapsed = 0.f;
+    targetAngle = angle;
+    active = true;
+    done = false;
+    state = H_DRAGGING;
+    elapsed = 0.f;
 
-        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double delta = AngleDiff(targetAngle, currentAngle);
+    double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+    double delta = AngleDiff(targetAngle, currentAngle);
 
-        float sens = 280.0f;
+    float sens = 350.0f;  // <-- NAIKIN
 
-        startPos = GetStartPos();
-        currentPos = startPos;
+    startPos = GetStartPos();
+    currentPos = startPos;
 
-        float dx = (float)(delta * sens);
-        float dy = dx * 0.06f;
-        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+    float dx = (float)(delta * sens);
+    float dy = dx * 0.06f;
+    endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
-        float absDelta = fabsf((float)delta);
-        duration = 0.30f + absDelta * 0.30f;
-        duration = std::min(duration, 0.80f);
-        duration += (rand() % 80) * 0.001f;
+    float absDelta = fabsf((float)delta);
+    duration = 0.50f + absDelta * 0.50f;  // <-- NAIKIN
+    duration = std::min(duration, 1.0f);
+    duration += (rand() % 80) * 0.001f;
 
-        NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
-    }
+    NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
+}
 
     void Update() {
-        if (!active || state == H_DONE) return;  // <-- GANTI
+    if (!active || state == H_DONE) return;
 
-        float dt = ImGui::GetIO().DeltaTime;
-        elapsed += dt;
-        float t = std::min(1.f, elapsed / duration);
-        float ease = t * t * (3.f - 2.f * t);
+    float dt = ImGui::GetIO().DeltaTime;
+    elapsed += dt;
+    float t = std::min(1.f, elapsed / duration);
+    float ease = 1.f - powf(1.f - t, 3.f);  // <-- EaseOutCubic
 
-        currentPos = ImVec2(
-            startPos.x + (endPos.x - startPos.x) * ease,
-            startPos.y + (endPos.y - startPos.y) * ease
-        );
+    currentPos = ImVec2(
+        startPos.x + (endPos.x - startPos.x) * ease,
+        startPos.y + (endPos.y - startPos.y) * ease
+    );
+    NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+
+    if (t >= 1.f) {
+        currentPos = endPos;
         NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-
-        if (t >= 1.f) {
-            currentPos = endPos;
-            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-            NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
-
-            double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
-            LOGI("[SYNC] Drag END - targetAngle: %.4f, actualAngle: %.4f, diff: %.4f", 
-                  targetAngle, actualAngle, targetAngle - actualAngle);
-            OnFinish();
-        }
+        NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
+        OnFinish();
     }
+}
 
     void OnFinish() {
         double beforeSet = sharedGameManager.mVisualCue().getShotAngle();
