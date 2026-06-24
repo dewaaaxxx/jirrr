@@ -443,21 +443,36 @@ struct HumanAngleDrag {
     elapsed = 0.f;
     holdTimer = 0.f;
 
+    // ===== SET ANGLE KE TARGET =====
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    auto& cueBall = gPrediction->guiData.balls[0];
+    ImVec2 targetScreen = WorldToScreen(cueBall.initialPosition);
+
+    // ===== KEMBALI KE POSISI AWAL =====
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-    double delta = AngleDiff(targetAngle, currentAngle);
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(currentAngle);
+    ImVec2 startScreen = WorldToScreen(cueBall.initialPosition);
 
-    float sens = 320.0f;  // <-- NAIKIN
+    // ===== POSISI DRAG =====
+    float randOffsetX = (float)((rand() % 60) - 30);
+    float randOffsetY = (float)((rand() % 40) - 20);
 
-    startPos = GetStartPos();
-    currentPos = startPos;
+    startPos = ImVec2(
+        startScreen.x + 130.0f + randOffsetX,
+        startScreen.y + 90.0f + randOffsetY
+    );
 
-    float dx = (float)(delta * sens);
-    float dy = dx * 0.06f;
-    endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+    endPos = ImVec2(
+        targetScreen.x + 130.0f + randOffsetX,
+        targetScreen.y + 90.0f + randOffsetY
+    );
 
-    float absDelta = fabsf((float)delta);
-    duration = 0.60f + absDelta * 0.60f;  // <-- NAIKIN
-    duration = std::min(duration, 1.0f);
+    // ===== DURASI =====
+    float dx = endPos.x - startPos.x;
+    float dy = endPos.y - startPos.y;
+    float distance = sqrtf(dx*dx + dy*dy);
+    duration = 0.40f + (distance / 1200.0f);
+    duration = std::min(duration, 0.90f);
     duration += (rand() % 80) * 0.001f;
 
     NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
