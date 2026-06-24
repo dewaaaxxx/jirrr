@@ -605,7 +605,7 @@ struct HumanAngleDrag {
 }
 
     void Update() {
-    LOGI("[SYNC] humanAngleDrag.Update - ENTER");  // <-- TAMBAH DI AWAL
+    LOGI("[SYNC] humanAngleDrag.Update - ENTER");
     if (!active || state == H_DONE) {
         LOGI("[SYNC] humanAngleDrag.Update - SKIP (active=%d, state=%d)", active, state);
         return;
@@ -614,7 +614,11 @@ struct HumanAngleDrag {
     float dt = ImGui::GetIO().DeltaTime;
     elapsed += dt;
     float t = std::min(1.f, elapsed / duration);
-    float ease = 1.f - powf(1.f - t, 3.f);  // <-- EaseOutCubic
+    
+    // ===== LOG T DAN ELAPSED =====
+    LOGI("[SYNC] t=%.3f, elapsed=%.3f, duration=%.3f", t, elapsed, duration);
+
+    float ease = 1.f - powf(1.f - t, 3.f);
 
     currentPos = ImVec2(
         startPos.x + (endPos.x - startPos.x) * ease,
@@ -623,12 +627,14 @@ struct HumanAngleDrag {
     NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
 
     if (t >= 1.f) {
+        LOGI("[SYNC] DRAG END - targetAngle: %.4f, actualAngle: %.4f", 
+             targetAngle, sharedGameManager.mVisualCue().getShotAngle());
         currentPos = endPos;
         NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
         NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
         OnFinish();
     }
-}
+    }
 
     void OnFinish() {
         double beforeSet = sharedGameManager.mVisualCue().getShotAngle();
@@ -715,7 +721,6 @@ namespace AutoPlay {
     }
     
     void HumanShootUpdate() {
-    LOGI("[SYNC] H_ANGLE - calling humanAngleDrag.Update()");  // <-- TAMBAH LOG
     switch (humanExecState) {
         case H_ANGLE: {
             humanAngleDrag.Update();
