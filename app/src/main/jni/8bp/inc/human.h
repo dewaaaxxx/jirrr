@@ -221,216 +221,142 @@ bool IsShotValid() {
     return true;
 }
 
-// ============================================================
-// FORWARD DECLARATION: biar HumanAngleDrag bisa panggil AutoPlay::setAimAngle
-// ============================================================
-namespace AutoPlay {
-    void setAimAngle(double angle);
-}
-
 // ============================================================================
-// HUMAN ANGLE DRAG (Simulasi gerakan tangan manusia - SMOOTH VERSION)
-// ============================================================================
-// Flow:
-//   1. Baca angle SEKARANG dari memory (getShotAngle)
-//   2. Hitung delta ke target angle
-//   3. Drag dari titik awal yang natural (area meja tengah-bawah)
-//      ke titik akhir = titik awal + (delta * sensitivity) pixels
-//   4. Setiap frame: update posisi drag dengan easing quintic + micro-jitter
-//      Kirim NativeTouchesMove() → game rotate cue secara real
-//   5. Setelah drag selesai, baca ulang angle dari memory
-//      Kalau masih ada selisih > tolerance → koreksi kecil (max 4x)
-//   6. Done → HumanShootUpdate lanjut ke H_THINK
+// HUMAN ANGLE DRAG
 // ============================================================================
 struct HumanAngleDrag {
-    enum State { HAD_IDLE, HAD_PRESS_DELAY, HAD_DRAGGING, HAD_LIFT_DELAY, HAD_FINISHED } state = HAD_IDLE;
+    enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
     int touchIndex = 10;
 
     double targetAngle = 0.0;
-    ImVec2 dragOrigin{};
-    ImVec2 dragTo{};
-    ImVec2 dragCurrent{};
+    ImVec2 startPos{};
+    ImVec2 endPos{};
+    ImVec2 currentPos{};
 
-    float elapsed   = 0.f;
-    float duration  = 0.f;
-    float pressDelay = 0.f;   // brief pause after touch-down before starting move
-    float liftDelay  = 0.f;   // brief pause at end before lifting finger
-
-    int correctionAttempts = 0;
-    static constexpr int   MAX_CORRECTIONS   = 4;
-    static constexpr double ANGLE_TOLERANCE  = 0.012; // ~0.7 degrees — good enough
-
+    float elapsed = 0.f;
+    float duration = 0.f;
+    float holdTimer = 0.f;
+    bool holding = false;
     bool active = false;
-    bool done   = false;
+    bool done = false;
+    int correctionAttempts = 0;
+    static constexpr int MAX_CORRECTIONS = 2;
+    static constexpr double ANGLE_TOLERANCE = 0.015;
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
     static double AngleDiff(double a, double b) {
         double d = a - b;
-        while (d >  M_PI) d -= 2.0 * M_PI;
+        while (d > M_PI) d -= 2.0 * M_PI;
         while (d < -M_PI) d += 2.0 * M_PI;
         return d;
     }
 
-    // Tiny natural tremor — amplitude proportional to (ease * (1-ease))
-    // so it's zero at start/end and peaks in the middle of the drag
-    static float Jitter(float t, float seed, float amp) {
-        float env = t * (1.0f - t) * 4.0f; // bell curve, peaks at t=0.5
-        return amp * env * (
-            sinf(t * 13.7f + seed)         * 0.50f +
-            sinf(t * 27.3f + seed * 1.6f)  * 0.30f +
-            sinf(t * 43.1f + seed * 2.4f)  * 0.20f
+    static ImVec2 GetStartPos() {
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 screen = WorldToScreen(cueBall.initialPosition);
+        return ImVec2(
+            screen.x + 130.0f + (float)((rand() % 50) - 25),
+            screen.y + 90.0f + (float)((rand() % 30) - 15)
         );
     }
 
-    // Ease-in-out quintic — smooth start, smooth stop
-    static float EaseInOutQuint(float t) {
-        return t < 0.5f
-            ? 16.0f * t * t * t * t * t
-            : 1.0f - powf(-2.0f * t + 2.0f, 5.0f) / 32.0f;
-    }
-
-    // ── Pick a drag origin: natural hand position for rotating cue ───────────
-    // In 8BP, players drag roughly in the LOWER-CENTER of the visible table
-    // (below the cue ball, where the thumb would rest). We stay away from
-    // the power slider (right edge) and UI elements (top).
-    static ImVec2 PickDragOrigin() {
-        float cx = (TABLE_LEFT + TABLE_RIGHT)  * 0.50f;
-        float cy = (TABLE_TOP  + TABLE_BOTTOM) * 0.62f; // slightly below center
-        // Small random spread so consecutive shots don't look identical
-        cx += (float)((rand() % 60) - 30);
-        cy += (float)((rand() % 30) - 15);
-        return ImVec2(cx, cy);
-    }
-
-    // ── Start one drag segment toward `target` from the current angle ────────
-    void BeginDrag(double currentAngle, double target) {
-        float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.0f) sens = 280.0f; // px / radian — sane default
-
-        double delta = AngleDiff(target, currentAngle);
-
-        dragOrigin  = PickDragOrigin();
-        dragCurrent = dragOrigin;
-
-        // Horizontal drag maps to angle change; tiny vertical drift adds
-        // realism (a real hand doesn't move in a perfectly straight line)
-        float dx = (float)(delta * (double)sens);
-        float dy = dx * 0.06f * ((rand() % 2) ? 1.f : -1.f); // ±6% vertical drift
-        dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
-
-        // Duration: 0.30–0.65 s for small moves, up to ~1.0 s for large ones
-        float absDelta = fabsf((float)delta);
-        duration  = 0.30f + absDelta * 0.45f + (rand() % 120) * 0.001f;
-        duration  = std::min(duration, 1.0f);
-
-        // Tiny delay after touch-down (finger lands before it starts moving)
-        pressDelay = 0.04f + (rand() % 40) * 0.001f;
-        // Tiny delay before lift (finger slows to a stop)
-        liftDelay  = 0.03f + (rand() % 30) * 0.001f;
-
-        elapsed = 0.f;
-        NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
-        state = HAD_PRESS_DELAY;
-    }
-
-    // ── Entry point ──────────────────────────────────────────────────────────
     void Begin(double angle) {
         if (active) return;
-        targetAngle        = angle;
+
+        targetAngle = angle;
+        active = true;
+        done = false;
+        state = DRAGGING;
+        holding = false;
         correctionAttempts = 0;
-        active             = true;
-        done               = false;
+        elapsed = 0.f;
+        holdTimer = 0.f;
 
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        BeginDrag(currentAngle, targetAngle);
+        double delta = AngleDiff(targetAngle, currentAngle);
+
+        float sens = 280.0f;  // <-- SEMAKIN TINGGI, SEMAKIN CEPET
+
+        startPos = GetStartPos();
+        currentPos = startPos;
+
+        float dx = (float)(delta * sens);
+        float dy = dx * 0.06f;
+        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+
+        float absDelta = fabsf((float)delta);
+        duration = 0.30f + absDelta * 0.30f;
+        duration = std::min(duration, 0.70f);
+        duration += (rand() % 80) * 0.001f;
+
+        NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
     }
 
-    // ── Per-frame update ─────────────────────────────────────────────────────
     void Update() {
-        if (!active) return;
+        if (!active || state == FINISHED) return;
 
         float dt = ImGui::GetIO().DeltaTime;
 
-        switch (state) {
-
-        case HAD_PRESS_DELAY: {
-            // Hold finger still for a moment after touch-down
+        if (!holding) {
             elapsed += dt;
-            NativeTouchesMove(touchIndex, dragOrigin.x, dragOrigin.y);
-            if (elapsed >= pressDelay) {
-                elapsed = 0.f;
-                state   = HAD_DRAGGING;
-            }
-            break;
-        }
+            float t = std::min(1.f, elapsed / duration);
+            float ease = t * t * (3.f - 2.f * t);
 
-        case HAD_DRAGGING: {
-            elapsed += dt;
-            float t    = std::min(1.f, elapsed / duration);
-            float ease = EaseInOutQuint(t);
-
-            // Natural micro-jitter (zero at start/end, peak mid-drag)
-            float seed = (float)touchIndex * 2.3f;
-            float jx = Jitter(t, seed,        1.5f);
-            float jy = Jitter(t, seed + 5.f,  0.6f);
-
-            dragCurrent = ImVec2(
-                dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jx,
-                dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jy
+            currentPos = ImVec2(
+                startPos.x + (endPos.x - startPos.x) * ease,
+                startPos.y + (endPos.y - startPos.y) * ease
             );
-            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-#ifdef DEBUG_TOUCH
-            if (dynamic_bool["DebugTouch"]) {
-                auto* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(dragCurrent, 12.f, IM_COL32(80, 200, 255, 160));
-                fg->AddLine(dragOrigin, dragTo, IM_COL32(80, 200, 255, 100), 1.5f);
-                char buf[48];
-                snprintf(buf, sizeof(buf), "drag %.0f%%", t * 100.f);
-                fg->AddText(ImVec2(dragCurrent.x + 18, dragCurrent.y - 10),
-                            IM_COL32(255, 255, 255, 200), buf);
-            }
-#endif
+            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
 
             if (t >= 1.f) {
-                elapsed = 0.f;
-                state   = HAD_LIFT_DELAY;
+                currentPos = endPos;
+                NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+                holding = true;
+                holdTimer = 0.f;
             }
-            break;
-        }
+        } else {
+            holdTimer += dt;
+            float microX = sinf(holdTimer * 6.0f + 1.3f) * 0.3f;
+            float microY = sinf(holdTimer * 4.0f + 2.7f) * 0.2f;
+            NativeTouchesMove(touchIndex,
+                currentPos.x + microX,
+                currentPos.y + microY);
 
-        case HAD_LIFT_DELAY: {
-            // Hold at endpoint — finger decelerates to a stop
-            elapsed += dt;
-            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-            if (elapsed >= liftDelay) {
-                NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
-                OnDragEnd();
+            if (holdTimer >= 0.12f) {
+                NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
+                OnFinish();
             }
-            break;
-        }
-
-        default: break;
         }
     }
 
-    // ── Called when one drag segment finishes ────────────────────────────────
-    void OnDragEnd() {
-        double actualAngle  = sharedGameManager.mVisualCue().getShotAngle();
-        double remaining    = AngleDiff(targetAngle, actualAngle);
+    void OnFinish() {
+        double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+        double remaining = AngleDiff(targetAngle, actualAngle);
 
         if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
-            // Close enough (or ran out of correction attempts)
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
             active = false;
-            done   = true;
-            state  = HAD_FINISHED;
-            LOGI("HumanDrag: DONE target=%.4f actual=%.4f err=%.4f attempts=%d",
-                 targetAngle, actualAngle, remaining, correctionAttempts);
+            done = true;
+            state = FINISHED;
         } else {
-            // Small follow-up correction drag (same flow, shorter duration)
             correctionAttempts++;
-            LOGI("HumanDrag: correction %d remaining=%.4f", correctionAttempts, remaining);
-            BeginDrag(actualAngle, targetAngle);
+            double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+            double delta = AngleDiff(targetAngle, currentAngle);
+
+            float sens = 280.0f;  // <-- SEMAKIN TINGGI, SEMAKIN CEPET
+
+            startPos = currentPos;
+            float dx = (float)(delta * sens);
+            float dy = dx * 0.06f;
+            endPos = ImVec2(startPos.x + dx, startPos.y + dy);
+
+            float absDelta = fabsf((float)delta);
+            duration = 0.20f + absDelta * 0.20f;
+            duration = std::min(duration, 0.35f);
+
+            elapsed = 0.f;
+            holding = false;
+            state = DRAGGING;
+            NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
         }
     }
 };
@@ -445,9 +371,10 @@ namespace AutoPlay {
     bool bAutoPlaying = false;
     double luxuryPrecisionModifier = 1.0;  // Adjustable precision for luxury mode
     
-    enum HumanExecState { H_IDLE, H_ANGLE, H_THINK, H_POWER } humanExecState = H_IDLE;
+    enum HumanExecState { H_IDLE, H_ANGLE, H_POWER } humanExecState = H_IDLE;
     float humanThinkTimer = 0.f;
     double humanPendingPower = 0.f;
+
 
     enum State {
         IDLE,
@@ -493,77 +420,65 @@ namespace AutoPlay {
     
     void setShotPower(double power) {
     sharedGameManager.mVisualCue().setShotPower(power);
-}
-
-bool HumanShootBusy() { return humanExecState != H_IDLE; }
-
-void HumanShootBegin(double angle, double power) {
-    humanPendingPower = power;
-    humanAngleDrag.Begin(angle);
-    humanExecState = H_ANGLE;
-}
-
-void HumanShootUpdate() {
-    switch (humanExecState) {
-        case H_ANGLE: {
-            humanAngleDrag.Update();
-            if (humanAngleDrag.done) {
-                // No setAimAngle() here — HumanAngleDrag already verified
-                // the angle via getShotAngle() readback and corrected if
-                // needed. Overwriting via memory right after risks
-                // conflicting with the engine state from the touch event.
-                humanThinkTimer = 0.40f + (rand() % 300) * 0.001f;
-                humanExecState = H_THINK;
-            }
-            break;
-        }
-        case H_THINK: {
-            humanThinkTimer -= ImGui::GetIO().DeltaTime;
-            if (humanThinkTimer <= 0.f) {
-                // Gunakan power slider simulation
-                float sliderX   = persistent_float["fPSliderX"];
-                float sliderTop = persistent_float["fPSliderTop"];
-                float sliderH   = persistent_float["fPSliderH"];
-                if (sliderX <= 0.f)   sliderX   = 0.858f;
-                if (sliderTop <= 0.f) sliderTop = 0.18f;
-                if (sliderH <= 0.f)   sliderH   = 0.67f;
-
-                ImGuiIO& io = ImGui::GetIO();
-                ImVec4 rect(
-                    io.DisplaySize.x * sliderX,
-                    io.DisplaySize.y * sliderTop,
-                    io.DisplaySize.x * 0.04f,
-                    io.DisplaySize.y * sliderH
-                );
-
-                float dragTime = 0.80f + (rand() % 300) * 0.001f;
-                float holdTime = 0.30f + (rand() % 150) * 0.001f;
-                powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
-                humanExecState = H_POWER;
-            }
-            break;
-        }
-        case H_POWER: {
-            if (!powerSlider.Active) {
-                double finalPower = humanPendingPower;
-                if (finalPower < 100.0) finalPower = 100.0;
-                if (finalPower > 666.0) finalPower = 666.0;
-                
-                setAimAngle(humanAngleDrag.targetAngle);
-                setShotPower(finalPower);
-                gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
-                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
-                M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
-                
-                humanExecState = H_IDLE;
-                ClearState();
-                state = IDLE;
-            }
-            break;
-        }
-        default: break;
     }
-}
+    
+    bool HumanShootBusy() { return humanExecState != H_IDLE; }
+    
+    void HumanShootBegin(double angle, double power) {
+        humanPendingPower = power;
+        humanAngleDrag.Begin(angle);
+        humanExecState = H_ANGLE;
+    }
+    
+    void HumanShootUpdate() {
+        switch (humanExecState) {
+            case H_ANGLE: {
+                humanAngleDrag.Update();
+                if (humanAngleDrag.done) {
+                // ===== DRAG ANGLE SELESAI → MULAI POWER SLIDER =====
+                    ImGuiIO& io = ImGui::GetIO();
+                    float sliderX = persistent_float["fPSliderX"];
+                    float sliderTop = persistent_float["fPSliderTop"];
+                    float sliderH = persistent_float["fPSliderH"];
+                    if (sliderX <= 0.f) sliderX = 0.858f;
+                    if (sliderTop <= 0.f) sliderTop = 0.18f;
+                    if (sliderH <= 0.f) sliderH = 0.67f;
+
+                    ImVec4 rect(
+                        io.DisplaySize.x * sliderX,
+                        io.DisplaySize.y * sliderTop,
+                        io.DisplaySize.x * 0.04f,
+                        io.DisplaySize.y * sliderH
+                    );
+
+                    float dragTime = 0.70f + (rand() % 200) * 0.001f;
+                    float holdTime = 0.25f + (rand() % 100) * 0.001f;
+                    powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
+                    humanExecState = H_POWER;
+                }
+                break;
+            }
+            case H_POWER: {
+                if (!powerSlider.Active) {
+                    double finalPower = humanPendingPower;
+                    if (finalPower < 100.0) finalPower = 100.0;
+                    if (finalPower > 666.0) finalPower = 666.0;
+
+                    setAimAngle(humanAngleDrag.targetAngle);
+                    setShotPower(finalPower);
+                    gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
+                    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
+                    M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+
+                    humanExecState = H_IDLE;
+                    ClearState();
+                    state = IDLE;
+                }
+                break;
+            }
+            default: break;
+        }
+    }
     
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
@@ -579,17 +494,14 @@ void HumanShootUpdate() {
         }
         
         if (nominating) {
-        pendingShotPower = power;
-        pendingShotAngle = angle;
-        state = NOMINATING;
-        nominationFrameCounter = 0;
-    } else if (persistent_bool["bHumanAutoplay"]) {  // <-- CEK SETTING HUMAN MODE
-        HumanShootBegin(angle, power);
-        state = EXECUTING;
-    } else {
-        takeShot(angle, power);
-        ClearState();
-        state = IDLE;
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            state = NOMINATING;
+            nominationFrameCounter = 0;
+        } else {
+            // ===== PAKE HUMAN MODE =====
+            HumanShootBegin(angle, power);
+            state = EXECUTING;
         }
     }
     
@@ -975,45 +887,38 @@ void HumanShootUpdate() {
     }
     
     void Update() {
+        // ===== UPDATE POWER SLIDER & HUMAN DRAG =====
         powerSlider.Update();
         HumanShootUpdate();
-        
-        if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        buttonClicker.Update();
+        DrawToggleButton();
+    
+        if (isAnimationActive()) return;
+    
+        if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (!HumanShootBusy()) state = IDLE;
             return;
         }
-        
-        buttonClicker.Update();
-
-        if (isAnimationActive()) return;
-
-        if (HumanShootBusy()) return;  // <-- TAMBAHKAN INI
-
-
+    
+        if (HumanShootBusy()) return;
+    
         if (state == IDLE) {
             state = SCANNING;
             scan = FAST;
         } else if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
-        //    else if (scan == PRECISION) ScanPrecision(0.005f);
         } else if (state == NOMINATING) {
             nominationFrameCounter++;
             if (nominationFrameCounter == 10) {
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
             }
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-            if (persistent_bool["bHumanAutoplay"]) {
                 HumanShootBegin(g_CurrentCandidate.angle, g_CurrentCandidate.power);
                 state = EXECUTING;
-            } else {
-                takeShot(pendingShotAngle, pendingShotPower);
-                ClearState();
-                state = IDLE;
             }
+        } else if (state == EXECUTING) {
+            // HumanShootUpdate() handles the rest
         }
-    } else if (state == EXECUTING) {
-        // HumanShootUpdate() handles the rest
-    }
     }
 };
