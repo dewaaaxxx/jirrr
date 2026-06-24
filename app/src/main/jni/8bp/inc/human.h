@@ -681,7 +681,7 @@ namespace AutoPlay {
     }
     
     void Shoot(double angle, double power = 0.f) {
-        setAimAngle(angle);
+        //setAimAngle(angle);
         gPrediction->determineShotResult(false, angle, power);
 
         bool nominating = false;
