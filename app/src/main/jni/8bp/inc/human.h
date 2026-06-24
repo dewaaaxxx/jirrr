@@ -413,7 +413,7 @@ struct HumanAngleDrag {
     bool done = false;
     int correctionAttempts = 0;
     static constexpr int MAX_CORRECTIONS = 2;
-    static constexpr double ANGLE_TOLERANCE = 0.015;
+    static constexpr double ANGLE_TOLERANCE = 0.005;
 
     static double AngleDiff(double a, double b) {
         double d = a - b;
@@ -446,7 +446,7 @@ struct HumanAngleDrag {
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
     double delta = AngleDiff(targetAngle, currentAngle);
 
-    float sens = 380.0f;  // <-- NAIKIN
+    float sens = 320.0f;  // <-- NAIKIN
 
     startPos = GetStartPos();
     currentPos = startPos;
@@ -456,8 +456,8 @@ struct HumanAngleDrag {
     endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
     float absDelta = fabsf((float)delta);
-    duration = 0.50f + absDelta * 0.50f;  // <-- NAIKIN
-    duration = std::min(duration, 0.90f);
+    duration = 0.60f + absDelta * 0.60f;  // <-- NAIKIN
+    duration = std::min(duration, 1.0f);
     duration += (rand() % 80) * 0.001f;
 
     NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
@@ -509,15 +509,15 @@ struct HumanAngleDrag {
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
         double delta = AngleDiff(targetAngle, currentAngle);
 
-        float sens = 380.0f;  // <-- SAMA KAYA DI BEGIN
+        float sens = 320.0f;  // <-- SAMA KAYA DI BEGIN
         startPos = currentPos;
         float dx = (float)(delta * sens);
         float dy = dx * 0.06f;
         endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
         float absDelta = fabsf((float)delta);
-        duration = 0.20f + absDelta * 0.20f;
-        duration = std::min(duration, 0.35f);
+        duration = 0.25f + absDelta * 0.25f;
+        duration = std::min(duration, 0.45f);
 
         elapsed = 0.f;
         holding = false;
