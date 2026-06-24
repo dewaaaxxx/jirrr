@@ -710,7 +710,11 @@ namespace AutoPlay {
         case H_ANGLE: {
             humanAngleDrag.Update();
             if (humanAngleDrag.done) {
-                LOGI("[DRAG] Angle drag done, moving to POWER");
+                LOGI("[DRAG] Angle drag done, setting angle and moving to POWER");
+
+                // ===== SET ANGLE DI SINI =====
+                setAimAngle(humanAngleDrag.targetAngle);
+
                 ImGuiIO& io = ImGui::GetIO();
                 float sliderX = 0.082f;
                 float sliderTop = 0.267f;
@@ -737,7 +741,9 @@ namespace AutoPlay {
                 if (finalPower < 100.0) finalPower = 100.0;
                 if (finalPower > 666.0) finalPower = 666.0;
 
-                setAimAngle(humanAngleDrag.targetAngle);
+                // ===== HAPUS setAimAngle DARI SINI =====
+                // setAimAngle(humanAngleDrag.targetAngle);  // <-- COMMENT
+
                 setShotPower(finalPower);
                 gPrediction->determineShotResult(false, humanAngleDrag.targetAngle, finalPower);
                 sharedGameManager.mVisualCue().mPower(ShotPowerToPower(finalPower));
@@ -751,7 +757,7 @@ namespace AutoPlay {
         }
         default: break;
     }
-    }
+}
     
     void Shoot(double angle, double power = 0.f) {
         //setAimAngle(angle);
