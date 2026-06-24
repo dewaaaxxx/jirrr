@@ -396,7 +396,7 @@ static HumanAngleDrag humanAngleDrag;*/
 // ============================================================================
 // HUMAN ANGLE DRAG - FULL CODE
 // ============================================================================
-/**struct HumanAngleDrag {
+/*struct HumanAngleDrag {
     enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
     int touchIndex = 10;
 
