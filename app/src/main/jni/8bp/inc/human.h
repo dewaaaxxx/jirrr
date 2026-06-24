@@ -300,8 +300,8 @@ struct HumanAngleDrag {
         float dx = endPos.x - startPos.x;
         float dy = endPos.y - startPos.y;
         float distance = sqrtf(dx*dx + dy*dy);
-        duration = 0.30f + (distance / 1500.0f);
-        duration = std::min(duration, 0.70f);
+        duration = 0.45f + (distance / 1200.0f);
+        duration = std::min(duration, 0.90f);
     
         NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
     }
@@ -330,11 +330,7 @@ struct HumanAngleDrag {
             }
         } else {
             holdTimer += dt;
-            float microX = sinf(holdTimer * 6.0f + 1.3f) * 0.3f;
-            float microY = sinf(holdTimer * 4.0f + 2.7f) * 0.2f;
-            NativeTouchesMove(touchIndex,
-                currentPos.x + microX,
-                currentPos.y + microY);
+            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
 
             if (holdTimer >= 0.10f) {
                 NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
@@ -356,18 +352,30 @@ struct HumanAngleDrag {
             correctionAttempts++;
             double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
             double delta = AngleDiff(targetAngle, currentAngle);
-
-            float sens = 280.0f;  // <-- SEMAKIN TINGGI, SEMAKIN CEPET
-
+    
+            // ===== PAKE WorldToScreen LAGI =====
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            auto& cueBall = gPrediction->guiData.balls[0];
+            ImVec2 targetScreen = WorldToScreen(cueBall.initialPosition);
+    
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(currentAngle);
+            ImVec2 startScreen = WorldToScreen(cueBall.initialPosition);
+    
+            float randOffsetX = (float)((rand() % 40) - 20);
+            float randOffsetY = (float)((rand() % 30) - 15);
+    
             startPos = currentPos;
-            float dx = (float)(delta * sens);
-            float dy = dx * 0.06f;
-            endPos = ImVec2(startPos.x + dx, startPos.y + dy);
-
-            float absDelta = fabsf((float)delta);
-            duration = 0.20f + absDelta * 0.20f;
+            endPos = ImVec2(
+                targetScreen.x + 130.0f + randOffsetX,
+                targetScreen.y + 90.0f + randOffsetY
+            );
+    
+            float dx = endPos.x - startPos.x;
+            float dy = endPos.y - startPos.y;
+            float distance = sqrtf(dx*dx + dy*dy);
+            duration = 0.20f + (distance / 1400.0f);
             duration = std::min(duration, 0.35f);
-
+    
             elapsed = 0.f;
             holding = false;
             state = DRAGGING;
