@@ -888,11 +888,14 @@ namespace AutoPlay {
         powerSlider.Update();
         HumanShootUpdate();
         buttonClicker.Update();
-        DrawToggleButton();
     
         if (isAnimationActive()) return;
     
-        if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        void Update() {
+        powerSlider.Update();
+        HumanShootUpdate();
+        
+        if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (!HumanShootBusy()) state = IDLE;
             return;
         }
