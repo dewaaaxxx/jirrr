@@ -453,13 +453,9 @@ void HumanShootUpdate() {
             humanAngleDrag.Update();
             if (humanAngleDrag.done) {
                 // ===== MULAI POWER SLIDER =====
-                float sliderX   = persistent_float["fPSliderX"];
-                float sliderTop = persistent_float["fPSliderTop"];
-                float sliderH   = persistent_float["fPSliderH"];
-                if (sliderX <= 0.f)   sliderX   = 0.858f;
-                if (sliderTop <= 0.f) sliderTop = 0.18f;
-                if (sliderH <= 0.f)   sliderH   = 0.67f;
-
+                float sliderX = 0.082f;
+                float sliderTop = 0.267f;
+                float sliderH = 0.616f;
                 ImGuiIO& io = ImGui::GetIO();
                 ImVec4 rect(
                     io.DisplaySize.x * sliderX,
@@ -509,17 +505,13 @@ void HumanShootUpdate() {
         }
         
         if (nominating) {
-        pendingShotPower = power;
-        pendingShotAngle = angle;
-        state = NOMINATING;
-        nominationFrameCounter = 0;
-    } else if (persistent_bool["bHumanAutoplay"]) {  // <-- CEK SETTING HUMAN MODE
-        HumanShootBegin(angle, power);
-        state = EXECUTING;
-    } else {
-        takeShot(angle, power);
-        ClearState();
-        state = IDLE;
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            state = NOMINATING;
+            nominationFrameCounter = 0;
+        } else {
+            HumanShootBegin(angle, power);
+            state = EXECUTING;
         }
     }
     
@@ -933,17 +925,11 @@ void HumanShootUpdate() {
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
             }
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-            if (persistent_bool["bHumanAutoplay"]) {
                 HumanShootBegin(g_CurrentCandidate.angle, g_CurrentCandidate.power);
                 state = EXECUTING;
-            } else {
-                takeShot(pendingShotAngle, pendingShotPower);
-                ClearState();
-                state = IDLE;
             }
+        } else if (state == EXECUTING) {
+            // HumanShootUpdate() handles the rest
         }
-    } else if (state == EXECUTING) {
-        // HumanShootUpdate() handles the rest
-    }
     }
 };
