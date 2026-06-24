@@ -587,7 +587,7 @@ struct HumanAngleDrag {
     double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
     double delta = AngleDiff(targetAngle, currentAngle);
 
-    float sens = 600.0f;  // <-- NAIKIN
+    float sens = 800.0f;  // <-- NAIKIN
 
     startPos = GetStartPos();
     currentPos = startPos;
@@ -597,12 +597,16 @@ struct HumanAngleDrag {
     endPos = ImVec2(startPos.x + dx, startPos.y + dy);
 
     float absDelta = fabsf((float)delta);
-    duration = 0.60f + absDelta * 0.60f;  // <-- NAIKIN
-    duration = std::min(duration, 1.2f);
+    duration = 0.40f + absDelta * 0.40f;  // <-- TURUNIN
+    duration = std::min(duration, 0.80f);
     duration += (rand() % 80) * 0.001f;
 
+    LOGI("[SYNC] delta: %.4f, sens: %.1f, duration: %.3f", delta, sens, duration);
+    LOGI("[SYNC] startPos: (%.1f, %.1f), endPos: (%.1f, %.1f)", 
+         startPos.x, startPos.y, endPos.x, endPos.y);
+
     NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
-}
+    }
 
     void Update() {
     LOGI("[SYNC] humanAngleDrag.Update - ENTER");
@@ -637,16 +641,20 @@ struct HumanAngleDrag {
     }
 
     void OnFinish() {
-        double beforeSet = sharedGameManager.mVisualCue().getShotAngle();
+    double beforeSet = sharedGameManager.mVisualCue().getShotAngle();
     LOGI("[SYNC] OnFinish BEFORE - targetAngle: %.4f, currentAngle: %.4f", 
          targetAngle, beforeSet);
-     //   sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-        double afterSet = sharedGameManager.mVisualCue().getShotAngle();
+    
+    // ===== UNCOMMENT INI =====
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    
+    double afterSet = sharedGameManager.mVisualCue().getShotAngle();
     LOGI("[SYNC] OnFinish AFTER - targetAngle: %.4f, currentAngle: %.4f", 
          targetAngle, afterSet);
-        active = false;
-        done = true;
-        state = H_DONE;  // <-- GANTI
+    
+    active = false;
+    done = true;
+    state = H_DONE;
     }
 };
 
@@ -1191,8 +1199,6 @@ namespace AutoPlay {
     
     void Update() {
         // ===== UPDATE POWER SLIDER & HUMAN DRAG =====
-        LOGI("[SYNC] AutoPlay Update - calling HumanShootUpdate");  // <-- TAMBAH
-        powerSlider.Update();
         HumanShootUpdate();
         buttonClicker.Update();
     
