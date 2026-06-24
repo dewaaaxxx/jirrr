@@ -261,7 +261,7 @@ struct HumanAngleDrag {
 
     void Begin(double angle) {
         if (active) return;
-
+    
         targetAngle = angle;
         active = true;
         done = false;
@@ -270,24 +270,39 @@ struct HumanAngleDrag {
         correctionAttempts = 0;
         elapsed = 0.f;
         holdTimer = 0.f;
-
+    
+        // ===== 1. SET ANGLE KE TARGET =====
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+        auto& cueBall = gPrediction->guiData.balls[0];
+        ImVec2 targetScreen = WorldToScreen(cueBall.initialPosition); // <-- POSISI TARGET DI LAYAR
+    
+        // ===== 2. KEMBALI KE POSISI AWAL =====
         double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
-        double delta = AngleDiff(targetAngle, currentAngle);
-
-        float sens = 280.0f;  // <-- SEMAKIN TINGGI, SEMAKIN CEPET
-
-        startPos = GetStartPos();
-        currentPos = startPos;
-
-        float dx = (float)(delta * sens);
-        float dy = dx * 0.06f;
-        endPos = ImVec2(startPos.x + dx, startPos.y + dy);
-
-        float absDelta = fabsf((float)delta);
-        duration = 0.30f + absDelta * 0.30f;
+        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(currentAngle);
+        ImVec2 startScreen = WorldToScreen(cueBall.initialPosition); // <-- POSISI AWAL DI LAYAR
+    
+        // ===== 3. TAMBAH OFFSET ACAK BIAR NATURAL =====
+        float randOffsetX = (float)((rand() % 60) - 30);
+        float randOffsetY = (float)((rand() % 40) - 20);
+    
+        // ===== 4. POSISI DRAG =====
+        startPos = ImVec2(
+            startScreen.x + 130.0f + randOffsetX,
+            startScreen.y + 90.0f + randOffsetY
+        );
+    
+        endPos = ImVec2(
+            targetScreen.x + 130.0f + randOffsetX,
+            targetScreen.y + 90.0f + randOffsetY
+        );
+    
+        // ===== 5. DURASI =====
+        float dx = endPos.x - startPos.x;
+        float dy = endPos.y - startPos.y;
+        float distance = sqrtf(dx*dx + dy*dy);
+        duration = 0.30f + (distance / 1500.0f);
         duration = std::min(duration, 0.70f);
-        duration += (rand() % 80) * 0.001f;
-
+    
         NativeTouchesBegin(touchIndex, startPos.x, startPos.y);
     }
 
@@ -321,7 +336,7 @@ struct HumanAngleDrag {
                 currentPos.x + microX,
                 currentPos.y + microY);
 
-            if (holdTimer >= 0.12f) {
+            if (holdTimer >= 0.10f) {
                 NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
                 OnFinish();
             }
