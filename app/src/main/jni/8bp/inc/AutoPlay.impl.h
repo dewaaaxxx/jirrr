@@ -538,10 +538,12 @@ void AutoPlay::ScanSlow(double angleStep) {
 
 
 void AutoPlay::ScanFast(double angleStep) {
+    LOGI("HUH : ScanFast() CALLED");
+    
     if (g_CurrentCandidate.idx != -1) return;
     
     if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
-        LOGI("[AUTOPLAY] ScanFast skipped: ballsCount=%d", 
+        LOGI("HUH : ScanFast skipped: ballsCount=%d", 
              gPrediction ? gPrediction->guiData.ballsCount : -1);
         return;
     }
@@ -1792,6 +1794,8 @@ void AutoPlay::Update() {
             state = IDLE;
         }
     }
+
+    LOGI("HUH : BEFORE IDLE: state=%d", state);  // ← DI SINI (sebelum if (state == IDLE))
 
     if (state == IDLE) {
         bool shouldScan = (currentMode != MODE_AUTO_AIM) || !bAimedThisTurn;
