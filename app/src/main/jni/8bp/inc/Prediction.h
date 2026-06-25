@@ -219,10 +219,6 @@ void Prediction::initBalls() {
         ball.predictedPosition = ball.initialPosition;
         ball.velocity.nullify();
         ball.spin.nullify();
-        ball.pocketIndex = -1; // CRITICAL: Reset pocketIndex every simulation - prevents stale pocket
-                               // data from previous simulation contaminating current one.
-                               // Without this, black ball might retain pocketIndex=3 from simulation N,
-                               // even when simulation N+1 uses a different angle where ball goes elsewhere.
         if (!ball.positions.empty()) ball.positions.clear();
         ball.positions.reserve(20);
         ball.positions.push_back(ball.initialPosition);
