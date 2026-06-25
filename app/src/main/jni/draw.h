@@ -1166,6 +1166,79 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
 
+            // ===== SCAN MODE =====
+TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Scan Mode", "ﺢﺴﻤﻟﺍ ﻊﻀﻭ"));
+Dummy(ImVec2(0, 8));
+
+int curScan = persistent_int.count("iScanMode") ? persistent_int["iScanMode"] : 0;
+const char* scanNames[3] = { "Fast", "Slow", "Human" };
+float bw = (GetContentRegionAvail().x - 16) / 3.0f;
+
+PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+for (int i = 0; i < 3; i++) {
+    if (i) SameLine();
+    bool sel = (curScan == i);
+    PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
+    PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
+    
+    if (Button(scanNames[i], ImVec2(bw, 44))) {
+        persistent_int["iScanMode"] = i;
+        
+        // Terapkan ke AutoPlay
+        if (i == 0) { // Fast
+            AutoPlay::scan = AutoPlay::FAST;
+            AutoPlay::automationSpeed = AutoPlay::SPEED_FAST;
+        } else if (i == 1) { // Slow
+            AutoPlay::scan = AutoPlay::SLOW;
+            AutoPlay::automationSpeed = AutoPlay::SPEED_FAST;
+        } else { // Human
+            AutoPlay::scan = AutoPlay::FAST;
+            AutoPlay::automationSpeed = AutoPlay::SPEED_HUMAN;
+        }
+        
+        save_persistence();
+        LOGI("[AUTOPLAY] Scan Mode changed to: %s", scanNames[i]);
+    }
+    
+    PopStyleColor(3);
+}
+PopStyleVar();
+Dummy(ImVec2(0, 14));
+
+// ===== HUMAN MODE (hanya muncul jika Scan Mode = Human) =====
+if (curScan == 2) {
+    TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Human Mode", "ﻲﺋﺎﻘﻠﺘﻟﺍ ﻊﻀﻭ"));
+    Dummy(ImVec2(0, 8));
+    
+    int curHuman = persistent_int.count("iHumanMode") ? persistent_int["iHumanMode"] : 0;
+    const char* humanNames[2] = { "Slow", "Fast" };
+    float bwHuman = (GetContentRegionAvail().x - 8) / 2.0f;
+    
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+    for (int i = 0; i < 2; i++) {
+        if (i) SameLine();
+        bool sel = (curHuman == i);
+        PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
+        PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
+        PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
+        
+        if (Button(humanNames[i], ImVec2(bwHuman, 44))) {
+            persistent_int["iHumanMode"] = i;
+            
+            // Terapkan ke AutoPlay
+            AutoPlay::playStyle = (i == 0) ? AutoPlay::STYLE_NATURAL : AutoPlay::STYLE_INSTANT;
+            
+            save_persistence();
+            LOGI("[AUTOPLAY] Human Mode changed to: %s", humanNames[i]);
+        }
+        
+        PopStyleColor(3);
+    }
+    PopStyleVar();
+    Dummy(ImVec2(0, 14));
+}
+
             /*need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
             Dummy(ImVec2(0, 8));
 
@@ -1181,7 +1254,7 @@ if (GoldSliderFloat("Drag Sensitivity", "Higher = shorter drag", &sens, 100.0f, 
             /*need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
                                     L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
                                     &persistent_bool[O("bAutoApproval")]);
-            Dummy(ImVec2(0,12));*/
+            Dummy(ImVec2(0,12));
 
 
             TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
@@ -1232,7 +1305,7 @@ for (int i = 0; i < 3; i++) {
     
     PopStyleColor(3);
 }
-PopStyleVar();*/
+PopStyleVar();
             
             Dummy(ImVec2(0, 12));
 
