@@ -249,7 +249,7 @@ struct HumanAngleDrag {
 
     int correctionAttempts = 0;
     static constexpr int   MAX_CORRECTIONS  = 3;
-    static constexpr double ANGLE_TOLERANCE = 0.010;
+    static constexpr double ANGLE_TOLERANCE = 0.008;
 
     bool active = false;
     bool done   = false;
@@ -292,7 +292,7 @@ struct HumanAngleDrag {
     }
 
     void BeginDrag(double currentAngle, double target) {
-        float sens = 400.0f;  // <-- DARI 500 JADI 400
+        float sens = 430.0f;  // <-- DARI 500 JADI 400
         
         double delta = AngleDiff(target, currentAngle);
 
@@ -453,6 +453,7 @@ struct HumanAngleDrag {
             targetAngle, actual, remaining);
 
         if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
             active = false;
             done   = true;
             state  = HAD_FINISHED;
