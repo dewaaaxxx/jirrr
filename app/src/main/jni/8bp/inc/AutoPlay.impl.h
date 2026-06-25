@@ -1140,12 +1140,8 @@ void AutoPlay::Update() {
 buttonClicker.Update();
 powerSlider.Update();
 
-LOGI("[AUTOPLAY] state=%d scan=%d humanState=%d shotLocked=%d animPull=%d fastState=%d slider=%d candidate=%d turn=%d moving=%d animActive=%d autoPlay=%d predLocked=%d",
-     state, scan, humanState, humanShotLocked, anim_IsPulling, fastShotState, 
-     powerSlider.Active, g_CurrentCandidate.idx, 
-     sharedGameManager.mStateManager().isPlayerTurn(), 
-     AreBallsMoving(), IsAnimationActive(), bAutoPlaying, g_PredictionLocked);
-
+LOGI("[AUTOPLAY] Update: bAutoPlaying=%d, currentMode=%d, state=%d", 
+         bAutoPlaying, currentMode, state);
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
     static int framesCueBallStill = 10;
