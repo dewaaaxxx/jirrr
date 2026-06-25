@@ -1137,11 +1137,56 @@ void AutoPlay::ScanFast(double angleStep) {
 
 void AutoPlay::Update() {
     frameCounter++;
-buttonClicker.Update();
-powerSlider.Update();
+    buttonClicker.Update();
+    powerSlider.Update();
 
-LOGI("[AUTOPLAY] Update: bAutoPlaying=%d, currentMode=%d, state=%d", 
-         bAutoPlaying, currentMode, state);
+    // ===== TAMBAHKAN INI DI PALING ATAS =====
+    LOGI("[AUTOPLAY] === UPDATE START ===");
+    LOGI("[AUTOPLAY] state=%d, currentMode=%d, bAutoPlaying=%d", state, currentMode, bAutoPlaying);
+
+    // 1. CEK g_postShotLock
+    if (g_postShotLock) {
+        LOGI("[AUTOPLAY] BLOCKED: g_postShotLock=true, frames=%d", g_postShotFrames);
+        // Biarkan kode asli di sini, tapi tambahkan log di atasnya
+        // Atau kalo mau bypass sementara, tambahkan:
+        // g_postShotLock = false;
+    }
+
+    // 2. CEK g_postAimLock
+    if (g_postAimLock) {
+        LOGI("[AUTOPLAY] BLOCKED: g_postAimLock=true, frames=%d", g_postAimFrames);
+    }
+
+    // 3. CEK AreBallsMoving
+    bool ballsMoving = AreBallsMoving();
+    LOGI("[AUTOPLAY] AreBallsMoving=%d", ballsMoving);
+
+    // 4. CEK isPlayerTurn
+    bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
+    LOGI("[AUTOPLAY] isPlayerTurn=%d", isPlayerTurn);
+
+    // 5. CEK bAutoPlaying
+    LOGI("[AUTOPLAY] persistent_bool bAutoPlay=%d, bAutoPlaying=%d", 
+         persistent_bool[O("bAutoPlay")], bAutoPlaying);
+
+    // 6. CEK IsAnimationActive
+    LOGI("[AUTOPLAY] IsAnimationActive=%d", IsAnimationActive());
+
+    // 7. CEK COOLDOWN
+    double now = nowSec();
+    LOGI("[AUTOPLAY] g_lastFastShotTime=%.2f, diff=%.2f", g_lastFastShotTime, now - g_lastFastShotTime);
+    LOGI("[AUTOPLAY] g_shotCooldownEnd=%.2f, now=%.2f", g_shotCooldownEnd, now);
+
+    // 8. CEK STATE IDLE -> SCANNING
+    if (state == IDLE) {
+        bool shouldScan = (currentMode != MODE_AUTO_AIM) || !bAimedThisTurn;
+        LOGI("[AUTOPLAY] shouldScan=%d, currentMode=%d, bAimedThisTurn=%d", 
+             shouldScan, currentMode, bAimedThisTurn);
+        if (shouldScan) {
+            LOGI("[AUTOPLAY] === TRYING TO START SCAN ===");
+        }
+    }
+
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
     static int framesCueBallStill = 10;
