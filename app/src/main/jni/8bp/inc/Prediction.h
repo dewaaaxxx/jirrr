@@ -26,7 +26,7 @@ struct Prediction {
 
     static bool forceFullSimulation;
 
-    bool determineShotResult(bool isAuto, double shotAngle = 0.0, double shotPower = 0.0, Vec2d shotSpin = {0.0, 0.0}, Candidate cand = {-1});
+    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin(), Candidate cand = {-1});
     bool mockPredictShotResult();
 
     struct Ball {
@@ -127,6 +127,7 @@ static Point2D prevCuePos = {0.0, 0.0};
 static double prevBallsSum = 0.0;
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
+    LOGI("HUH : determineShotResult() CALLED");
     extern std::map<std::string, float> persistent_float;
     static auto lastCalcTime = std::chrono::steady_clock::now();
     if (!isAuto && !forceFullSimulation) {
@@ -160,15 +161,14 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
         }
     }
 
-    if (!forceFullSimulation && shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin && isAuto == prevIsAuto && cuePos == prevCuePos && ballsSum == prevBallsSum)
-        return false;
+    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin && isAuto == prevIsAuto)
+    return false;
 
     prevAngle = shotAngle;
     prevPower = shotPower;
     prevSpin  = shotSpin;
     prevIsAuto = isAuto;
-    prevCuePos = cuePos;
-    prevBallsSum = ballsSum;
+    
 
     this->m_candidate = cand;
     fastCalc = isAuto;
@@ -189,6 +189,8 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
             ball.positions.push_back(ball.predictedPosition);
         }
     }
+
+    LOGI("HUH : result: ballsCount=%d", this->guiData.ballsCount);
 
     return true;
 }
