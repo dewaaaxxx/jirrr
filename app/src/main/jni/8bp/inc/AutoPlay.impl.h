@@ -9,12 +9,12 @@ extern PowerSlider powerSlider;
 
 // AutoPlay.h - di dalam class AutoPlay, bagian public
 static inline bool IsShotValid() {
-    if (g_CurrentCandidate.idx == -1) return false;
+    if (AutoPlay::g_CurrentCandidat.idx == -1) return false;
     if (!gPrediction || !gPrediction->guiData.balls[0].onTable) return false;
     if (gPrediction->guiData.balls[g_CurrentCandidate.idx].onTable) return false;
     
     uint nominatedPocket = sharedGameManager.getNominatedPocket();
-    if (nominatedPocket < 6 && g_CurrentCandidate.pocketIndex != nominatedPocket) return false;
+    if (nominatedPocket < 6 && AutoPlay::g_CurrentCandidat.pocketIndex != nominatedPocket) return false;
     
     auto firstHit = gPrediction->guiData.collision.firstHitBall;
     if (!firstHit) return false;
