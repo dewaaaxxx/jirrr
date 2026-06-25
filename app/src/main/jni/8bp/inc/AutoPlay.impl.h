@@ -182,8 +182,13 @@ void AutoPlay::ClearState() {
         buttonClicker.state = ButtonClicker::IDLE;
     }
 
-    // Cooldown: 2.0s mandatory wait after any shot to let animations finish
-    g_shotCooldownEnd = AutoPlay::nowSec() + 2.0;
+    // BUG FIX #2 & #3: Hapus g_shotCooldownEnd dari sini.
+    // ClearState() dipanggil dari banyak path (g_postShotLock, abort handler, dll)
+    // yang bukan "shot baru ditembak". Reset cooldown di sini menyebabkan
+    // cooldown 2.0s restart dari nol setiap ClearState() dipanggil,
+    // sehingga total block bisa 4.5s+ (additive dengan g_lastFastShotTime).
+    // Cooldown hanya di-set di triggerShot() dan fastShotState==3 — tempat yang tepat.
+    // g_shotCooldownEnd = AutoPlay::nowSec() + 2.0; // REMOVED
 }
 
 void AutoPlay::setAimAngle(double angle) {
@@ -240,6 +245,9 @@ void AutoPlay::triggerShot() {
     g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
     g_postShotFrames = 15;
     M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+    // BUG FIX #2: set cooldown di sini — setelah shot benar-benar ditembak,
+    // bukan di ClearState() yang dipanggil dari berbagai path non-shot.
+    g_shotCooldownEnd = AutoPlay::nowSec() + 2.0;
 }
 
 bool AutoPlay::IsAnimationActive() {
@@ -1117,8 +1125,13 @@ void AutoPlay::ScanFast(double angleStep) {
             Shoot(best->c.angle, best->c.power);
         } else {
             fs.isInitiated = false;
-            lastFailedCuePos = cueBall.initialPosition;
+            // BUG FIX #1: jangan set lastFailedCuePos di sini.
+            // Kalau di-set, IDLE block frame berikutnya akan cek distToFailed=0
+            // → shouldScan=false → ScanSlow tidak pernah jalan → stuck di IDLE.
+            // Set state=SCANNING eksplisit supaya ScanSlow langsung jalan frame berikutnya
+            // tanpa harus lewat IDLE→shouldScan check dulu.
             scan = SLOW;
+            state = SCANNING;
             g_autoPlayCalculating = true;
         }
     }
@@ -1224,6 +1237,18 @@ void AutoPlay::Update() {
     bCueBallIsMovingOrDragging = (framesCueBallStill < 5);
 
     if (g_postShotLock) {
+        // BUG FIX #4: reset turn-start state di sini, SEBELUM early return,
+        // supaya lastFailedCuePos dan bAimedThisTurn tidak stuck di nilai lama
+        // saat turn baru dimulai tapi masih dalam window cooldown.
+        bool isPlayerTurnNow = sharedGameManager.mStateManager().isPlayerTurn();
+        static bool wasPlayerTurnInLock = false;
+        bool turnJustStartedInLock = !wasPlayerTurnInLock && isPlayerTurnNow;
+        if (turnJustStartedInLock) {
+            lastFailedCuePos = {-1000.0, -1000.0};
+            bAimedThisTurn = false;
+        }
+        wasPlayerTurnInLock = isPlayerTurnNow;
+
         if (g_postShotFrames > 0 && sharedGameManager) {
             setAimAngle(g_postShotAngle);
             setPower(g_postShotPower);
