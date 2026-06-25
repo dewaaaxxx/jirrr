@@ -1140,6 +1140,69 @@ void AutoPlay::Update() {
     buttonClicker.Update();
     powerSlider.Update();
 
+    if (!sharedGameManager || !gPrediction) {
+        return;
+    }
+
+    // ===== LOG (ditaruh sini biar cuma jalan saat game aktif) =====
+    static int logCounter = 0;
+    logCounter++;
+    if (logCounter % 30 == 0) {
+        LOGI("═══════════════════════════════════════");
+        LOGI("[AUTOPLAY] 🔍 STATUS UPDATE (frame: %d)", logCounter);
+        LOGI("  ─── STATE MACHINE ───");
+        LOGI("  state              : %d", state);
+        LOGI("  scan               : %d", scan);
+        LOGI("  sweepAngle         : %.4f", sweepAngle);
+        LOGI("  g_autoPlayCalculating: %d", g_autoPlayCalculating);
+        LOGI("  ─── HUMAN MODE ───");
+        LOGI("  humanState         : %d", humanState);
+        LOGI("  humanShotLocked    : %d", humanShotLocked);
+        LOGI("  targetAngle        : %.4f", targetAngle);
+        LOGI("  startAngle         : %.4f", startAngle);
+        LOGI("  currentOvershootTarget: %.4f", currentOvershootTarget);
+        LOGI("  overshootOffset    : %.4f", overshootOffset);
+        LOGI("  ─── ANIMATION ───");
+        LOGI("  anim_IsPulling     : %d", anim_IsPulling);
+        LOGI("  fastShotState      : %d", fastShotState);
+        LOGI("  anim_RotationDone  : %d", anim_RotationDone);
+        LOGI("  anim_TouchStarted  : %d", anim_TouchStarted);
+        LOGI("  ─── POWER SLIDER ───");
+        LOGI("  powerSlider.Active : %d", powerSlider.Active);
+        LOGI("  powerSlider.state  : %d", powerSlider.state);
+        LOGI("  ─── CANDIDATE ───");
+        LOGI("  g_CurrentCandidate.idx: %d", g_CurrentCandidate.idx);
+        LOGI("  g_CurrentCandidate.pocket: %d", g_CurrentCandidate.pocketIndex);
+        LOGI("  ─── GAME STATE ───");
+        LOGI("  isPlayerTurn       : %d", sharedGameManager.mStateManager().isPlayerTurn());
+        LOGI("  AreBallsMoving     : %d", AreBallsMoving());
+        LOGI("  IsAnimationActive  : %d", IsAnimationActive());
+        LOGI("  bAutoPlaying       : %d", bAutoPlaying);
+        LOGI("  g_PredictionLocked : %d", g_PredictionLocked);
+        LOGI("═══════════════════════════════════════");
+    }
+
+    // ===== CEK TURN & BOLA BERGERAK =====
+    bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
+    if (!isPlayerTurn) {
+        if (state != IDLE) ClearState();
+        return;
+    }
+
+    if (AreBallsMoving()) {
+        if (state == SCANNING || state == NOMINATING) {
+            ClearState();
+            state = IDLE;
+        }
+        return;
+    }
+
+    // ===== CEK AUTOPLAY =====
+    if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying) {
+        if (state != IDLE) ClearState();
+        return;
+    }
+
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
     static int framesCueBallStill = 10;
