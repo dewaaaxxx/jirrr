@@ -1162,8 +1162,8 @@ void AutoPlay::Update() {
     LOGI("[AUTOPLAY] AreBallsMoving=%d", ballsMoving);
 
     // 4. CEK isPlayerTurn
-    bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
-    LOGI("[AUTOPLAY] isPlayerTurn=%d", isPlayerTurn);
+    bool isPlayerTurn2 = sharedGameManager.mStateManager().isPlayerTurn();
+    LOGI("[AUTOPLAY] isPlayerTurn=%d", isPlayerTurn2);
 
     // 5. CEK bAutoPlaying
     LOGI("[AUTOPLAY] persistent_bool bAutoPlay=%d, bAutoPlaying=%d", 
