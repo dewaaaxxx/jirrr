@@ -6,8 +6,6 @@
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
 
-extern Point2D lastFailedCuePos;
-
 extern bool IsShotValid();
 
 struct PowerSlider {
@@ -68,7 +66,7 @@ struct PowerSlider {
         this->state = RETURNING;
 
         AutoPlay::g_CurrentCandidate.idx = -1;
-        lastFailedCuePos = { -1000.0, -1000.0 };
+        AutoPlay::lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
     
