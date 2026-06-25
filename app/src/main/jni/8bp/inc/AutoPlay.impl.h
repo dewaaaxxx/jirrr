@@ -6,13 +6,24 @@ extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 // --- Static Helpers ---
-constexpr double maxAngle = 360.0 / (180.0 / M_PI);
 
-double normalizeAngle(double angle) {
-    double newAngle = angle;
-    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
-    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
-    return newAngle;
+// AutoPlay.h - di dalam class AutoPlay, bagian public
+static inline bool IsShotValid() {
+    if (g_CurrentCandidate.idx == -1) return false;
+    if (!gPrediction || !gPrediction->guiData.balls[0].onTable) return false;
+    if (gPrediction->guiData.balls[g_CurrentCandidate.idx].onTable) return false;
+    
+    uint nominatedPocket = sharedGameManager.getNominatedPocket();
+    if (nominatedPocket < 6 && g_CurrentCandidate.pocketIndex != nominatedPocket) return false;
+    
+    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+    if (!firstHit) return false;
+    
+    Ball::Classification myclass = sharedGameManager.getPlayerClassification();
+    if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) return false;
+    if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) return false;
+    
+    return true;
 }
 
 static double EaseInOutCubic(double t) {
@@ -45,6 +56,15 @@ static Point2D lastCuePosWhenAimed = { -1000.0, -1000.0 };
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+constexpr double maxAngle = 360.0 / (180.0 / M_PI);
+
+double normalizeAngle(double angle) {
+    double newAngle = angle;
+    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
+    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    return newAngle;
+}
 
 
 static double CalculateRequiredPower(double totalDist) {
