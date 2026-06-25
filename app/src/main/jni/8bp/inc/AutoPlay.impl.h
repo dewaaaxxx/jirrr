@@ -1,6 +1,5 @@
 #include "AutoPlayy.h"
 #include "Prediction.h"
-#include "Prediction.fast.h"
 extern ButtonClicker buttonClicker;
 #include "PowerSlider.h"
 extern PowerSlider powerSlider;
@@ -536,12 +535,617 @@ void AutoPlay::ScanSlow(double angleStep) {
     }
 }
 
+
+
 void AutoPlay::ScanFast(double angleStep) {
-    // ===== TEST: LANGSUNG PAKAI SCANSLOW =====
-    LOGI("[AUTOPLAY] ScanFast bypassed! Using ScanSlow.");
-    scan = SLOW;
-    state = SCANNING;
-    g_autoPlayCalculating = true;
+    if (g_CurrentCandidate.idx != -1) return;
+    
+    bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
+    static double fastSweepAngle = 0.0;
+    
+    Prediction::SceneData savedGuiData = gPrediction->guiData;
+    
+    auto& cueBall = gPrediction->guiData.balls[0];
+    double distSq = (cueBall.initialPosition - fs.scanCuePos).square();
+    
+    if (!fs.isInitiated || distSq > 0.0025) {
+        fs.raw.clear();
+        fs.evals.clear();
+        fs.evalIndex = 0;
+        fs.scanCuePos = cueBall.initialPosition;
+        fs.isInitiated = true;
+        fastSweepAngle = 0.0;
+
+        if (automationSpeed == SPEED_HUMAN && humanShotLocked)
+            return;
+        
+        if (currentMode == MODE_AUTO_AIM && bAimedThisTurn) return;
+
+        Ball::Classification myclass = sharedGameManager.getPlayerClassification();
+        uint nominatedPocket = sharedGameManager.getNominatedPocket();
+        bool isNineBallGame = (myclass == Ball::Classification::NINE_BALL_RULE);
+
+        auto pockets = getPockets();
+
+        // Calculate onlyEightBallLeft ONCE at the start of scan based on player classification
+        bool onlyEightBallLeft = false;
+        if (myclass == Ball::Classification::SOLID) {
+            bool hasSolids = false;
+            for (int k = 1; k < 8; k++) {
+                if (gPrediction->guiData.balls[k].originalOnTable) { hasSolids = true; break; }
+            }
+            if (!hasSolids) onlyEightBallLeft = true;
+        } else if (myclass == Ball::Classification::STRIPE) {
+            bool hasStripes = false;
+            for (int k = 9; k <= 15; k++) {
+                if (gPrediction->guiData.balls[k].originalOnTable) { hasStripes = true; break; }
+            }
+            if (!hasStripes) onlyEightBallLeft = true;
+        } else if (myclass == Ball::Classification::EIGHT_BALL) {
+            onlyEightBallLeft = true;
+        } else if (myclass == Ball::Classification::ANY) {
+            bool hasOthers = false;
+            for (int k = 1; k <= 15; k++) {
+                if (k == 8) continue;
+                if (gPrediction->guiData.balls[k].originalOnTable) { hasOthers = true; break; }
+            }
+            if (!hasOthers) onlyEightBallLeft = true;
+        }
+
+        std::vector<Candidate> directRaw;
+        std::vector<Candidate> specialRaw;
+
+        // Candidate generation
+        bool bFoundLowestNumberedBall = false;
+        int iFoundLowestNumberedBall = -1;
+        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+            if (isNineBallGame && bFoundLowestNumberedBall) break;
+            auto& ball = gPrediction->guiData.balls[i];
+            if (!ball.originalOnTable) continue;
+            if (!bFoundLowestNumberedBall) {
+                bFoundLowestNumberedBall = true;
+                iFoundLowestNumberedBall = i;
+            }
+            if (!isNineBallGame) {
+                bool isACandidate = false;
+                if (onlyEightBallLeft) {
+                    isACandidate = (i == 8);
+                } else {
+                    isACandidate = (myclass == Ball::Classification::ANY) ? (ball.classification != Ball::Classification::EIGHT_BALL) : (ball.classification == myclass);
+                }
+                if (!isACandidate) continue;
+            }
+            for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
+                if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
+                Point2D pocket = pockets[pocketIdx];
+                Point2D toPocket = pocket - ball.initialPosition;
+                double distTargetToPocket = sqrt(toPocket.square());
+                if (distTargetToPocket < 0.1) continue;
+                Point2D direction = toPocket * (1.0 / distTargetToPocket);
+                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
+
+                // 1. Direct Shot
+                {
+                    Point2D shotLine = ghostBallPos - cueBall.initialPosition;
+                    double distCueToTarget = sqrt(shotLine.square());
+                    double angle = atan2(shotLine.y, shotLine.x);
+                    if (angle < 0) angle += 2 * M_PI;
+                    double score = distCueToTarget + distTargetToPocket;
+                    double power = CalculateRequiredPower(score);
+                    specialRaw.push_back({i, angle, score, pocketIdx, power});
+
+
+
+                }
+
+                // 2. Bank Shot (Cushion target)
+                if (bCushionShot) {
+                    for (int side = 0; side < 4; side++) {
+                        Point2D mp;
+                        switch(side) {
+                            case 0: mp = {pocket.x, -134.6 - pocket.y}; break;
+                            case 1: mp = {pocket.x, 134.6 - pocket.y}; break;
+                            case 2: mp = {-261.6 - pocket.x, pocket.y}; break;
+                            case 3: mp = {261.6 - pocket.x, pocket.y}; break;
+                        }
+                        Point2D toMir = mp - ball.initialPosition;
+                        double distP = sqrt(toMir.square());
+                        if (distP > 0.1) {
+                            Point2D ghost = ball.initialPosition - (toMir * (1.0 / distP)) * (2.0 * BALL_RADIUS);
+                            Point2D shot = ghost - cueBall.initialPosition;
+                            double distC = sqrt(shot.square());
+                            double angle = atan2(shot.y, shot.x);
+                            if (angle < 0) angle += 2 * M_PI;
+                            double score = distC + distP + 100.0;
+                            double power = CalculateRequiredPower(distC + distP) * 1.25;
+                            if (power > (double)powerMax) power = (double)powerMax;
+                            if (power < (double)powerMin) power = (double)powerMin;
+                            specialRaw.push_back({i, angle, score, pocketIdx, power});
+;
+                        }
+                    }
+                }
+
+                // 3. Kick Shot (Cushion cue)
+                if (bCushionShot) {
+                    for (int side = 0; side < 4; side++) {
+                        Point2D mg;
+                        switch(side) {
+                            case 0: mg = {ghostBallPos.x, -134.6 - ghostBallPos.y}; break;
+                            case 1: mg = {ghostBallPos.x, 134.6 - ghostBallPos.y}; break;
+                            case 2: mg = {-261.6 - ghostBallPos.x, ghostBallPos.y}; break;
+                            case 3: mg = {261.6 - ghostBallPos.x, ghostBallPos.y}; break;
+                        }
+                        Point2D shot = mg - cueBall.initialPosition;
+                        double distC = sqrt(shot.square());
+                        double angle = atan2(shot.y, shot.x);
+                        if (angle < 0) angle += 2 * M_PI;
+                        double score = distC + distTargetToPocket + 150.0;
+                        double power = CalculateRequiredPower(distC + distTargetToPocket) * 1.30;
+                        if (power > (double)powerMax) power = (double)powerMax;
+                        if (power < (double)powerMin) power = (double)powerMin;
+                        specialRaw.push_back({i, angle, score, pocketIdx, power});
+                        
+                    }
+                }
+
+                // 4. Combination Shot (A -> B -> pocket)
+                for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
+                    if (j == i) continue;
+                    auto& ballB = gPrediction->guiData.balls[j];
+                    if (!ballB.originalOnTable) continue;
+                    
+                    bool isB_Valid = false;
+                    if (isNineBallGame) {
+                        isB_Valid = true; 
+                    } else {
+                        if (onlyEightBallLeft) {
+                            isB_Valid = false;
+                        } else {
+                            isB_Valid = (myclass == Ball::Classification::ANY) ? 
+                                         (ballB.classification != Ball::Classification::EIGHT_BALL) : 
+                                         (ballB.classification == myclass);
+                        }
+                    }
+                    if (!isB_Valid) continue;
+
+                    Point2D toPocketB = pocket - ballB.initialPosition;
+                    double distBToPocket = sqrt(toPocketB.square());
+                    if (distBToPocket < 0.1) continue;
+                    Point2D directionB = toPocketB * (1.0 / distBToPocket);
+                    Point2D ghostB = ballB.initialPosition - directionB * (2.0 * BALL_RADIUS);
+                    
+                    Point2D toGhostB = ghostB - ball.initialPosition;
+                    double distAToGhostB = sqrt(toGhostB.square());
+                    if (distAToGhostB < 0.1) continue;
+                    Point2D directionA = toGhostB * (1.0 / distAToGhostB);
+                    Point2D ghostA = ball.initialPosition - directionA * (2.0 * BALL_RADIUS);
+                    
+                    Point2D shotLine = ghostA - cueBall.initialPosition;
+                    double distCueToA = sqrt(shotLine.square());
+                    double angle = atan2(shotLine.y, shotLine.x);
+                    if (angle < 0) angle += 2 * M_PI;
+                    double score = distCueToA + distAToGhostB + distBToPocket + 80.0;
+                    double power = CalculateRequiredPower(distCueToA + distAToGhostB + distBToPocket) * 1.1;
+                    if (power > (double)powerMax) power = (double)powerMax;
+                    if (power < (double)powerMin) power = (double)powerMin;
+                    specialRaw.push_back({i, angle, score, pocketIdx, power});
+
+                }
+
+                // 5. Kiss / Carom Shot (Cue -> A -> deflects to B -> pocket)
+                for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
+                    if (j == i) continue;
+                    auto& ballB = gPrediction->guiData.balls[j];
+                    if (!ballB.originalOnTable) continue;
+                    
+                    bool isB_Valid = false;
+                    if (isNineBallGame) {
+                        isB_Valid = true; 
+                    } else {
+                        if (onlyEightBallLeft) {
+                            isB_Valid = false;
+                        } else {
+                            isB_Valid = (myclass == Ball::Classification::ANY) ? 
+                                         (ballB.classification != Ball::Classification::EIGHT_BALL) : 
+                                         (ballB.classification == myclass);
+                        }
+                    }
+                    if (!isB_Valid) continue;
+
+                    Point2D toPocketB = pocket - ballB.initialPosition;
+                    double distBToPocket = sqrt(toPocketB.square());
+                    if (distBToPocket < 0.1) continue;
+                    Point2D directionB = toPocketB * (1.0 / distBToPocket);
+                    Point2D ghostB = ballB.initialPosition - directionB * (2.0 * BALL_RADIUS);
+                    
+                    Point2D d = ghostB - ball.initialPosition;
+                    double distD = sqrt(d.square());
+                    if (distD < 2.0 * BALL_RADIUS) continue;
+
+                    double ratio = (2.0 * BALL_RADIUS) / distD;
+                    if (ratio > 1.0) ratio = 1.0;
+                    double theta = acos(ratio);
+                    double angleD = atan2(d.y, d.x);
+
+                    for (int sign : {-1, 1}) {
+                        double angleU = angleD + sign * theta;
+                        Point2D u = {cos(angleU), sin(angleU)};
+                        Point2D ghostA = ball.initialPosition + u * (2.0 * BALL_RADIUS);
+                        
+                        Point2D shotLine = ghostA - cueBall.initialPosition;
+                        double distCueToA = sqrt(shotLine.square());
+                        double angle = atan2(shotLine.y, shotLine.x);
+                        if (angle < 0) angle += 2 * M_PI;
+                        double score = distCueToA + distD + distBToPocket + 120.0;
+                        double power = CalculateRequiredPower(distCueToA + distD + distBToPocket) * 1.2;
+                        if (power > (double)powerMax) power = (double)powerMax;
+                        if (power < (double)powerMin) power = (double)powerMin;
+                        specialRaw.push_back({i, angle, score, pocketIdx, power});
+
+                    }
+                }
+            }
+        }
+
+        fs.raw.clear();
+        fs.raw.insert(fs.raw.end(), directRaw.begin(), directRaw.end());
+        fs.raw.insert(fs.raw.end(), specialRaw.begin(), specialRaw.end());
+        
+        // Sort the entire combined list by score first so we prioritize the best direct AND special/difficult shots!
+        std::sort(fs.raw.begin(), fs.raw.end(), [](const Candidate& a, const Candidate& b) {
+            return a.score < b.score;
+        });
+        
+        // Limit candidates to evaluate (take top 60 for rich search space including cushions/combos)
+        if (fs.raw.size() > 60) {
+            fs.raw.resize(60);
+        }
+
+        // Sort final raw candidates by angle for smooth sequential guidelines sweep
+        std::sort(fs.raw.begin(), fs.raw.end(), [](const Candidate& a, const Candidate& b) {
+            return a.angle < b.angle;
+        });
+    }
+
+    if (automationSpeed == SPEED_HUMAN && humanShotLocked) return;
+
+    Ball::Classification myclass = sharedGameManager.getPlayerClassification();
+    uint nominatedPocket = sharedGameManager.getNominatedPocket();
+    bool isNineBallGame = (myclass == Ball::Classification::NINE_BALL_RULE);
+
+    // Calculate onlyEightBallLeft for evaluation
+    bool onlyEightBallLeft = false;
+    if (myclass == Ball::Classification::SOLID) {
+        bool hasSolids = false;
+        for (int k = 1; k < 8; k++) {
+            if (gPrediction->guiData.balls[k].originalOnTable) { hasSolids = true; break; }
+        }
+        if (!hasSolids) onlyEightBallLeft = true;
+    } else if (myclass == Ball::Classification::STRIPE) {
+        bool hasStripes = false;
+        for (int k = 9; k <= 15; k++) {
+            if (gPrediction->guiData.balls[k].originalOnTable) { hasStripes = true; break; }
+        }
+        if (!hasStripes) onlyEightBallLeft = true;
+    } else if (myclass == Ball::Classification::EIGHT_BALL) {
+        onlyEightBallLeft = true;
+    } else if (myclass == Ball::Classification::ANY) {
+        bool hasOthers = false;
+        for (int k = 1; k <= 15; k++) {
+            if (k == 8) continue;
+            if (gPrediction->guiData.balls[k].originalOnTable) { hasOthers = true; break; }
+        }
+        if (!hasOthers) onlyEightBallLeft = true;
+    }
+
+    int stepsInThisFrame = 0;
+    const int maxStepsPerFrame = 1; // 1 candidate evaluation per frame = completely lag-free & smooth!
+
+    while (stepsInThisFrame < maxStepsPerFrame && fs.evalIndex < fs.raw.size()) {
+        auto raw = fs.raw[fs.evalIndex++];
+        stepsInThisFrame++;
+
+        double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(raw.angle));
+        int originalIdx = raw.idx;
+        
+        bool evaluatedValid = false;
+        double testPower = (automationSpeed == SPEED_FAST) ? (double)powerMax : raw.power;
+        
+        // Try testPower (powerMax in Fast Mode) first
+        gPrediction->forceFullSimulation = true;
+        gPrediction->determineShotResult(true, angle, testPower, sharedGameManager.getShotSpin(), raw);
+        gPrediction->forceFullSimulation = false;
+        
+        bool isPotted = false;
+        if (isNineBallGame) {
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                if (gPrediction->guiData.balls[i].originalOnTable && !gPrediction->guiData.balls[i].onTable) {
+                    isPotted = true; break;
+                }
+            }
+        } else {
+            if (onlyEightBallLeft) {
+                isPotted = !gPrediction->guiData.balls[8].onTable && (nominatedPocket >= 6 || gPrediction->guiData.balls[8].pocketIndex == nominatedPocket);
+                if (isPotted) {
+                    raw.idx = 8;
+                }
+            } else {
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    if (i == 8) continue;
+                    bool match = (myclass == Ball::Classification::ANY) ? 
+                                 (gPrediction->guiData.balls[i].classification != Ball::Classification::EIGHT_BALL) : 
+                                 (gPrediction->guiData.balls[i].classification == myclass);
+                    if (match && !gPrediction->guiData.balls[i].onTable) {
+                        if (nominatedPocket >= 6 || gPrediction->guiData.balls[i].pocketIndex == nominatedPocket) {
+                            isPotted = true;
+                            raw.idx = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (gPrediction->guiData.collision.firstHitBall && gPrediction->guiData.balls[0].onTable && isPotted) {
+            // SCRATCH CHECK: Simulation directly tells us if cue ball was potted (onTable=false).
+            // Trust the simulation result - no need for unreliable path-proximity heuristic.
+            // The path-proximity check (81.0 threshold) was causing false positives AND false negatives.
+            raw.power = testPower;
+            evaluatedValid = true;
+        }
+        
+        // Fallback to calculated power if testPower failed and we are in fast mode
+        if (!evaluatedValid && automationSpeed == SPEED_FAST) {
+            raw.idx = originalIdx;
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, angle, raw.power, sharedGameManager.getShotSpin(), raw);
+            gPrediction->forceFullSimulation = false;
+            
+            bool isPottedFallback = false;
+            if (isNineBallGame) {
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    if (gPrediction->guiData.balls[i].originalOnTable && !gPrediction->guiData.balls[i].onTable) {
+                        isPottedFallback = true; break;
+                    }
+                }
+            } else {
+                if (onlyEightBallLeft) {
+                    isPottedFallback = !gPrediction->guiData.balls[8].onTable && (nominatedPocket >= 6 || gPrediction->guiData.balls[8].pocketIndex == nominatedPocket);
+                    if (isPottedFallback) {
+                        raw.idx = 8;
+                    }
+                } else {
+                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                        if (i == 8) continue;
+                        bool match = (myclass == Ball::Classification::ANY) ? 
+                                     (gPrediction->guiData.balls[i].classification != Ball::Classification::EIGHT_BALL) : 
+                                     (gPrediction->guiData.balls[i].classification == myclass);
+                        if (match && !gPrediction->guiData.balls[i].onTable) {
+                            if (nominatedPocket >= 6 || gPrediction->guiData.balls[i].pocketIndex == nominatedPocket) {
+                                isPottedFallback = true;
+                                raw.idx = i;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (gPrediction->guiData.collision.firstHitBall && gPrediction->guiData.balls[0].onTable && isPottedFallback) {
+                // SCRATCH CHECK: Same as primary - trust simulation directly.
+                evaluatedValid = true;
+            }
+        }
+
+        if (!evaluatedValid) continue;
+
+        // ==================== 9-BALL GAME ====================
+        if (isNineBallGame) {
+            auto firstHit = gPrediction->guiData.collision.firstHitBall;
+            if (!firstHit) continue;
+            if (firstHit->index != raw.idx) continue;
+
+            int bestPottedIdx = -1;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (ball.originalOnTable && !ball.onTable) {
+                    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                    if (i == 9) { bestPottedIdx = 9; break; }
+                    if (bestPottedIdx == -1 || i == raw.idx) bestPottedIdx = i;
+                }
+            }
+            if (bestPottedIdx == -1) continue;
+            int effectiveTargetIdx = bestPottedIdx;
+            if (nominatedPocket < 6 && gPrediction->guiData.balls[effectiveTargetIdx].pocketIndex != nominatedPocket) continue;
+
+            int potCount = 0;
+            bool pots9 = false;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (ball.originalOnTable && !ball.onTable) {
+                    potCount++;
+                    if (i == 9) pots9 = true;
+                }
+            }
+            
+            Candidate cf = raw;
+            cf.idx = effectiveTargetIdx;
+            cf.pocketIndex = gPrediction->guiData.balls[effectiveTargetIdx].pocketIndex;
+            fs.evals.push_back({cf, potCount, potCount, pots9});
+            continue;
+        }
+
+        // ==================== STANDARD 8-BALL GAME ====================
+        // Find which ball of our group was actually potted in the simulation
+        int pottedBallIdx = -1;
+        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+            Prediction::Ball& ball = gPrediction->guiData.balls[i];
+            if (ball.originalOnTable && !ball.onTable) {
+                bool match = false;
+                if (onlyEightBallLeft) {
+                    if (i == 8) match = true;
+                } else {
+                    match = (myclass == Ball::Classification::ANY) ?
+                            (ball.classification != Ball::Classification::CUE_BALL &&
+                             ball.classification != Ball::Classification::EIGHT_BALL) :
+                            (ball.classification == myclass);
+                }
+                if (match) {
+                    pottedBallIdx = i;
+                    break;
+                }
+            }
+        }
+
+        if (pottedBallIdx == -1) continue; // No legal ball potted
+
+        // CRITICAL: Simulation must confirm ball went to the SAME pocket we geometrically aimed for.
+        if (gPrediction->guiData.balls[pottedBallIdx].pocketIndex != raw.pocketIndex) continue;
+        
+        // If pocket already nominated, simulation must also match the nominated pocket
+        if (nominatedPocket < 6 && gPrediction->guiData.balls[pottedBallIdx].pocketIndex != nominatedPocket) continue;
+
+        int totalPotted = 0;
+        int ownPotted = 0;
+        bool hasLegalPot = false;
+        bool eightBallPotted = false;
+        
+        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+            Prediction::Ball& ball = gPrediction->guiData.balls[i];
+            if (ball.originalOnTable && !ball.onTable) {
+                totalPotted++;
+                bool match = (myclass == Ball::Classification::ANY) ?
+                             (ball.classification != Ball::Classification::CUE_BALL &&
+                              ball.classification != Ball::Classification::EIGHT_BALL) :
+                              (ball.classification == myclass);
+                if (match) {
+                    hasLegalPot = true;
+                    ownPotted++;
+                }
+                if (i == 8) eightBallPotted = true;
+            }
+        }
+        
+        if (onlyEightBallLeft) {
+            if (eightBallPotted) {
+                hasLegalPot = true;
+                ownPotted = 1;
+                totalPotted = 1;
+            } else {
+                hasLegalPot = false;
+            }
+        }
+        
+        if (!hasLegalPot) continue;
+
+        auto firstHit = gPrediction->guiData.collision.firstHitBall;
+        if (firstHit) {
+            if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) {
+                if (!onlyEightBallLeft || firstHit->index != 8) continue;
+            }
+            if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) {
+                if (!onlyEightBallLeft) continue;
+            }
+        }
+        // SAFETY: Cue ball scratch - skip any shot that pockets the cue ball
+        if (!gPrediction->guiData.balls[0].onTable) continue;
+        // SAFETY: Accidental 8-ball pocket - skip if 8-ball potted AND it's NOT supposed to be
+        // This catches combination shots where our ball deflects and accidentally pots the 8-ball
+        if (eightBallPotted && !onlyEightBallLeft) continue;
+
+        Candidate cf = raw;
+        cf.idx = pottedBallIdx;
+        cf.pocketIndex = gPrediction->guiData.balls[pottedBallIdx].pocketIndex;
+
+        // GENIUS MODE: If we are in standard play and find a valid direct shot, shoot immediately!
+        if (!isNineBallGame && (cleanTableMode == CLEAN_OFF || onlyEightBallLeft)) {
+            fs.isInitiated = false;
+            g_CurrentCandidate = cf;
+            Shoot(cf.angle, cf.power);
+            return;
+        }
+
+        fs.evals.push_back({cf, totalPotted, ownPotted, false});
+    }
+
+    gPrediction->guiData = savedGuiData;
+
+    if (fs.evalIndex >= fs.raw.size()) {
+        FastScanState::Eval* best = nullptr;
+        
+        if (isNineBallGame) {
+            switch (nineBallStrategy) {
+                case NINEBALL_BEST_SHOT:
+                    for (auto& ev : fs.evals) {
+                        if (!best || ev.tot > best->tot) best = &ev;
+                    }
+                    break;
+                case NINEBALL_SNIPE_9:
+                    for (auto& ev : fs.evals) {
+                        if (!best) best = &ev;
+                        else {
+                            if (ev.p9 && !best->p9) best = &ev;
+                            else if (ev.p9 == best->p9 && ev.tot > best->tot) best = &ev;
+                        }
+                    }
+                    break;
+                default:
+                    if (!fs.evals.empty()) best = &fs.evals[0];
+                    break;
+            }
+        } else {
+            if (onlyEightBallLeft) {
+                for (auto& ev : fs.evals) {
+                    if (ev.c.idx == 8) { best = &ev; break; }
+                }
+                if (!best && !fs.evals.empty()) best = &fs.evals[0];
+            } else {
+                switch (cleanTableMode) {
+                    case CLEAN_OFF:
+                        if (!fs.evals.empty()) best = &fs.evals[0];
+                        break;
+                    case CLEAN_ALL_BALLS:
+                        for (auto& ev : fs.evals) {
+                            if (!best || ev.tot > best->tot) best = &ev;
+                        }
+                        break;
+                    case CLEAN_YOUR_BALLS:
+                        for (auto& ev : fs.evals) {
+                            if (!best || ev.own > best->own) best = &ev;
+                        }
+                        break;
+                }
+            }
+        }
+
+        if (best) {
+            fs.isInitiated = false;
+            g_CurrentCandidate = best->c;
+            Shoot(best->c.angle, best->c.power);
+        } else {
+            fs.isInitiated = false;
+            // BUG FIX #1: jangan set lastFailedCuePos di sini.
+            // Kalau di-set, IDLE block frame berikutnya akan cek distToFailed=0
+            // → shouldScan=false → ScanSlow tidak pernah jalan → stuck di IDLE.
+            // Set state=SCANNING eksplisit supaya ScanSlow langsung jalan frame berikutnya
+            // tanpa harus lewat IDLE→shouldScan check dulu.
+            scan = SLOW;
+            state = SCANNING;
+            g_autoPlayCalculating = true;
+        }
+    }
+
+    // Render smooth rotating radar sweep line during fast scan
+    if (fs.evalIndex < fs.raw.size()) {
+        fastSweepAngle = normalizeAngle(fastSweepAngle + 0.15);
+        if (!persistent_bool[O("bDisableFlicker")]) {
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, fastSweepAngle, 400.0f, sharedGameManager.getShotSpin());
+            gPrediction->forceFullSimulation = false;
+        }
+        sweepAngle = fastSweepAngle;
+    }
 }
 
 void AutoPlay::Update() {
