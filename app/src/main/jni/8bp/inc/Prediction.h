@@ -223,6 +223,12 @@ void Prediction::initBalls() {
         ball.positions.reserve(20);
         ball.positions.push_back(ball.initialPosition);
     }
+
+    LOGI("HUH : initBalls: ballsCount=%d", this->guiData.ballsCount);
+for (int i = 0; i < this->guiData.ballsCount; i++) {
+    LOGI("HUH : ball[%d]: onTable=%d, originalOnTable=%d", 
+         i, this->guiData.balls[i].onTable, this->guiData.balls[i].originalOnTable);
+}
 }
 
 void Prediction::initCueBall(double shotAngle, double shotPower, const Point2D &shotSpin) {
