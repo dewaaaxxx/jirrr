@@ -268,7 +268,7 @@ namespace AutoPlay {
 // HUMAN ANGLE DRAG - FINAL VERSION (SIMPLE & SMOOTH)
 // ============================================================================
 struct HumanAngleDrag {
-    enum State { _HIDLE, _HDRAGGING, _HFINISHED } state = _HIDLE;
+    enum State { IDLE, DRAGGING, FINISHED } state = IDLE;
     int touchIndex = 8;  // <-- PAKE INDEX 8 (SAMA KAYAK POWER, TAPI DI-PAUSE DULU)
     
     double targetAngle = 0.0;
@@ -329,7 +329,7 @@ struct HumanAngleDrag {
         elapsed = 0.f;
         active = true;
         done = false;
-        state = _HDRAGGING;
+        state = DRAGGING;
         currentPos = startPos;
         
         // ===== MATIKAN POWER SLIDER DULU =====
@@ -343,39 +343,43 @@ struct HumanAngleDrag {
     }
     
     void Update() {
-        if (!active || state == _HFINISHED) return;
-        
+        if (!active || state == FINISHED) return;
+
         float dt = ImGui::GetIO().DeltaTime;
         elapsed += dt;
-        float t = std::min(1.f, elapsed / duration);
-        
-        // ===== SMOOTHSTEP =====
-        float ease = t * t * (3.f - 2.f * t);
-        
-        currentPos = ImVec2(
-            startPos.x + (endPos.x - startPos.x) * ease,
-            startPos.y + (endPos.y - startPos.y) * ease
-        );
-        
-        NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-        
-        if (t >= 1.f) {
-            // ===== PASTIKAN POSISI AKHIR =====
-            currentPos = endPos;
+
+        // ===== CEK ANGLE SEKARANG DARI GAME MEMORY =====
+        double currentAngle = sharedGameManager.mVisualCue().getShotAngle();
+        double angleDiff = fabs(AngleDiff(targetAngle, currentAngle));
+
+        // ===== BERHENTI JIKA SUDAH DEKAT KE TARGET ANGLE =====
+        bool angleReached = angleDiff < ANGLE_TOLERANCE;
+        bool timeOut = elapsed >= (duration + 0.5f);  // timeout fallback
+
+        if (!angleReached && !timeOut) {
+            // ===== MASIH DRAGGING: SMOOTHSTEP DARI startPos KE endPos =====
+            float t = std::min(1.f, elapsed / duration);
+            float ease = t * t * (3.f - 2.f * t);  // smoothstep
+
+            currentPos = ImVec2(
+                startPos.x + (endPos.x - startPos.x) * ease,
+                startPos.y + (endPos.y - startPos.y) * ease
+            );
+
             NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
-            
-            // ===== JEDA SEBENTAR (0.1 DETIK) =====
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            
-            NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
-            
-            // ===== SET ANGLE KE TARGET =====
+        } else {
+            // ===== ANGLE SUDAH MATCH (atau timeout): SELESAIKAN DRAG =====
+            // Pastikan angle tepat di target sebelum angkat jari
             sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-            
+            NativeTouchesMove(touchIndex, currentPos.x, currentPos.y);
+            NativeTouchesEnd(touchIndex, currentPos.x, currentPos.y);
+
+            LOGI("HumanDrag: DONE angleReached=%d timeOut=%d finalDiff=%.4f", 
+                 (int)angleReached, (int)timeOut, angleDiff);
+
             active = false;
             done = true;
-            state = _HFINISHED;
-            LOGI("HumanDrag: DONE");
+            state = FINISHED;
         }
     }
 };
@@ -478,9 +482,15 @@ void HumanShootUpdate() {
                     io.DisplaySize.y * sliderH
                 );
 
+                // ===== NORMALIZE POWER KE 0.0-1.0 UNTUK SLIDER =====
+                // powerSlider.SimulateDrag menerima nilai 0.0-1.0
+                // Raw power range: 0 - 666
+                constexpr float POWER_MAX = 666.f;
+                float normalizedPower = std::min(1.f, std::max(0.f, (float)humanPendingPower / POWER_MAX));
+
                 float dragTime = 0.70f + (rand() % 200) * 0.001f;
                 float holdTime = 0.25f + (rand() % 100) * 0.001f;
-                powerSlider.SimulateDrag(rect, (float)humanPendingPower, dragTime, holdTime);
+                powerSlider.SimulateDrag(rect, normalizedPower, dragTime, holdTime);
                 humanExecState = H_POWER;
             }
             break;
@@ -506,7 +516,7 @@ void HumanShootUpdate() {
 }
     
     void Shoot(double angle, double power = 0.f) {
-      //  setAimAngle(angle);
+        setAimAngle(angle);
         gPrediction->determineShotResult(false, angle, power);
 
         bool nominating = false;
