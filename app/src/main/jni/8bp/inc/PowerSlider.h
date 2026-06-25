@@ -1,9 +1,7 @@
 #pragma once
 
 #include "include/input.h"
-
-extern struct Candidate;
-extern Candidate g_CurrentCandidate;
+#include "AutoPlayy.h"
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
@@ -55,7 +53,7 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        g_CurrentCandidate.idx = -1;
+        AutoPlay::g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
@@ -69,7 +67,7 @@ struct PowerSlider {
         this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
 
-        g_CurrentCandidate.idx = -1;
+        AutoPlay::g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
