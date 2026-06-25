@@ -1,9 +1,7 @@
-#include "AutoPlay.h"
-#include "GameManager.h"
+#include "AutoPlayy.h"
 #include "Prediction.h"
-#include "../../ButtonClicker.h"
 extern ButtonClicker buttonClicker;
-#include "../../PowerSlider.h"
+#include "PowerSlider.h"
 extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
