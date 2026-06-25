@@ -545,12 +545,9 @@ namespace AutoPlay {
             case H_THINK: {
                 humanThinkTimer -= ImGui::GetIO().DeltaTime;
                 if (humanThinkTimer <= 0.f) {
-                    float sliderX   = persistent_float["fPSliderX"];
-                    float sliderTop = persistent_float["fPSliderTop"];
-                    float sliderH   = persistent_float["fPSliderH"];
-                    if (sliderX   <= 0.f) sliderX   = 0.858f;
-                    if (sliderTop <= 0.f) sliderTop  = 0.18f;
-                    if (sliderH   <= 0.f) sliderH    = 0.67f;
+                    float sliderX = 0.082f;
+                    float sliderTop = 0.267f;
+                    float sliderH = 0.616f;
     
                     ImGuiIO& io = ImGui::GetIO();
                     ImVec4 rect(
