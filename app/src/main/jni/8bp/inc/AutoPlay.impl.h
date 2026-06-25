@@ -1183,8 +1183,8 @@ void AutoPlay::Update() {
     }
 
     // ===== CEK TURN & BOLA BERGERAK =====
-    bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
-    if (!isPlayerTurn) {
+    bool isPlayerTurn2 = sharedGameManager.mStateManager().isPlayerTurn();
+    if (!isPlayerTurn2) {
         if (state != IDLE) ClearState();
         return;
     }
