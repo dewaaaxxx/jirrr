@@ -300,7 +300,7 @@ struct HumanAngleDrag {
         dragCurrent = dragOrigin;
 
         // Gerakan utama — sedikit overshoot (5–12%) biar keliatan manusiawi
-        float overshootFactor = 1.02f + (rand() % 3) * 0.01f; // 2-4% (DARI 3-11%)
+        float overshootFactor = 1.02f + (rand() % 3) * 0.01f; // 2-4% (sudah OK)
         float dx = (float)(delta * (double)sens) * overshootFactor;
         float dy = dx * 0.05f * ((rand() % 2) ? 1.f : -1.f);
         dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
@@ -326,10 +326,10 @@ struct HumanAngleDrag {
              dragOrigin.x, dragOrigin.y, dragTo.x, dragTo.y);
         LOGI("[DRAG] BeginDrag - dragCorrect: (%.1f, %.1f)", dragCorrect.x, dragCorrect.y);
 
-        pressDelay   = 0.04f + (rand() % 35) * 0.001f;
-        overshootDelay = 0.06f + (rand() % 60) * 0.001f; // berhenti di overshoot
-        settleDelay  = 0.05f + (rand() % 50) * 0.001f;   // jeda sebelum angkat
-
+        pressDelay   = 0.02f + (rand() % 15) * 0.001f;   // Turun dari 0.04 + 35
+        overshootDelay = 0.03f + (rand() % 20) * 0.001f; // Turun dari 0.06 + 60
+        settleDelay  = 0.02f + (rand() % 20) * 0.001f;   // Turun dari 0.05 + 50
+        
         elapsed = 0.f;
         NativeTouchesBegin(touchIndex, dragOrigin.x, dragOrigin.y);
         state = HAD_PRESS_DELAY;
@@ -362,10 +362,10 @@ struct HumanAngleDrag {
         case HAD_DRAGGING: {
             elapsed += dt;
             float t    = std::min(1.f, elapsed / duration);
-            float ease = EaseInOutQuint(t);
+            float ease = EaseOutCubic(t);
             float seed = (float)touchIndex * 3.1f;
-            float jx   = Jitter(t, seed,        1.8f);
-            float jy   = Jitter(t, seed + 7.f,  0.7f);
+            float jx = 0.f; // Matikan sementara
+            float jy = 0.f;
 
             dragCurrent = ImVec2(
                 dragOrigin.x + (dragTo.x - dragOrigin.x) * ease + jx,
@@ -397,7 +397,7 @@ struct HumanAngleDrag {
         case HAD_CORRECT: {
             // Koreksi halus balik ke posisi yang lebih tepat
             elapsed += dt;
-            float correctDuration = 0.12f + (rand() % 80) * 0.001f;
+            float correctDuration = 0.08f + (rand() % 40) * 0.001f; // Lebih cepat
             float t    = std::min(1.f, elapsed / correctDuration);
             float ease = EaseOutCubic(t);
 
@@ -430,7 +430,7 @@ struct HumanAngleDrag {
 
         case HAD_LIFT_DELAY: {
             elapsed += dt;
-            float liftDelay = 0.03f + (rand() % 30) * 0.001f;
+            float liftDelay = 0.02f + (rand() % 15) * 0.001f; // Turun dari 0.03 + 30
             LOGI("[DRAG] LIFT_DELAY - elapsed: %.3f, liftDelay: %.3f", elapsed, liftDelay);
             NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
             if (elapsed >= liftDelay) {
@@ -446,23 +446,39 @@ struct HumanAngleDrag {
     }
 
     void OnDragEnd() {
-        double actual    = sharedGameManager.mVisualCue().getShotAngle();
-        double remaining = AngleDiff(targetAngle, actual);
-        
-        LOGI("[DRAG] OnDragEnd - targetAngle: %.4f, actualAngle: %.4f, remaining: %.4f", 
-            targetAngle, actual, remaining);
+    double actual    = sharedGameManager.mVisualCue().getShotAngle();
+    double remaining = AngleDiff(targetAngle, actual);
 
-        if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
-            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-            active = false;
-            done   = true;
-            state  = HAD_FINISHED;
-            LOGI("[DRAG] OnDragEnd - SUCCESS");
-        } else {
-            correctionAttempts++;
-            LOGI("[DRAG] OnDragEnd - CORRECTION %d", correctionAttempts);
-            BeginDrag(actual, targetAngle);
-        }
+    LOGI("[DRAG] OnDragEnd - targetAngle: %.4f, actualAngle: %.4f, remaining: %.4f", 
+        targetAngle, actual, remaining);
+
+    // Jika masih ada selisih, lakukan koreksi halus tanpa reset state
+    if (std::abs(remaining) > ANGLE_TOLERANCE && correctionAttempts < MAX_CORRECTIONS) {
+        correctionAttempts++;
+        LOGI("[DRAG] OnDragEnd - FINE_CORRECTION %d", correctionAttempts);
+        
+        // Lakukan koreksi dengan menggerakkan jari sedikit ke arah yang benar
+        // Tanpa mengubah state ke HAD_IDLE
+        float correctionOffset = (float)(remaining * 430.0f * 0.5f); // Sensitivitas lebih rendah untuk koreksi
+        ImVec2 correctionTarget = ImVec2(
+            dragCurrent.x + correctionOffset,
+            dragCurrent.y + correctionOffset * 0.05f
+        );
+        
+        // Langsung pindah ke state CORRECT untuk gerakan koreksi halus
+        dragTo = correctionTarget;
+        dragCorrect = correctionTarget; // Tidak perlu overshoot di koreksi
+        elapsed = 0.f;
+        state = HAD_CORRECT;
+        return;
+    }
+
+    // Jika berhasil atau sudah max koreksi
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    active = false;
+    done   = true;
+    state  = HAD_FINISHED;
+    LOGI("[DRAG] OnDragEnd - SUCCESS");
     }
 };
 
