@@ -6,6 +6,8 @@ extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 // --- Static Helpers ---
+constexpr double maxAngle = 360.0 / (180.0 / M_PI);
+
 double normalizeAngle(double angle) {
     double newAngle = angle;
     if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
