@@ -6,6 +6,13 @@ extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 // --- Static Helpers ---
+double normalizeAngle(double angle) {
+    double newAngle = angle;
+    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
+    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    return newAngle;
+}
+
 static double EaseInOutCubic(double t) {
     return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
 }
