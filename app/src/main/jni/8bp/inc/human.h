@@ -292,18 +292,21 @@ struct HumanAngleDrag {
     }
 
     void BeginDrag(double currentAngle, double target) {
-        float sens = 500.0f;
-
+        float sens = 400.0f;  // <-- DARI 500 JADI 400
+        
         double delta = AngleDiff(target, currentAngle);
 
         dragOrigin  = PickDragOrigin();
         dragCurrent = dragOrigin;
 
         // Gerakan utama — sedikit overshoot (5–12%) biar keliatan manusiawi
-        float overshootFactor = 1.06f + (rand() % 7) * 0.01f;
+        float overshootFactor = 1.02f + (rand() % 3) * 0.01f; // 2-4% (DARI 3-11%)
         float dx = (float)(delta * (double)sens) * overshootFactor;
         float dy = dx * 0.05f * ((rand() % 2) ? 1.f : -1.f);
         dragTo = ImVec2(dragOrigin.x + dx, dragOrigin.y + dy);
+
+        dragTo.x = std::max(0.0f, std::min((float)Width, dragTo.x));
+        dragTo.y = std::max(0.0f, std::min((float)Height, dragTo.y));
 
         // Titik koreksi: balik sedikit ke posisi yang lebih tepat
         float correctFactor = 1.0f / overshootFactor; // ~0.94–0.88x dari dragTo
@@ -314,8 +317,8 @@ struct HumanAngleDrag {
 
         // Durasi gerakan utama
         float absDelta = fabsf((float)delta);
-        duration = 0.28f + absDelta * 0.42f + (rand() % 100) * 0.001f;
-        duration = std::min(duration, 0.95f);
+        duration = 0.35f + absDelta * 0.40f;
+        duration = std::min(duration, 0.80f); // <-- MAX 0.8
         
         LOGI("[DRAG] BeginDrag - currentAngle: %.4f, targetAngle: %.4f, delta: %.4f", currentAngle, target, delta);
         LOGI("[DRAG] BeginDrag - sens: %.1f, overshootFactor: %.3f, duration: %.3f", sens, overshootFactor, duration);
