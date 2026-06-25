@@ -540,6 +540,12 @@ void AutoPlay::ScanSlow(double angleStep) {
 void AutoPlay::ScanFast(double angleStep) {
     if (g_CurrentCandidate.idx != -1) return;
     
+    if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
+        LOGI("[AUTOPLAY] ScanFast skipped: ballsCount=%d", 
+             gPrediction ? gPrediction->guiData.ballsCount : -1);
+        return;
+    }
+
     bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
     static double fastSweepAngle = 0.0;
     
@@ -1153,53 +1159,6 @@ void AutoPlay::Update() {
     buttonClicker.Update();
     powerSlider.Update();
 
-    // ===== TAMBAHKAN INI DI PALING ATAS =====
-    LOGI("[AUTOPLAY] === UPDATE START ===");
-    LOGI("[AUTOPLAY] state=%d, currentMode=%d, bAutoPlaying=%d", state, currentMode, bAutoPlaying);
-
-    // 1. CEK g_postShotLock
-    if (g_postShotLock) {
-        LOGI("[AUTOPLAY] BLOCKED: g_postShotLock=true, frames=%d", g_postShotFrames);
-        // Biarkan kode asli di sini, tapi tambahkan log di atasnya
-        // Atau kalo mau bypass sementara, tambahkan:
-        // g_postShotLock = false;
-    }
-
-    // 2. CEK g_postAimLock
-    if (g_postAimLock) {
-        LOGI("[AUTOPLAY] BLOCKED: g_postAimLock=true, frames=%d", g_postAimFrames);
-    }
-
-    // 3. CEK AreBallsMoving
-    bool ballsMoving = AreBallsMoving();
-    LOGI("[AUTOPLAY] AreBallsMoving=%d", ballsMoving);
-
-    // 4. CEK isPlayerTurn
-    bool isPlayerTurn2 = sharedGameManager.mStateManager().isPlayerTurn();
-    LOGI("[AUTOPLAY] isPlayerTurn=%d", isPlayerTurn2);
-
-    // 5. CEK bAutoPlaying
-    LOGI("[AUTOPLAY] persistent_bool bAutoPlay=%d, bAutoPlaying=%d", 
-         persistent_bool[O("bAutoPlay")], bAutoPlaying);
-
-    // 6. CEK IsAnimationActive
-    LOGI("[AUTOPLAY] IsAnimationActive=%d", IsAnimationActive());
-
-    // 7. CEK COOLDOWN
-    double now = nowSec();
-    LOGI("[AUTOPLAY] g_lastFastShotTime=%.2f, diff=%.2f", g_lastFastShotTime, now - g_lastFastShotTime);
-    LOGI("[AUTOPLAY] g_shotCooldownEnd=%.2f, now=%.2f", g_shotCooldownEnd, now);
-
-    // 8. CEK STATE IDLE -> SCANNING
-    if (state == IDLE) {
-        bool shouldScan = (currentMode != MODE_AUTO_AIM) || !bAimedThisTurn;
-        LOGI("[AUTOPLAY] shouldScan=%d, currentMode=%d, bAimedThisTurn=%d", 
-             shouldScan, currentMode, bAimedThisTurn);
-        if (shouldScan) {
-            LOGI("[AUTOPLAY] === TRYING TO START SCAN ===");
-        }
-    }
-
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
     static int framesCueBallStill = 10;
@@ -1559,9 +1518,9 @@ void AutoPlay::Update() {
     }
 
     // SHOT COOLDOWN: Don't scan/execute for 2s after firing to prevent stuck state
-    if (AutoPlay::nowSec() < g_shotCooldownEnd) {
-        g_autoPlayCalculating = false;
-        return;
+    if (AutoPlay::nowSec() < g_shotCooldownEnd - 0.1) {  // ← TAMBAHKAN -0.1
+    g_autoPlayCalculating = false;
+    return;
     }
 
     // STATE TIMEOUT SAFETY: If stuck in any state for > 10s, force reset
