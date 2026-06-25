@@ -292,8 +292,7 @@ struct HumanAngleDrag {
     }
 
     void BeginDrag(double currentAngle, double target) {
-        float sens = persistent_float["fAngleDragSensitivity"];
-        if (sens <= 1.f) sens = 280.f;
+        float sens = 500.0f;
 
         double delta = AngleDiff(target, currentAngle);
 
@@ -317,6 +316,12 @@ struct HumanAngleDrag {
         float absDelta = fabsf((float)delta);
         duration = 0.28f + absDelta * 0.42f + (rand() % 100) * 0.001f;
         duration = std::min(duration, 0.95f);
+        
+        LOGI("[DRAG] BeginDrag - currentAngle: %.4f, targetAngle: %.4f, delta: %.4f", currentAngle, target, delta);
+        LOGI("[DRAG] BeginDrag - sens: %.1f, overshootFactor: %.3f, duration: %.3f", sens, overshootFactor, duration);
+        LOGI("[DRAG] BeginDrag - dragOrigin: (%.1f, %.1f), dragTo: (%.1f, %.1f)", 
+             dragOrigin.x, dragOrigin.y, dragTo.x, dragTo.y);
+        LOGI("[DRAG] BeginDrag - dragCorrect: (%.1f, %.1f)", dragCorrect.x, dragCorrect.y);
 
         pressDelay   = 0.04f + (rand() % 35) * 0.001f;
         overshootDelay = 0.06f + (rand() % 60) * 0.001f; // berhenti di overshoot
@@ -345,6 +350,7 @@ struct HumanAngleDrag {
 
         case HAD_PRESS_DELAY: {
             elapsed += dt;
+            LOGI("[DRAG] PRESS_DELAY - elapsed: %.3f, pressDelay: %.3f", elapsed, pressDelay);
             NativeTouchesMove(touchIndex, dragOrigin.x, dragOrigin.y);
             if (elapsed >= pressDelay) { elapsed = 0.f; state = HAD_DRAGGING; }
             break;
@@ -363,16 +369,25 @@ struct HumanAngleDrag {
                 dragOrigin.y + (dragTo.y - dragOrigin.y) * ease + jy
             );
             NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
-
-            if (t >= 1.f) { elapsed = 0.f; state = HAD_OVERSHOOT; }
+            
+            LOGI("[DRAG] DRAGGING - t: %.3f, ease: %.3f, currentPos: (%.1f, %.1f)", t, ease, dragCurrent.x, dragCurrent.y);
+            
+            if (t >= 1.f) { 
+                LOGI("[DRAG] DRAGGING -> OVERSHOOT");
+                elapsed = 0.f; state = HAD_OVERSHOOT; 
+            }
             break;
         }
 
         case HAD_OVERSHOOT: {
             // Berhenti sebentar di posisi overshoot — terlihat seperti "oh kelewatan"
             elapsed += dt;
+            LOGI("[DRAG] OVERSHOOT - elapsed: %.3f, overshootDelay: %.3f", elapsed, overshootDelay);
             NativeTouchesMove(touchIndex, dragTo.x, dragTo.y);
-            if (elapsed >= overshootDelay) { elapsed = 0.f; state = HAD_CORRECT; }
+            if (elapsed >= overshootDelay) { 
+                LOGI("[DRAG] OVERSHOOT -> CORRECT");
+                elapsed = 0.f; state = HAD_CORRECT; 
+            }
             break;
         }
 
@@ -388,27 +403,35 @@ struct HumanAngleDrag {
                 dragTo.y + (dragCorrect.y - dragTo.y) * ease
             );
             NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
+            
+            LOGI("[DRAG] CORRECT - t: %.3f, currentPos: (%.1f, %.1f)", t, dragCurrent.x, dragCurrent.y);
 
-            if (t >= 1.f) { elapsed = 0.f; state = HAD_SETTLE; }
+            if (t >= 1.f) { 
+                LOGI("[DRAG] CORRECT -> SETTLE");
+                elapsed = 0.f; state = HAD_SETTLE; 
+            }
             break;
         }
 
         case HAD_SETTLE: {
             // Jeda singkat setelah koreksi — "mempertimbangkan tembakan"
             elapsed += dt;
+            LOGI("[DRAG] SETTLE - elapsed: %.3f, settleDelay: %.3f", elapsed, settleDelay);
             NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
             if (elapsed >= settleDelay) {
-                elapsed = 0.f;
-                state   = HAD_LIFT_DELAY;
+                LOGI("[DRAG] SETTLE -> LIFT_DELAY");
+                elapsed = 0.f; state = HAD_LIFT_DELAY;
             }
             break;
         }
 
         case HAD_LIFT_DELAY: {
             elapsed += dt;
-            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
             float liftDelay = 0.03f + (rand() % 30) * 0.001f;
+            LOGI("[DRAG] LIFT_DELAY - elapsed: %.3f, liftDelay: %.3f", elapsed, liftDelay);
+            NativeTouchesMove(touchIndex, dragCurrent.x, dragCurrent.y);
             if (elapsed >= liftDelay) {
+                LOGI("[DRAG] LIFT_DELAY -> END");
                 NativeTouchesEnd(touchIndex, dragCurrent.x, dragCurrent.y);
                 OnDragEnd();
             }
@@ -422,16 +445,18 @@ struct HumanAngleDrag {
     void OnDragEnd() {
         double actual    = sharedGameManager.mVisualCue().getShotAngle();
         double remaining = AngleDiff(targetAngle, actual);
+        
+        LOGI("[DRAG] OnDragEnd - targetAngle: %.4f, actualAngle: %.4f, remaining: %.4f", 
+            targetAngle, actual, remaining);
 
         if (std::abs(remaining) <= ANGLE_TOLERANCE || correctionAttempts >= MAX_CORRECTIONS) {
             active = false;
             done   = true;
             state  = HAD_FINISHED;
-            LOGI("HumanDrag DONE target=%.4f actual=%.4f err=%.4f attempts=%d",
-                 targetAngle, actual, remaining, correctionAttempts);
+            LOGI("[DRAG] OnDragEnd - SUCCESS");
         } else {
             correctionAttempts++;
-            LOGI("HumanDrag correction %d remaining=%.4f", correctionAttempts, remaining);
+            LOGI("[DRAG] OnDragEnd - CORRECTION %d", correctionAttempts);
             BeginDrag(actual, targetAngle);
         }
     }
