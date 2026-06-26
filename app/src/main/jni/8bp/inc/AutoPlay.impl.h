@@ -1159,6 +1159,9 @@ void AutoPlay::Update() {
     buttonClicker.Update();
     powerSlider.Update();
 
+    g_lastFastShotTime = 0.0;
+    g_shotCooldownEnd = 0.0;
+
     // Safety check
     if (!sharedGameManager || !gPrediction) {
         LOGI("HAHAHA : Update skipped: sharedGameManager or gPrediction null");
