@@ -542,7 +542,7 @@ void AutoPlay::ScanFast(double angleStep) {
     
     // 🔥 TAMBAHKAN INI
     if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
-        LOGI("FC : ScanFast skipped: ballsCount=%d", 
+        LOGI("HAHAHA : ScanFast skipped: ballsCount=%d", 
              gPrediction ? gPrediction->guiData.ballsCount : -1);
         return;
     }    
@@ -1161,11 +1161,11 @@ void AutoPlay::Update() {
 
     // Safety check
     if (!sharedGameManager || !gPrediction) {
-        LOGI("FC : Update skipped: sharedGameManager or gPrediction null");
+        LOGI("HAHAHA : Update skipped: sharedGameManager or gPrediction null");
         return;
     }
     if (!sharedGameManager.mTable) {
-        LOGI("FC :Update skipped: mTable null");
+        LOGI("HAHAHA :Update skipped: mTable null");
         return;
     }
 
