@@ -247,7 +247,7 @@ void AutoPlay::triggerShot() {
     M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     // BUG FIX #2: set cooldown di sini — setelah shot benar-benar ditembak,
     // bukan di ClearState() yang dipanggil dari berbagai path non-shot.
-    g_shotCooldownEnd = AutoPlay::nowSec() + 2.0;
+    g_shotCooldownEnd = AutoPlay::nowSec() + 0.5;
 }
 
 bool AutoPlay::IsAnimationActive() {
@@ -538,16 +538,8 @@ void AutoPlay::ScanSlow(double angleStep) {
 
 
 void AutoPlay::ScanFast(double angleStep) {
-    LOGI("HUH : ScanFast() CALLED");
-    
     if (g_CurrentCandidate.idx != -1) return;
     
-    if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
-        LOGI("HUH : ScanFast skipped: ballsCount=%d", 
-             gPrediction ? gPrediction->guiData.ballsCount : -1);
-        return;
-    }
-
     bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
     static double fastSweepAngle = 0.0;
     
@@ -1177,19 +1169,11 @@ void AutoPlay::Update() {
         }
     }
     if (hasCueBall) {
-        if (lastFrameCuePos.x == -1000.0) {
-            lastFrameCuePos = currentCuePos;
-        }
+        if (lastFrameCuePos.x == -1000.0) lastFrameCuePos = currentCuePos;
         double dx = currentCuePos.x - lastFrameCuePos.x;
         double dy = currentCuePos.y - lastFrameCuePos.y;
-        double distSq = dx * dx + dy * dy;
-        if (distSq > 0.0001) {
-            framesCueBallStill = 0;
-        } else {
-            if (framesCueBallStill < 10) {
-                framesCueBallStill++;
-            }
-        }
+        if (dx*dx + dy*dy > 0.0001) framesCueBallStill = 0;
+        else if (framesCueBallStill < 10) framesCueBallStill++;
         lastFrameCuePos = currentCuePos;
     } else {
         framesCueBallStill = 10;
@@ -1198,11 +1182,8 @@ void AutoPlay::Update() {
     bCueBallIsMovingOrDragging = (framesCueBallStill < 5);
 
     if (g_postShotLock) {
-        // BUG FIX #4: reset turn-start state di sini, SEBELUM early return,
-        // supaya lastFailedCuePos dan bAimedThisTurn tidak stuck di nilai lama
-        // saat turn baru dimulai tapi masih dalam window cooldown.
-        bool isPlayerTurnNow = sharedGameManager.mStateManager().isPlayerTurn();
         static bool wasPlayerTurnInLock = false;
+        bool isPlayerTurnNow = sharedGameManager.mStateManager().isPlayerTurn();
         bool turnJustStartedInLock = !wasPlayerTurnInLock && isPlayerTurnNow;
         if (turnJustStartedInLock) {
             lastFailedCuePos = {-1000.0, -1000.0};
@@ -1215,8 +1196,9 @@ void AutoPlay::Update() {
             setPower(g_postShotPower);
             g_postShotFrames--;
         } else {
+            // Release lock — tidak panggil ClearState() biar tidak loop
             g_postShotLock = false;
-            ClearState();
+            state = IDLE;
         }
         g_autoPlayCalculating = false;
         return;
@@ -1424,30 +1406,33 @@ void AutoPlay::Update() {
             setAimAngle(anim_TargetAngle);
 
             static double s_ballsStoppedAt = -1.0;
+            // Reset tracker kalau baru masuk state ini
             if (s_ballsStoppedAt < stateStartTime) {
-                s_ballsStoppedAt = stateStartTime;
+                s_ballsStoppedAt = nowSec();
             }
 
-            bool timedOut = (nowSec() - stateStartTime > 12.0);
+            bool timedOut = (nowSec() - stateStartTime > 10.0);
 
             if (AreBallsMoving() && !timedOut) {
-                s_ballsStoppedAt = nowSec();
+                s_ballsStoppedAt = nowSec(); // bola masih gerak, reset settled timer
                 return;
             }
 
+            // Tunggu 0.3s setelah bola berhenti sebelum lanjut
             double settledFor = nowSec() - s_ballsStoppedAt;
-            if (settledFor < 0.5 && !timedOut) {
-                return;
-            }
+            if (settledFor < 0.3 && !timedOut) return;
 
+            // Beres
             s_ballsStoppedAt = -1.0;
             anim_IsPulling = false;
             anim_RotationDone = false;
             anim_TouchStarted = false;
             fastShotState = 0;
-            ClearState();
-            state = IDLE;
             g_lastFastShotTime = nowSec();
+            // Set cooldown singkat biar tidak langsung scan ulang
+            g_shotCooldownEnd = nowSec() + 0.5;
+            state = IDLE;
+            g_CurrentCandidate.idx = -1;
             return;
         }
     }
@@ -1520,9 +1505,9 @@ void AutoPlay::Update() {
     }
 
     // SHOT COOLDOWN: Don't scan/execute for 2s after firing to prevent stuck state
-    if (AutoPlay::nowSec() < g_shotCooldownEnd - 0.1) {  // ← TAMBAHKAN -0.1
-    g_autoPlayCalculating = false;
-    return;
+    if (AutoPlay::nowSec() < g_shotCooldownEnd) {
+        g_autoPlayCalculating = false;
+        return;
     }
 
     // STATE TIMEOUT SAFETY: If stuck in any state for > 10s, force reset
@@ -1794,8 +1779,6 @@ void AutoPlay::Update() {
             state = IDLE;
         }
     }
-
-    LOGI("HUH : BEFORE IDLE: state=%d", state);  // ← DI SINI (sebelum if (state == IDLE))
 
     if (state == IDLE) {
         bool shouldScan = (currentMode != MODE_AUTO_AIM) || !bAimedThisTurn;
