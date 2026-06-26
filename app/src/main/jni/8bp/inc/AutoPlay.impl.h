@@ -1362,6 +1362,33 @@ void AutoPlay::Update() {
 
         // State 1: STABILIZE PHASE (0.15 seconds) - hold joystick at target, then start power pull
         if (fastShotState == 1) {
+    // Keep joystick held at EXACT target angle during stabilization.
+    NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                         jY + (float)sin(anim_TargetAngle) * jR);
+    setAimAngle(anim_TargetAngle);
+
+    bool shouldTriggerPower = false;
+    if (playStyle == STYLE_INSTANT) {
+        shouldTriggerPower = true;
+    } else if (elapsed_shot >= 0.15) {
+        shouldTriggerPower = true;
+    }
+
+    if (shouldTriggerPower) {
+        // Release joystick RIGHT before power slider starts.
+        NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                            jY + (float)sin(anim_TargetAngle) * jR);
+
+        // 🔥 SET POWER LANGSUNG (TANPA SLIDER)
+        setPower(anim_TargetPower);
+
+        stateStartTime = nowSec();
+        fastShotState = 2;
+    }
+    return;
+        }
+        
+        /*if (fastShotState == 1) {
             // Keep joystick held at EXACT target angle during stabilization.
             // This prevents the game from resetting aim direction.
             NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
@@ -1399,24 +1426,36 @@ void AutoPlay::Update() {
                 fastShotState = 2; // Transition to wait-for-slider phase
             }
             return;
+        }*/
+
+        if (fastShotState == 2) {
+    gPrediction->forceFullSimulation = true;
+    gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
+                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+    gPrediction->forceFullSimulation = false;
+
+    // 🔥 TANPA CEK powerSlider.Active — langsung lanjut
+    stateStartTime = nowSec();
+    fastShotState = 3;
+    return;
         }
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
-        if (fastShotState == 2) {
-            LOGI("[AUTOPLAY] fastShotState 2: powerSlider.Active=%d", powerSlider.Active);
+      /*  if (fastShotState == 2) {
+           // LOGI("[AUTOPLAY] fastShotState 2: powerSlider.Active=%d", powerSlider.Active);
             gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
             gPrediction->forceFullSimulation = false;
 
-            if (powerSlider.Active) {
+          /* if (powerSlider.Active) {
                 return; // Wait for slider simulation to finish and release touch
             }
 
             stateStartTime = nowSec();
             fastShotState = 3;
             return;
-        }
+        }*/
 
         // State 3: WAIT FOR BALLS TO STOP
         if (fastShotState == 3) {
@@ -1708,7 +1747,7 @@ void AutoPlay::Update() {
         }
 
         // 5. POWER PULL (0.85s smooth) via simulated slider touch
-        if (humanState == HUM_PULLING) {
+        /*if (humanState == HUM_PULLING) {
             setAimAngle(targetAngle);
             if (!powerSlider.Active) {
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
@@ -1735,17 +1774,54 @@ void AutoPlay::Update() {
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
+        }*/
+
+        if (humanState == HUM_PULLING) {
+    setAimAngle(targetAngle);
+
+    // 🔥 Mulai slider (kalau belum aktif)
+    if (!powerSlider.Active) {
+        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+        float sliderX = Width * sliderXPercent;
+        if (persistent_int[O("iPowerBarSide")] == 1) {
+            sliderX = Width * (1.0f - sliderXPercent);
+        }
+        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
+        float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
+        ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
+
+        powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+    }
+
+    // 🔥 Tunggu slider selesai DULU
+    if (powerSlider.Active) {
+        return; // slider masih jalan, tunggu
+    }
+
+    // 🔥 Simulasi prediksi SETELAH slider selesai
+    gPrediction->forceFullSimulation = true;
+    gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+    gPrediction->forceFullSimulation = false;
+
+    stateStartTime = now;
+    humanState = HUM_DELAY_BEFORE_SHOT;
+    return;
         }
 
         // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
-            setAimAngle(targetAngle);
-            if (now - stateStartTime >= 0.4) {
-                humanShotLocked = false;
-                ClearState();
-                state = IDLE; humanState = HUM_IDLE;
-            }
-            return;
+    setAimAngle(targetAngle);
+    if (now - stateStartTime >= 0.4) {
+        // 🔥 TAMBAHKAN INI!
+        triggerShot();
+
+        humanShotLocked = false;
+        ClearState();
+        state = IDLE;
+        humanState = HUM_IDLE;
+    }
+    return;
         }
     }
 
