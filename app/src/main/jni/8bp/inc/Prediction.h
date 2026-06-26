@@ -318,36 +318,17 @@ void Prediction::handleCollision() {
 void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-
-    // Use game engine's own collision function for accuracy
-    static auto FUN_handleBallCollision = M(void, libmain + 0x2ca5ef8, uintptr_t, uintptr_t);
-
-    Table table = sharedGameManager.mTable;
-    if (!table) return;
-    auto& balls = table.mBalls();
-    if (!balls) return;
-
-    auto tblBallA = balls[ballA.index];
-    auto tblBallB = balls[ballB.index];
-    if (!tblBallA.instance || !tblBallB.instance) return;
-
-    // Backup
-    auto bakVelA = tblBallA.velocity(); auto bakSpinA = tblBallA.spin();
-    auto bakVelB = tblBallB.velocity(); auto bakSpinB = tblBallB.spin();
-
-    // Inject predicted state
-    tblBallA.velocity() = ballA.velocity; tblBallA.spin() = ballA.spin;
-    tblBallB.velocity() = ballB.velocity; tblBallB.spin() = ballB.spin;
-
-    FUN_handleBallCollision(tblBallA.instance, tblBallB.instance);
-
-    // Read back results
-    ballA.velocity = tblBallA.velocity(); ballA.spin = tblBallA.spin();
-    ballB.velocity = tblBallB.velocity(); ballB.spin = tblBallB.spin();
-
-    // Restore
-    tblBallA.velocity() = bakVelA; tblBallA.spin() = bakSpinA;
-    tblBallB.velocity() = bakVelB; tblBallB.spin() = bakSpinB;
+    Point2D relativePosition = ballA.predictedPosition - ballB.predictedPosition;
+    double invDistance = 1.0 / sqrt(relativePosition.square());
+    Point2D collisionNormal = relativePosition * invDistance;
+    double velocityComponentA = ballA.velocity.x * collisionNormal.x + ballA.velocity.y * collisionNormal.y;
+    double velocityComponentB = ballB.velocity.x * collisionNormal.x + ballB.velocity.y * collisionNormal.y;
+    Point2D velocityA = collisionNormal * velocityComponentA;
+    Point2D velocityB = collisionNormal * velocityComponentB;
+    ballA.velocity.x = velocityB.x - (velocityA.x - ballA.velocity.x);
+    ballA.velocity.y = velocityB.y - (velocityA.y - ballA.velocity.y);
+    ballB.velocity.x = velocityA.x - (velocityB.x - ballB.velocity.x);
+    ballB.velocity.y = velocityA.y - (velocityB.y - ballB.velocity.y);
 }
 
  void Prediction::determineShotState() {
