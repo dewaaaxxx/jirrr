@@ -1345,48 +1345,10 @@ void AutoPlay::Update() {
         double elapsed_shot = nowSec() - stateStartTime;
 
         // State 1: STABILIZE PHASE (0.15 seconds) - hold joystick at target, then start power pull
-        /*if (fastShotState == 1) {
+        if (fastShotState == 1) {
             // Keep joystick held at EXACT target angle during stabilization.
             // This prevents the game from resetting aim direction.
             NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
-                                 jY + (float)sin(anim_TargetAngle) * jR);
-            setAimAngle(anim_TargetAngle);
-
-            bool shouldTriggerPower = false;
-            if (playStyle == STYLE_INSTANT) {
-                shouldTriggerPower = true;
-            } else if (elapsed_shot >= 0.15) {
-                shouldTriggerPower = true;
-            }
-
-            if (shouldTriggerPower) {
-                // Release joystick RIGHT before power slider starts.
-                // Minimal gap between joystick release and power pull to prevent aim reset.
-                NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
-                                    jY + (float)sin(anim_TargetAngle) * jR);
-
-                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-                float sliderX = Width * sliderXPercent;
-                if (persistent_int[O("iPowerBarSide")] == 1) {
-                    sliderX = Width * (1.0f - sliderXPercent); // Right Side
-                }
-                float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
-                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-                if (playStyle == STYLE_INSTANT) {
-                    powerSlider.SimulateDrag(sliderRect, anim_TargetPower, 0.40f, 0.20f);
-                } else {
-                    powerSlider.SimulateDrag(sliderRect, anim_TargetPower, 0.85f, 0.40f);
-                }
-
-                stateStartTime = nowSec();
-                fastShotState = 2; // Transition to wait-for-slider phase
-            }
-            return;
-        }*/
-
-        if (fastShotState == 1) {
-    NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
                          jY + (float)sin(anim_TargetAngle) * jR);
     setAimAngle(anim_TargetAngle);
 
@@ -1406,28 +1368,13 @@ void AutoPlay::Update() {
 
         stateStartTime = nowSec();
         fastShotState = 2;
-    }
-    return;
+            }
+            return;
         }
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
-        /*if (fastShotState == 2) {
-            gPrediction->forceFullSimulation = true;
-            gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            gPrediction->forceFullSimulation = false;
-
-            if (powerSlider.Active) {
-                return; // Wait for slider simulation to finish and release touch
-            }
-
-            stateStartTime = nowSec();
-            fastShotState = 3;
-            return;
-        }*/
-
         if (fastShotState == 2) {
-    gPrediction->forceFullSimulation = true;
+            gPrediction->forceFullSimulation = true;
     gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                      sharedGameManager.getShotSpin(), g_CurrentCandidate);
     gPrediction->forceFullSimulation = false;
@@ -1440,47 +1387,12 @@ void AutoPlay::Update() {
 
     stateStartTime = nowSec();
     fastShotState = 3;
-    return;
+            return;
         }
 
         // State 3: WAIT FOR BALLS TO STOP
-        /*if (fastShotState == 3) {
-            setAimAngle(anim_TargetAngle);
-
-            static double s_ballsStoppedAt = -1.0;
-            // Reset tracker kalau baru masuk state ini
-            if (s_ballsStoppedAt < stateStartTime) {
-                s_ballsStoppedAt = nowSec();
-            }
-
-            bool timedOut = (nowSec() - stateStartTime > 10.0);
-
-            if (AreBallsMoving() && !timedOut) {
-                s_ballsStoppedAt = nowSec(); // bola masih gerak, reset settled timer
-                return;
-            }
-
-            // Tunggu 0.3s setelah bola berhenti sebelum lanjut
-            double settledFor = nowSec() - s_ballsStoppedAt;
-            if (settledFor < 0.3 && !timedOut) return;
-
-            // Beres
-            s_ballsStoppedAt = -1.0;
-            anim_IsPulling = false;
-            anim_RotationDone = false;
-            anim_TouchStarted = false;
-            fastShotState = 0;
-            g_lastFastShotTime = nowSec();
-            // Set cooldown singkat biar tidak langsung scan ulang
-            g_shotCooldownEnd = nowSec() + 0.5;
-            state = IDLE;
-            g_CurrentCandidate.idx = -1;
-            return;
-        }
-    }*/
-
         if (fastShotState == 3) {
-    setAimAngle(anim_TargetAngle);
+            setAimAngle(anim_TargetAngle);
 
     static double s_ballsStoppedAt = -1.0;
     if (s_ballsStoppedAt < stateStartTime) {
@@ -1506,8 +1418,8 @@ void AutoPlay::Update() {
     g_shotCooldownEnd = nowSec() + 0.5;
     state = IDLE;
     g_CurrentCandidate.idx = -1;
-    return;
-        }
+            return;
+    }
 
     // SPIDERENGINE PREMIUM NOMINATED POCKET VISUAL
     if (persistent_bool.count(O("bPocketTargetVisual")) == 0 || persistent_bool[O("bPocketTargetVisual")]) {
