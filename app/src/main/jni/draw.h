@@ -864,7 +864,7 @@ INLINE void DrawESP(ImDrawList* draw) {
     //    AutoPlay::UpdateScanMode();
 
         if (stateId == 4) {
-    gPrediction->forceFullSimulation = true;
+    //gPrediction->forceFullSimulation = true;
     gPrediction->determineShotResult(
         false,
         sharedGameManager.mVisualCue().getShotAngle(),
