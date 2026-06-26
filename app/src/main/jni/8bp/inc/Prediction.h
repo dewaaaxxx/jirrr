@@ -107,7 +107,7 @@ struct Prediction {
     void mockInitBalls();
     void determineBallsPositions();
     void handleCollision();
-    void handleBallBallCollision() const;
+    void handleBallBallCollision();
     void determineShotState();
 };
 
@@ -317,7 +317,7 @@ void Prediction::handleCollision() {
     }
 }
 
-void Prediction::handleBallBallCollision() const {
+void Prediction::handleBallBallCollision() {
     LOGI("[HC] handleBallBallCollision() start");
     this->guiData.collision.valid = true;  // Paksa collision
 
