@@ -1420,6 +1420,7 @@ void AutoPlay::Update() {
     g_CurrentCandidate.idx = -1;
             return;
     }
+    }
 
     // SPIDERENGINE PREMIUM NOMINATED POCKET VISUAL
     if (persistent_bool.count(O("bPocketTargetVisual")) == 0 || persistent_bool[O("bPocketTargetVisual")]) {
