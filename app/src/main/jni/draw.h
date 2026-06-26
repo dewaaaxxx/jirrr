@@ -21,7 +21,7 @@ using namespace std;
 #include <GLES3/gl3.h>
 
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoPlay.impl.h"
+#include "8bp/inc/AutoPlay_impl-2.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
@@ -862,10 +862,15 @@ INLINE void DrawESP(ImDrawList* draw) {
         }
 
     //    AutoPlay::UpdateScanMode();
-        
+
         if (stateId == 4) {
     gPrediction->forceFullSimulation = true;
-    gPrediction->determineShotResult(false);
+    gPrediction->determineShotResult(
+        false,
+        sharedGameManager.mVisualCue().getShotAngle(),
+        sharedGameManager.mVisualCue().getShotPower(),
+        sharedGameManager.getShotSpin()
+    );
     gPrediction->forceFullSimulation = false;
         }
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
