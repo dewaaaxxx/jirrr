@@ -540,6 +540,12 @@ void AutoPlay::ScanSlow(double angleStep) {
 void AutoPlay::ScanFast(double angleStep) {
     if (g_CurrentCandidate.idx != -1) return;
     
+    // 🔥 TAMBAHKAN INI
+    if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
+        LOGI("FC : ScanFast skipped: ballsCount=%d", 
+             gPrediction ? gPrediction->guiData.ballsCount : -1);
+        return;
+    }    
     bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
     static double fastSweepAngle = 0.0;
     
@@ -1152,6 +1158,16 @@ void AutoPlay::Update() {
     frameCounter++;
     buttonClicker.Update();
     powerSlider.Update();
+
+    // Safety check
+    if (!sharedGameManager || !gPrediction) {
+        LOGI("FC : Update skipped: sharedGameManager or gPrediction null");
+        return;
+    }
+    if (!sharedGameManager.mTable) {
+        LOGI("FC :Update skipped: mTable null");
+        return;
+    }
 
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
