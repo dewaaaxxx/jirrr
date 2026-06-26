@@ -316,19 +316,54 @@ void Prediction::handleCollision() {
 }
 
 void Prediction::handleBallBallCollision() const {
+    LOGI("[HC] [1] handleBallBallCollision() start");
+
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    Point2D relativePosition = ballA.predictedPosition - ballB.predictedPosition;
-    double invDistance = 1.0 / sqrt(relativePosition.square());
-    Point2D collisionNormal = relativePosition * invDistance;
-    double velocityComponentA = ballA.velocity.x * collisionNormal.x + ballA.velocity.y * collisionNormal.y;
-    double velocityComponentB = ballB.velocity.x * collisionNormal.x + ballB.velocity.y * collisionNormal.y;
-    Point2D velocityA = collisionNormal * velocityComponentA;
-    Point2D velocityB = collisionNormal * velocityComponentB;
-    ballA.velocity.x = velocityB.x - (velocityA.x - ballA.velocity.x);
-    ballA.velocity.y = velocityB.y - (velocityA.y - ballA.velocity.y);
-    ballB.velocity.x = velocityA.x - (velocityB.x - ballB.velocity.x);
-    ballB.velocity.y = velocityA.y - (velocityB.y - ballB.velocity.y);
+
+    static auto FUN_handleBallCollision = M(void, libmain + 0x2ca5ef8, uintptr_t, uintptr_t);
+
+    Table table = sharedGameManager.mTable;
+    if (!table) {
+        LOGI("[HC] [2] table null, return");
+        return;
+    }
+    auto& balls = table.mBalls();
+    if (!balls) {
+        LOGI("[HC] [3] balls null, return");
+        return;
+    }
+
+    auto tblBallA = balls[ballA.index];
+    auto tblBallB = balls[ballB.index];
+
+    LOGI("[HC] [4] tblBallA.instance=%p, tblBallB.instance=%p", tblBallA.instance, tblBallB.instance);
+    if (!tblBallA.instance || !tblBallB.instance) {
+        LOGI("[HC] [5] instance null, skip");
+        return;
+    }
+
+    LOGI("[HC] [6] calling FUN_handleBallCollision");
+    FUN_handleBallCollision(tblBallA.instance, tblBallB.instance);
+    LOGI("[HC] [7] FUN_handleBallCollision done");
+
+    // Backup
+    auto bakVelA = tblBallA.velocity(); auto bakSpinA = tblBallA.spin();
+    auto bakVelB = tblBallB.velocity(); auto bakSpinB = tblBallB.spin();
+
+    // Inject predicted state
+    tblBallA.velocity() = ballA.velocity; tblBallA.spin() = ballA.spin;
+    tblBallB.velocity() = ballB.velocity; tblBallB.spin() = ballB.spin;
+
+    FUN_handleBallCollision(tblBallA.instance, tblBallB.instance);
+
+    // Read back results
+    ballA.velocity = tblBallA.velocity(); ballA.spin = tblBallA.spin();
+    ballB.velocity = tblBallB.velocity(); ballB.spin = tblBallB.spin();
+
+    // Restore
+    tblBallA.velocity() = bakVelA; tblBallA.spin() = bakSpinA;
+    tblBallB.velocity() = bakVelB; tblBallB.spin() = bakSpinB;
 }
 
  void Prediction::determineShotState() {
