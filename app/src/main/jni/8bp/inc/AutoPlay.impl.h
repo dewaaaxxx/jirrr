@@ -798,8 +798,8 @@ void AutoPlay::ScanFast(double angleStep) {
         });
         
         // Limit candidates to evaluate (take top 60 for rich search space including cushions/combos)
-        if (fs.raw.size() > 60) {
-            fs.raw.resize(60);
+        if (fs.raw.size() > 30) {
+            fs.raw.resize(30);
         }
 
         // Sort final raw candidates by angle for smooth sequential guidelines sweep
