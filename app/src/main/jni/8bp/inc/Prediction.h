@@ -317,54 +317,31 @@ void Prediction::handleCollision() {
     }
 }
 
-void Prediction::handleBallBallCollision() {
-    LOGI("[HC] handleBallBallCollision() start");
-    this->guiData.collision.valid = true;  // Paksa collision
-
+void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
 
-    static auto FUN_handleBallCollision = M(void, libmain + 0x2ca5ef8, uintptr_t, uintptr_t);
-
     Table table = sharedGameManager.mTable;
-    if (!table) {
-        LOGI("[HC] [2] table null, return");
-        return;
-    }
+    if (!table) return;
     auto& balls = table.mBalls();
-    if (!balls) {
-        LOGI("[HC] [3] balls null, return");
-        return;
-    }
+    if (!balls) return;
 
     auto tblBallA = balls[ballA.index];
     auto tblBallB = balls[ballB.index];
+    if (!tblBallA.instance || !tblBallB.instance) return;
 
-    LOGI("[HC] [4] tblBallA.instance=%p, tblBallB.instance=%p", tblBallA.instance, tblBallB.instance);
-    if (!tblBallA.instance || !tblBallB.instance) {
-        LOGI("[HC] [5] instance null, skip");
-        return;
-    }
-
-    LOGI("[HC] [6] calling FUN_handleBallCollision");
-    FUN_handleBallCollision(tblBallA.instance, tblBallB.instance);
-    LOGI("[HC] [7] FUN_handleBallCollision done");
-
-    // Backup
     auto bakVelA = tblBallA.velocity(); auto bakSpinA = tblBallA.spin();
     auto bakVelB = tblBallB.velocity(); auto bakSpinB = tblBallB.spin();
 
-    // Inject predicted state
     tblBallA.velocity() = ballA.velocity; tblBallA.spin() = ballA.spin;
     tblBallB.velocity() = ballB.velocity; tblBallB.spin() = ballB.spin;
 
+    static auto FUN_handleBallCollision = M(void, libmain + 0x2ca5ef8, uintptr_t, uintptr_t);
     FUN_handleBallCollision(tblBallA.instance, tblBallB.instance);
 
-    // Read back results
     ballA.velocity = tblBallA.velocity(); ballA.spin = tblBallA.spin();
     ballB.velocity = tblBallB.velocity(); ballB.spin = tblBallB.spin();
 
-    // Restore
     tblBallA.velocity() = bakVelA; tblBallA.spin() = bakSpinA;
     tblBallB.velocity() = bakVelB; tblBallB.spin() = bakSpinB;
 }
