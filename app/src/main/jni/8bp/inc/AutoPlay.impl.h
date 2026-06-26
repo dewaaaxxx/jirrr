@@ -1,5 +1,5 @@
 #include "AutoPlayy.h"
-#include "Prediction.fast.h"
+#include "Prediction.h"
 extern ButtonClicker buttonClicker;
 #include "PowerSlider.h"
 extern PowerSlider powerSlider;
@@ -279,9 +279,9 @@ void AutoPlay::Shoot(double angle, double power) {
     angle = NumberUtils::normalizeDoublePrecision(angle);
     power = NumberUtils::normalizeDoublePrecision(power);
 
-    
+    gPrediction->forceFullSimulation = true;
     gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-    
+    gPrediction->forceFullSimulation = false;
 
     bool nominating = false;
     int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -360,9 +360,9 @@ void AutoPlay::Shoot(double angle, double power) {
         bShowAutoPlayLines = false; 
 
         // Run final simulation to show the exact locked shot line
-        
+        gPrediction->forceFullSimulation = true;
         gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
-        
+        gPrediction->forceFullSimulation = false;
 
         if (playStyle == STYLE_INSTANT) {
             takeShot(angle, power);
@@ -448,8 +448,9 @@ void AutoPlay::ScanSlow(double angleStep) {
             if (cleanTableMode == CLEAN_ALL_BALLS) {
                 doSim = (automationSpeed == SPEED_HUMAN); // No lag in Clean Table mode
             }
+            gPrediction->forceFullSimulation = doSim;
             gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-            
+            gPrediction->forceFullSimulation = false;
 
             if (!gPrediction->guiData.balls[0].onTable) continue; // Skip scratches
 
@@ -539,12 +540,6 @@ void AutoPlay::ScanSlow(double angleStep) {
 void AutoPlay::ScanFast(double angleStep) {
     if (g_CurrentCandidate.idx != -1) return;
     
-    // 🔥 TAMBAHKAN INI
-    if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
-        LOGI("HAHAHA : ScanFast skipped: ballsCount=%d", 
-             gPrediction ? gPrediction->guiData.ballsCount : -1);
-        return;
-    }    
     bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
     static double fastSweepAngle = 0.0;
     
@@ -858,9 +853,9 @@ void AutoPlay::ScanFast(double angleStep) {
         double testPower = (automationSpeed == SPEED_FAST) ? (double)powerMax : raw.power;
         
         // Try testPower (powerMax in Fast Mode) first
-        
+        gPrediction->forceFullSimulation = true;
         gPrediction->determineShotResult(true, angle, testPower, sharedGameManager.getShotSpin(), raw);
-        
+        gPrediction->forceFullSimulation = false;
         
         bool isPotted = false;
         if (isNineBallGame) {
@@ -903,9 +898,9 @@ void AutoPlay::ScanFast(double angleStep) {
         // Fallback to calculated power if testPower failed and we are in fast mode
         if (!evaluatedValid && automationSpeed == SPEED_FAST) {
             raw.idx = originalIdx;
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, angle, raw.power, sharedGameManager.getShotSpin(), raw);
-            
+            gPrediction->forceFullSimulation = false;
             
             bool isPottedFallback = false;
             if (isNineBallGame) {
@@ -1145,9 +1140,9 @@ void AutoPlay::ScanFast(double angleStep) {
     if (fs.evalIndex < fs.raw.size()) {
         fastSweepAngle = normalizeAngle(fastSweepAngle + 0.15);
         if (!persistent_bool[O("bDisableFlicker")]) {
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, fastSweepAngle, 400.0f, sharedGameManager.getShotSpin());
-            
+            gPrediction->forceFullSimulation = false;
         }
         sweepAngle = fastSweepAngle;
     }
@@ -1157,19 +1152,6 @@ void AutoPlay::Update() {
     frameCounter++;
     buttonClicker.Update();
     powerSlider.Update();
-
-    g_lastFastShotTime = 0.0;
-    g_shotCooldownEnd = 0.0;
-
-    // Safety check
-    if (!sharedGameManager || !gPrediction) {
-        LOGI("HAHAHA : Update skipped: sharedGameManager or gPrediction null");
-        return;
-    }
-    if (!sharedGameManager.mTable) {
-        LOGI("HAHAHA :Update skipped: mTable null");
-        return;
-    }
 
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
@@ -1364,33 +1346,6 @@ void AutoPlay::Update() {
 
         // State 1: STABILIZE PHASE (0.15 seconds) - hold joystick at target, then start power pull
         if (fastShotState == 1) {
-    // Keep joystick held at EXACT target angle during stabilization.
-    NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
-                         jY + (float)sin(anim_TargetAngle) * jR);
-    setAimAngle(anim_TargetAngle);
-
-    bool shouldTriggerPower = false;
-    if (playStyle == STYLE_INSTANT) {
-        shouldTriggerPower = true;
-    } else if (elapsed_shot >= 0.15) {
-        shouldTriggerPower = true;
-    }
-
-    if (shouldTriggerPower) {
-        // Release joystick RIGHT before power slider starts.
-        NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
-                            jY + (float)sin(anim_TargetAngle) * jR);
-
-        // 🔥 SET POWER LANGSUNG (TANPA SLIDER)
-        setPower(anim_TargetPower);
-
-        stateStartTime = nowSec();
-        fastShotState = 2;
-    }
-    return;
-        }
-        
-        /*if (fastShotState == 1) {
             // Keep joystick held at EXACT target angle during stabilization.
             // This prevents the game from resetting aim direction.
             NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
@@ -1428,36 +1383,23 @@ void AutoPlay::Update() {
                 fastShotState = 2; // Transition to wait-for-slider phase
             }
             return;
-        }*/
-
-        if (fastShotState == 2) {
-    
-    gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
-                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
-    
-
-    // 🔥 TANPA CEK powerSlider.Active — langsung lanjut
-    stateStartTime = nowSec();
-    fastShotState = 3;
-    return;
         }
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
-      /*  if (fastShotState == 2) {
-           // LOGI("[AUTOPLAY] fastShotState 2: powerSlider.Active=%d", powerSlider.Active);
-            
+        if (fastShotState == 2) {
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            
+            gPrediction->forceFullSimulation = false;
 
-          /* if (powerSlider.Active) {
+            if (powerSlider.Active) {
                 return; // Wait for slider simulation to finish and release touch
             }
 
             stateStartTime = nowSec();
             fastShotState = 3;
             return;
-        }*/
+        }
 
         // State 3: WAIT FOR BALLS TO STOP
         if (fastShotState == 3) {
@@ -1479,8 +1421,6 @@ void AutoPlay::Update() {
             // Tunggu 0.3s setelah bola berhenti sebelum lanjut
             double settledFor = nowSec() - s_ballsStoppedAt;
             if (settledFor < 0.3 && !timedOut) return;
-
-            triggerShot();  // ← TAMBAHKAN INI!
 
             // Beres
             s_ballsStoppedAt = -1.0;
@@ -1644,9 +1584,9 @@ void AutoPlay::Update() {
                 setAimAngle(curAngle);
                 UpdateJoystickVisuals(curAngle);
             }
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            
+            gPrediction->forceFullSimulation = false;
             return;
         }
 
@@ -1671,9 +1611,9 @@ void AutoPlay::Update() {
                 setAimAngle(curAngle);
                 UpdateJoystickVisuals(curAngle);
             }
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            
+            gPrediction->forceFullSimulation = false;
             return;
         }
 
@@ -1707,9 +1647,9 @@ void AutoPlay::Update() {
                 setAimAngle(curAngle);
                 UpdateJoystickVisuals(curAngle);
             }
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            
+            gPrediction->forceFullSimulation = false;
             return;
         }
 
@@ -1749,7 +1689,7 @@ void AutoPlay::Update() {
         }
 
         // 5. POWER PULL (0.85s smooth) via simulated slider touch
-        /*if (humanState == HUM_PULLING) {
+        if (humanState == HUM_PULLING) {
             setAimAngle(targetAngle);
             if (!powerSlider.Active) {
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
@@ -1764,10 +1704,10 @@ void AutoPlay::Update() {
                 powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
             }
 
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, targetAngle, targetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            
+            gPrediction->forceFullSimulation = false;
 
             if (powerSlider.Active) {
                 return; // Wait for slider simulation to finish and release touch
@@ -1776,54 +1716,17 @@ void AutoPlay::Update() {
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
-        }*/
-
-        if (humanState == HUM_PULLING) {
-    setAimAngle(targetAngle);
-
-    // 🔥 Mulai slider (kalau belum aktif)
-    if (!powerSlider.Active) {
-        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-        float sliderX = Width * sliderXPercent;
-        if (persistent_int[O("iPowerBarSide")] == 1) {
-            sliderX = Width * (1.0f - sliderXPercent);
-        }
-        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-        float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
-        ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-
-        powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
-    }
-
-    // 🔥 Tunggu slider selesai DULU
-    if (powerSlider.Active) {
-        return; // slider masih jalan, tunggu
-    }
-
-    // 🔥 Simulasi prediksi SETELAH slider selesai
-    
-    gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
-    
-
-    stateStartTime = now;
-    humanState = HUM_DELAY_BEFORE_SHOT;
-    return;
         }
 
         // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
-    setAimAngle(targetAngle);
-    if (now - stateStartTime >= 0.4) {
-        // 🔥 TAMBAHKAN INI!
-        triggerShot();
-
-        humanShotLocked = false;
-        ClearState();
-        state = IDLE;
-        humanState = HUM_IDLE;
-    }
-    return;
+            setAimAngle(targetAngle);
+            if (now - stateStartTime >= 0.4) {
+                humanShotLocked = false;
+                ClearState();
+                state = IDLE; humanState = HUM_IDLE;
+            }
+            return;
         }
     }
 
@@ -1853,7 +1756,7 @@ void AutoPlay::Update() {
                 sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(cur);
             }
 
-            
+            gPrediction->forceFullSimulation = false;
             humanShotLocked = false;
             anim_IsPulling = false;
             fastShotState = 0;
@@ -1919,10 +1822,10 @@ void AutoPlay::Update() {
                 // This ensures g_CurrentCandidate.pocketIndex is fresh and not stale from
                 // a previous scan frame, which is the root cause of wrong-angle-lock on black ball.
                 {
-                    
+                    gPrediction->forceFullSimulation = true;
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
                                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                    
+                    gPrediction->forceFullSimulation = false;
                     // Sync pocketIndex from fresh simulation result
                     if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
                         int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
@@ -1989,9 +1892,9 @@ void AutoPlay::Update() {
         double curPower = getCurrentPower();
         if (curPower < 100.0) curPower = 800.0;
 
-        
+        gPrediction->forceFullSimulation = true;
         gPrediction->determineShotResult(true, curAngle, curPower, sharedGameManager.getShotSpin());
-        
+        gPrediction->forceFullSimulation = false;
     }
 }
 
