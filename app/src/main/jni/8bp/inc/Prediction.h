@@ -127,6 +127,7 @@ static Point2D prevCuePos = {0.0, 0.0};
 static double prevBallsSum = 0.0;
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
+    LOGI("[HC] determineShotResult() start");
     extern std::map<std::string, float> persistent_float;
     static auto lastCalcTime = std::chrono::steady_clock::now();
     if (!isAuto && !forceFullSimulation) {
@@ -243,6 +244,7 @@ void Prediction::initCueBall(double shotAngle, double shotPower, const Point2D &
 }
 
 void Prediction::determineBallsPositions() {
+    LOGI("[HC] determineBallsPositions() start");
     int i;
     bool isAnyBallMovingOrSpinning;
     double time;
@@ -316,7 +318,8 @@ void Prediction::handleCollision() {
 }
 
 void Prediction::handleBallBallCollision() const {
-    LOGI("[HC] [1] handleBallBallCollision() start");
+    LOGI("[HC] handleBallBallCollision() start");
+    this->guiData.collision.valid = true;  // Paksa collision
 
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
