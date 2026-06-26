@@ -1250,6 +1250,63 @@ if (curScan == 2) {
     Dummy(ImVec2(0, 14));
 }
 
+            // ── Slider X ──
+float sliderX = persistent_float[O("fPowerBarXPercent")];
+if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.00f, 0.50f, "%.3f")) {
+    persistent_float[O("fPowerBarXPercent")] = sliderX;
+    need_save = true;
+}
+Dummy(ImVec2(0, 4));
+
+// ── Slider Top ──
+float sliderTop = persistent_float[O("fPowerBarYStartPercent")];
+if (GoldSliderFloat(O("Top Position"), O("Vertical start"), &sliderTop, 0.05f, 0.50f, "%.3f")) {
+    persistent_float[O("fPowerBarYStartPercent")] = sliderTop;
+    need_save = true;
+}
+Dummy(ImVec2(0, 4));
+
+// ── Slider Height ──
+float sliderH = persistent_float[O("fPowerBarYEndPercent")];
+if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.90f, "%.3f")) {
+    persistent_float[O("fPowerBarYEndPercent")] = sliderH;
+    need_save = true;
+}
+Dummy(ImVec2(0, 10));
+
+// ── GoldToggle Preview ──
+need_save |= GoldToggle(O("Preview Power Slider"), O("Show guide line on screen"), &persistent_bool["bPSliderPreview"]);
+Dummy(ImVec2(0, 10));
+
+// ── PREVIEW GAMBAR ──
+if (persistent_bool["bPSliderPreview"]) {
+    ImDrawList* fgdl = GetForegroundDrawList();
+    if (fgdl) {
+        ImGuiIO& io = GetIO();
+        float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
+        float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
+        float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
+
+        // ── Garis slider ──
+        fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
+        
+        // ── Titik atas & bawah ──
+        fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
+        fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
+
+        // ── Label nilai ──
+        char buf[64];
+        snprintf(buf, sizeof(buf), "X: %.2f%%", persistent_float[O("fPowerBarXPercent")] * 100.f);
+        fgdl->AddText(ImVec2(px + 12, pt - 10), IM_COL32(255, 255, 255, 255), buf);
+
+        snprintf(buf, sizeof(buf), "Top: %.2f%%", persistent_float[O("fPowerBarYStartPercent")] * 100.f);
+        fgdl->AddText(ImVec2(px + 12, pt + 10), IM_COL32(255, 255, 255, 255), buf);
+
+        snprintf(buf, sizeof(buf), "H: %.2f%%", (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]) * 100.f);
+        fgdl->AddText(ImVec2(px + 12, pt + 30), IM_COL32(255, 255, 255, 255), buf);
+    }
+}
+
             /*need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
             Dummy(ImVec2(0, 8));
 
