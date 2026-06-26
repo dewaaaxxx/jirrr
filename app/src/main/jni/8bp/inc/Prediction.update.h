@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Types.h"
-#include "FrictionProperties.h"
 #include <cmath>
 
 #define DAT_04c8b9a8 2.0
