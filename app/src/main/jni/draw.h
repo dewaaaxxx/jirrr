@@ -863,7 +863,11 @@ INLINE void DrawESP(ImDrawList* draw) {
 
     //    AutoPlay::UpdateScanMode();
         
-        if (stateId == 4) gPrediction->determineShotResult(false);
+        if (stateId == 4) {
+    gPrediction->forceFullSimulation = true;
+    gPrediction->determineShotResult(false);
+    gPrediction->forceFullSimulation = false;
+        }
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
@@ -1119,6 +1123,17 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     int idx = g_menu.currentTab;
     dl->AddText(ImVec2(a.x + 22, a.y + 18), COL_GOLD_BRIGHT, L(titlesEn[idx], titlesAr[idx]));
     dl->AddLine(ImVec2(a.x + 22, a.y + 50), ImVec2(b.x - 22, a.y + 50), IM_COL32(55,70,95,180), 1.0f);
+    // ── EXP Key di pojok kanan atas (sebelah kanan judul) ──
+const char* expText = (g_ExpTime.empty() || g_ExpTime == "N/A" || g_ExpTime == "Lifetime") 
+                      ? "EXP : Lifetime" 
+                      : "EXP : %s";
+
+// Hitung posisi teks agar ada di sebelah kanan garis
+ImVec2 textSize = ImGui::CalcTextSize(expText, nullptr, true);
+float textX = b.x - 22 - textSize.x - 10; // 10px padding dari kanan
+float textY = a.y + 18; // sejajar dengan judul
+
+dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
 
     SetCursorScreenPos(ImVec2(a.x + 16, a.y + 62));
     PushStyleColor(ImGuiCol_ChildBg, ImVec4(0,0,0,0));
@@ -1514,9 +1529,9 @@ PopStyleVar();
             Dummy(ImVec2(0,10));
             TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "CM ENGINE  v1.0");
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium 8 Ball Pool Assistant","https://t.me/xabi666 ﺎﻫﻮﻌﺑﺎﺗ ﻲﻠﺘﻟﺍ ﺓﺎﻨﻗ"));
+            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium 8 Ball Pool Assistant","https://t.me/cmengine ﺎﻫﻮﻌﺑﺎﺗ ﻲﻠﺘﻟﺍ ﺓﺎﻨﻗ"));
             Dummy(ImVec2(0,20));
-            TextColored(ImVec4(0.55f,0.60f,0.70f,1.0f), "%s", L("Contact @xabi666 on Telegram","@Qst_30 ﻡﺍﺮﺠﻠﺗ ﻞﺻﺍﻮﺗ"));
+            TextColored(ImVec4(0.55f,0.60f,0.70f,1.0f), "%s", L("Contact @xabi666 on Telegram","@xabi666 ﻡﺍﺮﺠﻠﺗ ﻞﺻﺍﻮﺗ"));
             break;
         }
     }
@@ -1818,8 +1833,8 @@ INLINE void DrawLogin(ImGuiIO& io) {
         PopStyleColor(4);
 
         Dummy(ImVec2(0, 20));
-        const char* help = L("To get a key, contact Telegram @Qst_30",
-                             " ﻡﺍﺮﺠﻠﺗ ﺮﺒﻋ ﺎﻨﻌﻣ ﻞﺻﺍﻮﺗ ﺡﺎﺘﻔﻣ ﻰﻠﻋ ﻝﻮﺼﺤﻠﻟ @Qst_30");
+        const char* help = L("To get a key, contact Telegram @xabi666",
+                             " ﻡﺍﺮﺠﻠﺗ ﺮﺒﻋ ﺎﻨﻌﻣ ﻞﺻﺍﻮﺗ ﺡﺎﺘﻔﻣ ﻰﻠﻋ ﻝﻮﺼﺤﻠﻟ @xabi666");
         ImVec2 hps = CalcTextSize(help);
         SetCursorPosX((cardW - hps.x) * 0.5f);
         TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", help);
