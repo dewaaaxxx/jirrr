@@ -320,30 +320,30 @@ void Prediction::handleCollision() {
 void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    
+
     Point2D relativePosition = ballB.predictedPosition - ballA.predictedPosition;
     double distanceSquared = relativePosition.square();
-    
     if (distanceSquared < 1e-10) return;
-    
-    double distance = sqrt(distanceSquared);
-    double invDistance = 1.0 / distance;
+
+    double invDistance = 1.0 / sqrt(distanceSquared);
     Point2D normal = relativePosition * invDistance;
-    
+
     Point2D relativeVelocity = ballA.velocity - ballB.velocity;
     double velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
-    
+
+    // Hanya proses kalau bola mendekati satu sama lain
     if (velocityAlongNormal >= 0.0) return;
-    
-    Point2D velocityChangeA = normal * (-velocityAlongNormal);
-    
-    ballA.velocity = ballA.velocity + velocityChangeA;
-    ballB.velocity = ballB.velocity - velocityChangeA;
-    
-    // 🔥 HAPUS DAMPING DULU (tes)
-    // constexpr double COLLISION_DAMPING = 0.98;
-    // ballA.velocity = ballA.velocity * COLLISION_DAMPING;
-    // ballB.velocity = ballB.velocity * COLLISION_DAMPING;
+
+    // Impulse scalar untuk equal-mass elastic collision
+    // Damping HANYA pada komponen collision (bukan seluruh velocity)
+    constexpr double RESTITUTION = 0.96; // koefisien restitusi, <1 = slight energy loss
+    double impulse = -(1.0 + RESTITUTION) * velocityAlongNormal * 0.5;
+
+    Point2D impulseVec = normal * impulse;
+
+    // Terapkan impulse hanya sepanjang normal — tangensial tidak berubah
+    ballA.velocity = ballA.velocity + impulseVec;
+    ballB.velocity = ballB.velocity - impulseVec;
 }
 
  void Prediction::determineShotState() {
