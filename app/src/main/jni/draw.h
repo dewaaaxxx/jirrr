@@ -865,13 +865,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         if (stateId == 4) {
     //gPrediction->forceFullSimulation = true;
-    gPrediction->determineShotResult(
-        false,
-        sharedGameManager.mVisualCue().getShotAngle(),
-        sharedGameManager.mVisualCue().getShotPower(),
-        sharedGameManager.getShotSpin()
-    );
-    gPrediction->forceFullSimulation = false;
+    gPrediction->determineShotResult(false);
         }
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
 
