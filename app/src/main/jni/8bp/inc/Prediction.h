@@ -321,42 +321,31 @@ void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
     
-    // Physics-based elastic collision with proper momentum transfer
-    // Calculate relative position and normalized collision normal
     Point2D relativePosition = ballB.predictedPosition - ballA.predictedPosition;
     double distanceSquared = relativePosition.square();
     
-    // Prevent division by zero
     if (distanceSquared < 1e-10) return;
     
     double distance = sqrt(distanceSquared);
     double invDistance = 1.0 / distance;
-    
-    // Collision normal (from ballA to ballB)
     Point2D normal = relativePosition * invDistance;
     
-    // Relative velocity of ballA with respect to ballB
     Point2D relativeVelocity = ballA.velocity - ballB.velocity;
-    
-    // Relative velocity along collision normal (approach velocity)
     double velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
     
-    // Only handle collision if balls are approaching
     if (velocityAlongNormal >= 0.0) return;
     
-    // For equal mass elastic collision, exchange velocity components along normal
-    // Each ball's velocity along the normal is exchanged
     Point2D velocityChangeA = normal * (-velocityAlongNormal);
     
-    // Apply impulse to both balls (equal and opposite)
     ballA.velocity = ballA.velocity + velocityChangeA;
     ballB.velocity = ballB.velocity - velocityChangeA;
     
-    // Apply slight damping to account for energy loss in real collisions
-    constexpr double COLLISION_DAMPING = 0.98;
-    ballA.velocity = ballA.velocity * COLLISION_DAMPING;
-    ballB.velocity = ballB.velocity * COLLISION_DAMPING;
+    // 🔥 HAPUS DAMPING DULU (tes)
+    // constexpr double COLLISION_DAMPING = 0.98;
+    // ballA.velocity = ballA.velocity * COLLISION_DAMPING;
+    // ballB.velocity = ballB.velocity * COLLISION_DAMPING;
 }
+
  void Prediction::determineShotState() {
     this->guiData.shotState = false;
     // cue ball didn't hit any other ball
