@@ -1403,6 +1403,7 @@ void AutoPlay::Update() {
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
         if (fastShotState == 2) {
+            LOGI("[AUTOPLAY] fastShotState 2: powerSlider.Active=%d", powerSlider.Active);
             gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
@@ -1437,6 +1438,8 @@ void AutoPlay::Update() {
             // Tunggu 0.3s setelah bola berhenti sebelum lanjut
             double settledFor = nowSec() - s_ballsStoppedAt;
             if (settledFor < 0.3 && !timedOut) return;
+
+            triggerShot();  // ← TAMBAHKAN INI!
 
             // Beres
             s_ballsStoppedAt = -1.0;
