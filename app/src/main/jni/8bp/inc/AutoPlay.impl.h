@@ -1345,7 +1345,7 @@ void AutoPlay::Update() {
         double elapsed_shot = nowSec() - stateStartTime;
 
         // State 1: STABILIZE PHASE (0.15 seconds) - hold joystick at target, then start power pull
-        if (fastShotState == 1) {
+        /*if (fastShotState == 1) {
             // Keep joystick held at EXACT target angle during stabilization.
             // This prevents the game from resetting aim direction.
             NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
@@ -1383,10 +1383,35 @@ void AutoPlay::Update() {
                 fastShotState = 2; // Transition to wait-for-slider phase
             }
             return;
+        }*/
+
+        if (fastShotState == 1) {
+    NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                         jY + (float)sin(anim_TargetAngle) * jR);
+    setAimAngle(anim_TargetAngle);
+
+    bool shouldTriggerPower = false;
+    if (playStyle == STYLE_INSTANT) {
+        shouldTriggerPower = true;
+    } else if (elapsed_shot >= 0.15) {
+        shouldTriggerPower = true;
+    }
+
+    if (shouldTriggerPower) {
+        NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                            jY + (float)sin(anim_TargetAngle) * jR);
+
+        // 🔥 JANGAN PANGGIL TRIGGERSHOT DI SINI
+        // triggerShot(); ← HAPUS
+
+        stateStartTime = nowSec();
+        fastShotState = 2;
+    }
+    return;
         }
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
-        if (fastShotState == 2) {
+        /*if (fastShotState == 2) {
             gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
@@ -1399,10 +1424,27 @@ void AutoPlay::Update() {
             stateStartTime = nowSec();
             fastShotState = 3;
             return;
+        }*/
+
+        if (fastShotState == 2) {
+    gPrediction->forceFullSimulation = true;
+    gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
+                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+    gPrediction->forceFullSimulation = false;
+
+    // 🔥 TAMBAHKAN DELAY 0.2 DETIK
+    if (nowSec() - stateStartTime < 0.2) return;
+
+    // 🔥 LANGSUNG TEMBAK SETELAH DELAY
+    triggerShot();
+
+    stateStartTime = nowSec();
+    fastShotState = 3;
+    return;
         }
 
         // State 3: WAIT FOR BALLS TO STOP
-        if (fastShotState == 3) {
+        /*if (fastShotState == 3) {
             setAimAngle(anim_TargetAngle);
 
             static double s_ballsStoppedAt = -1.0;
@@ -1435,7 +1477,37 @@ void AutoPlay::Update() {
             g_CurrentCandidate.idx = -1;
             return;
         }
+    }*/
+
+        if (fastShotState == 3) {
+    setAimAngle(anim_TargetAngle);
+
+    static double s_ballsStoppedAt = -1.0;
+    if (s_ballsStoppedAt < stateStartTime) {
+        s_ballsStoppedAt = nowSec();
     }
+
+    bool timedOut = (nowSec() - stateStartTime > 10.0);
+
+    if (AreBallsMoving() && !timedOut) {
+        s_ballsStoppedAt = nowSec();
+        return;
+    }
+
+    double settledFor = nowSec() - s_ballsStoppedAt;
+    if (settledFor < 0.3 && !timedOut) return;
+
+    s_ballsStoppedAt = -1.0;
+    anim_IsPulling = false;
+    anim_RotationDone = false;
+    anim_TouchStarted = false;
+    fastShotState = 0;
+    g_lastFastShotTime = nowSec();
+    g_shotCooldownEnd = nowSec() + 0.5;
+    state = IDLE;
+    g_CurrentCandidate.idx = -1;
+    return;
+        }
 
     // SPIDERENGINE PREMIUM NOMINATED POCKET VISUAL
     if (persistent_bool.count(O("bPocketTargetVisual")) == 0 || persistent_bool[O("bPocketTargetVisual")]) {
