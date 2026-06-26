@@ -107,7 +107,7 @@ struct Prediction {
     void mockInitBalls();
     void determineBallsPositions();
     void handleCollision();
-    void handleBallBallCollision();
+    void handleBallBallCollision() const;
     void determineShotState();
 };
 
