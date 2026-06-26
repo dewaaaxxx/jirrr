@@ -863,7 +863,11 @@ INLINE void DrawESP(ImDrawList* draw) {
 
     //    AutoPlay::UpdateScanMode();
         
-        if (stateId == 4) gPrediction->determineShotResult(false);
+        if (stateId == 4) {
+    gPrediction->forceFullSimulation = true;
+    gPrediction->determineShotResult(false);
+    gPrediction->forceFullSimulation = false;
+        }
         if (stateId == 6 || stateId == 7 || stateId == 8) return;
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
