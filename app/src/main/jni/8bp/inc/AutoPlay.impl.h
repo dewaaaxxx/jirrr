@@ -1362,7 +1362,7 @@ void AutoPlay::Update() {
             if (shouldTriggerPower) {
                 // Release joystick RIGHT before power slider starts.
                 // Minimal gap between joystick release and power pull to prevent aim reset.
-                NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                NcativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
                                     jY + (float)sin(anim_TargetAngle) * jR);
 
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
@@ -1387,10 +1387,8 @@ void AutoPlay::Update() {
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
         if (fastShotState == 2) {
-            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            gPrediction->forceFullSimulation = false;
 
 
             stateStartTime = nowSec();
