@@ -1362,7 +1362,7 @@ void AutoPlay::Update() {
             if (shouldTriggerPower) {
                 // Release joystick RIGHT before power slider starts.
                 // Minimal gap between joystick release and power pull to prevent aim reset.
-                NcativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
                                     jY + (float)sin(anim_TargetAngle) * jR);
 
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
