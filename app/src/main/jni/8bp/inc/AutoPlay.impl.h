@@ -448,7 +448,7 @@ void AutoPlay::ScanSlow(double angleStep) {
             if (cleanTableMode == CLEAN_ALL_BALLS) {
                 doSim = (automationSpeed == SPEED_HUMAN); // No lag in Clean Table mode
             }
-            gPrediction->forceFullSimulation = doSim;
+            
             gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
             
 
@@ -1651,12 +1651,31 @@ void AutoPlay::Update() {
         }
         
         if (humanState == HUM_STABILIZING) {
-            // ...
+            float jX = Width * 0.83f;
+            float jY = Height * 0.82f;
+            float jR = 65.0f;
+        
+            NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR,
+                                 jY + (float)sin(targetAngle) * jR);
+            setAimAngle(targetAngle);
+        
             if (now - stateStartTime >= 0.4) {
                 if (currentMode == MODE_AUTO_PLAY) {
-                    NativeTouchesEnd(...);
+                    // 🔥 RELEASE JOYSTICK DENGAN PARAMETER LENGKAP
+                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR,
+                                        jY + (float)sin(targetAngle) * jR);
         
-                    // 🔥 PANGGIL SLIDER LANGSUNG DI SINI
+                    // 🔥 DEKLARASIKAN sliderRect
+                    float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+                    float sliderX = Width * sliderXPercent;
+                    if (persistent_int[O("iPowerBarSide")] == 1) {
+                        sliderX = Width * (1.0f - sliderXPercent);
+                    }
+                    float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
+                    float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
+                    ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
+        
+                    // 🔥 PANGGIL SLIDER
                     powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
         
                     stateStartTime = now;
@@ -1665,6 +1684,7 @@ void AutoPlay::Update() {
                     humanState = HUM_PULLING;
                 }
             }
+            return;
         }
 
         // 4. STABILIZE & LOCK (0.4s) - joystick still held from HUM_HOLDING
