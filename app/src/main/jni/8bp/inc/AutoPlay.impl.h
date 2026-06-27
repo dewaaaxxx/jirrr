@@ -1387,11 +1387,11 @@ void AutoPlay::Update() {
 
         // State 2: Wait for power slider to complete (slider already started in state 1)
         if (fastShotState == 2) {
-            
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                                             
-            triggerShot();
+            gPrediction->forceFullSimulation = false;
+
 
             stateStartTime = nowSec();
             fastShotState = 3;
@@ -1403,33 +1403,32 @@ void AutoPlay::Update() {
             setAimAngle(anim_TargetAngle);
 
             static double s_ballsStoppedAt = -1.0;
-            // Reset tracker kalau baru masuk state ini
             if (s_ballsStoppedAt < stateStartTime) {
-                s_ballsStoppedAt = nowSec();
+                s_ballsStoppedAt = stateStartTime;
             }
 
-            bool timedOut = (nowSec() - stateStartTime > 10.0);
+            bool timedOut = (nowSec() - stateStartTime > 12.0);
 
             if (AreBallsMoving() && !timedOut) {
-                s_ballsStoppedAt = nowSec(); // bola masih gerak, reset settled timer
+                s_ballsStoppedAt = nowSec();
                 return;
             }
 
-            // Tunggu 0.3s setelah bola berhenti sebelum lanjut
             double settledFor = nowSec() - s_ballsStoppedAt;
-            if (settledFor < 0.3 && !timedOut) return;
+            if (settledFor < 0.5 && !timedOut) {
+                return;
+            }
+            
+            triggerShot();
 
-            // Beres
             s_ballsStoppedAt = -1.0;
             anim_IsPulling = false;
             anim_RotationDone = false;
             anim_TouchStarted = false;
             fastShotState = 0;
-            g_lastFastShotTime = nowSec();
-            // Set cooldown singkat biar tidak langsung scan ulang
-            g_shotCooldownEnd = nowSec() + 0.5;
+            ClearState();
             state = IDLE;
-            g_CurrentCandidate.idx = -1;
+            g_lastFastShotTime = nowSec();
             return;
         }
     }
