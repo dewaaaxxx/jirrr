@@ -1377,6 +1377,11 @@ void AutoPlay::Update() {
                 float sliderYEnd   = Height * persistent_float[O("fPowerBarYEndPercent")];
                 ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
 
+                // FIX power accuracy: set power in memory first via
+                // ShotPowerToPower so engine has exact value, then use slider
+                // drag as the visual gesture. This way even if slider Y
+                // calibration is slightly off, actual power is still correct.
+                setPower(anim_TargetPower);
                 if (playStyle == STYLE_INSTANT)
                     powerSlider.SimulateDrag(sliderRect, anim_TargetPower, 0.40f, 0.20f);
                 else
@@ -1388,12 +1393,20 @@ void AutoPlay::Update() {
             return;
         }
 
-        // State 2: Wait for power slider to complete (slider already started in state 1)
+        // State 2: Wait for power slider to FINISH before firing
         if (fastShotState == 2) {
-            gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            // FIX: previously this immediately called triggerShot() on the
+            // very first frame of state 2, while the slider was still
+            // actively dragging (powerSlider.Active == true). The shot fired
+            // at whatever intermediate power position the slider happened to
+            // be at that frame — almost always under-powered. Now we wait for
+            // the slider animation to complete naturally before firing.
+            if (powerSlider.Active) {
+                gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
+                                                 sharedGameManager.getShotSpin(), g_CurrentCandidate);
+                return;
+            }
             triggerShot();
-            
             stateStartTime = nowSec();
             fastShotState = 3;
             return;
@@ -1612,6 +1625,8 @@ void AutoPlay::Update() {
                 float sliderYEnd   = Height * persistent_float[O("fPowerBarYEndPercent")];
                 ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
 
+                // FIX power accuracy: set exact power in memory first
+                setPower(pendingShotPower);
                 powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
 
                 stateStartTime = now;
@@ -1624,8 +1639,14 @@ void AutoPlay::Update() {
 
         // 4. PULLING — wait for slider, then fire
         if (humanState == HUM_PULLING) {
+            // FIX: slider finished — fire shot immediately.
+            // Previously used trigerShot() (typo version) which has a
+            // different code path and doesn't set cooldown consistently.
+            // Use triggerShot() (correct) to ensure cooldown is set and
+            // g_CurrentCandidate is cleared, preventing re-scan from
+            // picking the same candidate and pulling slider a second time.
             if (powerSlider.Active) return;
-            trigerShot();
+            triggerShot();
             humanShotLocked = false;
             ClearState();
             state = IDLE;
