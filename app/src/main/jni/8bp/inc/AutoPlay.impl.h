@@ -1614,10 +1614,13 @@ void AutoPlay::Update() {
         if (humanState == HUM_PULLING) {
             if (powerSlider.Active) return;
             triggerShot();
-            stateStartTime = now;
-            humanState = HUM_DELAY_BEFORE_SHOT;
+            humanShotLocked = false;
+            ClearState();
+            state = IDLE;
+            humanState = HUM_IDLE;
             return;
         }
+
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
         // if (now - stateStartTime >= 0.4) {
