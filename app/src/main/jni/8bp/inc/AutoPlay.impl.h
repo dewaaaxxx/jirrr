@@ -1389,8 +1389,8 @@ void AutoPlay::Update() {
         if (fastShotState == 2) {
             gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                              sharedGameManager.getShotSpin(), g_CurrentCandidate);
-
-
+            triggerShot();
+            
             stateStartTime = nowSec();
             fastShotState = 3;
             return;
@@ -1417,7 +1417,7 @@ void AutoPlay::Update() {
                 return;
             }
             
-            triggerShot();
+            //triggerShot();
 
             s_ballsStoppedAt = -1.0;
             anim_IsPulling = false;
