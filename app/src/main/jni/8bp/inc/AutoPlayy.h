@@ -115,6 +115,7 @@ public:
     static void setPower(double power);
     static void takeShot(double angle, double power, bool preserveStartAngle = false);
     static void triggerShot();
+    static void trigerShot();
     static void Shoot(double angle, double power = 0.f);
     static void ScanSlow(double angleStep = 0.02f);
     static void ScanFast(double angleStep = 0.1f);
