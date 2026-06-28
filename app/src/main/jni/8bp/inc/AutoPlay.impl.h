@@ -250,6 +250,16 @@ void AutoPlay::triggerShot() {
     g_shotCooldownEnd = AutoPlay::nowSec() + 0.5;
 }
 
+void AutoPlay::trigerShot() {
+    g_postShotLock = true;
+    g_postShotAngle = (automationSpeed == SPEED_HUMAN) ? targetAngle : anim_TargetAngle;
+    g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
+    g_postShotFrames = 1;  // ← 15 → 1 (hampir instan)
+    M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+    g_shotCooldownEnd = AutoPlay::nowSec() + 0.5;
+    g_postShotLock = false; // ← unlock setelah tembakan
+    }
+
 bool AutoPlay::IsAnimationActive() {
     auto visualCue = sharedGameManager.mVisualCue();
     if (!visualCue) return false;
@@ -1614,7 +1624,7 @@ void AutoPlay::Update() {
         // 4. PULLING — wait for slider, then fire
         if (humanState == HUM_PULLING) {
             if (powerSlider.Active) return;
-            triggerShot();
+            trigerShot();
             humanShotLocked = false;
             ClearState();
             state = IDLE;
@@ -1669,6 +1679,10 @@ void AutoPlay::Update() {
             g_autoPlayCalculating = false;
         }
         g_autoPlayCalculating = false;
+
+        // ── Force release all touches ──
+        NativeTouchesEnd(5, 0, 0);      // lepas joystick
+        NativeTouchesEnd(8, 0, 0);      // lepas slider (jika pakai index 8)
         return; 
     }
 
