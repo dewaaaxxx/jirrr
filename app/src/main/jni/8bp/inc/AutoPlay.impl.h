@@ -794,6 +794,7 @@ void AutoPlay::ScanFast(double angleStep) {
         
         // Sort the entire combined list by score first so we prioritize the best direct AND special/difficult shots!
         std::sort(fs.raw.begin(), fs.raw.end(), [](const Candidate& a, const Candidate& b) {
+    // Prioritaskan direct shot (score lebih kecil lebih baik)
             return a.score < b.score;
         });
         
