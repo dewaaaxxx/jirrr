@@ -256,9 +256,9 @@ void AutoPlay::trigerShot() {
     g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
     g_postShotFrames = 1;  // ← 15 → 1 (hampir instan)
     M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+    g_CurrentCandidate.idx = -1;
     g_shotCooldownEnd = AutoPlay::nowSec() + 0.8;
     g_postShotLock = false; // ← unlock setelah tembakan
-    g_CurrentCandidate.idx = -1;
     }
 
 bool AutoPlay::IsAnimationActive() {
