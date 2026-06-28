@@ -1564,14 +1564,14 @@ void AutoPlay::Update() {
         if (humanState == HUM_OVERSHOOTING) {
             double t = (now - stateStartTime) / 1.1;
             if (t >= 1.0) {
-                setAimAngle(currentOvershootTarget);
-                UpdateJoystickVisuals(currentOvershootTarget);
+                setAimAngle(targetAngle);
+                UpdateJoystickVisuals(targetAngle);
                 stateStartTime = now;
-                humanState = HUM_CORRECTING;
+                humanState = HUM_PULLING;
             } else {
                 double ease = EaseInOutCubic(t);
                 double normalizedStart = normalizeAngle(startAngle);
-                double normalizedTarget = normalizeAngle(currentOvershootTarget);
+                double normalizedTarget = normalizeAngle(targetAngle);
                 double delta = normalizedTarget - normalizedStart;
                 if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
                 double curAngle = normalizedStart + delta * ease;
@@ -1726,6 +1726,8 @@ void AutoPlay::Update() {
             // }
         
             if (powerSlider.Active) return;
+
+            triggerShot();
         
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
@@ -1765,12 +1767,11 @@ void AutoPlay::Update() {
         // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
-            if (now - stateStartTime >= 0.4) {
-                triggerShot();
+        // if (now - stateStartTime >= 0.4) {
                 humanShotLocked = false;
                 ClearState();
                 state = IDLE; humanState = HUM_IDLE;
-            }
+          //  }
             return;
         }
     }
