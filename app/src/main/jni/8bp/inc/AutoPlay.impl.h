@@ -243,7 +243,7 @@ void AutoPlay::triggerShot() {
     g_postShotLock = true;
     g_postShotAngle = (automationSpeed == SPEED_HUMAN) ? targetAngle : anim_TargetAngle;
     g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
-    g_postShotFrames = 3;
+    g_postShotFrames = 0;
     M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     // BUG FIX #2: set cooldown di sini — setelah shot benar-benar ditembak,
     // bukan di ClearState() yang dipanggil dari berbagai path non-shot.
