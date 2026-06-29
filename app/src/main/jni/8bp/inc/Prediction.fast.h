@@ -96,6 +96,11 @@ struct Prediction {
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
 
+    // Kalau true: simulasi berjalan PENUH tanpa early-return dan tanpa skip path tracking.
+    // Di-set true oleh caller (AutoPlay) sebelum determineShotResult untuk evaluasi akurat,
+    // lalu di-set false kembali setelahnya. Default false = mode fast (scan/display).
+    bool forceFullSimulation = false;
+
     void calculateShotResultSize();
     void initBalls();
     void initCueBall(double shotAngle, double shotPower, const Point2D& shotSpin);
@@ -124,16 +129,24 @@ static bool prevIsAuto = false;   // ← adaugă asta
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
+    // Skip cache saat forceFullSimulation=true supaya selalu dapat hasil fresh & akurat.
+    // Cache boleh dipakai hanya untuk display biasa (bukan evaluasi shot kritis).
+    if (!forceFullSimulation) {
         if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin && isAuto == prevIsAuto)
-        return false;  // ← include isAuto în comparație
+            return false;
+    }
 
     prevAngle = shotAngle;
     prevPower = shotPower;
     prevSpin  = shotSpin;
-    prevIsAuto = isAuto;   // ← salvează și asta
+    prevIsAuto = isAuto;
 
     this->m_candidate = cand;
-    fastCalc = isAuto;
+
+    // forceFullSimulation=true → fastCalc=false → simulasi penuh (path tracking aktif,
+    // tidak ada early return, semua bola disimulasikan sampai berhenti).
+    // forceFullSimulation=false → fastCalc=isAuto → mode normal (fast saat isAuto=true).
+    fastCalc = forceFullSimulation ? false : isAuto;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -227,7 +240,11 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                    if (!this->firstHitIsTarget) return;
+                    // Early return hanya di fast mode: kalau first hit bukan target, tidak perlu
+                    // lanjut simulasi (kita tidak peduli apa yang terjadi selanjutnya).
+                    // forceFullSimulation=true: JANGAN early return — kita butuh simulasi penuh
+                    // supaya scratch (cue ball masuk pocket) terdeteksi dengan benar.
+                    if (!this->firstHitIsTarget && !this->forceFullSimulation) return;
                 }
             }
             time -= time2;
