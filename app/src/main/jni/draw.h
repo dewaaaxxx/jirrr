@@ -1253,6 +1253,8 @@ if (curScan == 2) {
             
             // Terapkan ke AutoPlay
             AutoPlay::playStyle = (i == 0) ? AutoPlay::STYLE_NATURAL : AutoPlay::STYLE_INSTANT;
+
+            AutoPlay::automationSpeed = (i == 0) ? AutoPlay::SPEED_HUMAN : AutoPlay::SPEED_FAST;
             
             save_persistence();
             LOGI("[AUTOPLAY] Human Mode changed to: %s", humanNames[i]);
