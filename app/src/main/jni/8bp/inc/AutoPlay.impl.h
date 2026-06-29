@@ -243,23 +243,12 @@ void AutoPlay::triggerShot() {
     g_postShotLock = true;
     g_postShotAngle = (automationSpeed == SPEED_HUMAN) ? targetAngle : anim_TargetAngle;
     g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
-    g_postShotFrames = 0;
+    g_postShotFrames = 15;
     M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     // BUG FIX #2: set cooldown di sini — setelah shot benar-benar ditembak,
     // bukan di ClearState() yang dipanggil dari berbagai path non-shot.
     g_shotCooldownEnd = AutoPlay::nowSec() + 0.5;
 }
-
-void AutoPlay::trigerShot() {
-    g_postShotLock = true;
-    g_postShotAngle = (automationSpeed == SPEED_HUMAN) ? targetAngle : anim_TargetAngle;
-    g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
-    g_postShotFrames = 1;  // ← 15 → 1 (hampir instan)
-    M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
-    g_CurrentCandidate.idx = -1;
-    g_shotCooldownEnd = AutoPlay::nowSec() + 0.8;
-    g_postShotLock = false; // ← unlock setelah tembakan
-    }
 
 bool AutoPlay::IsAnimationActive() {
     auto visualCue = sharedGameManager.mVisualCue();
@@ -459,7 +448,6 @@ void AutoPlay::ScanSlow(double angleStep) {
             if (cleanTableMode == CLEAN_ALL_BALLS) {
                 doSim = (automationSpeed == SPEED_HUMAN); // No lag in Clean Table mode
             }
-            
             gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
             
 
@@ -551,6 +539,12 @@ void AutoPlay::ScanSlow(double angleStep) {
 void AutoPlay::ScanFast(double angleStep) {
     if (g_CurrentCandidate.idx != -1) return;
     
+    // 🔥 TAMBAHKAN INI
+    if (!gPrediction || gPrediction->guiData.ballsCount == 0) {
+        LOGI("HAHAHA : ScanFast skipped: ballsCount=%d", 
+             gPrediction ? gPrediction->guiData.ballsCount : -1);
+        return;
+    }    
     bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
     static double fastSweepAngle = 0.0;
     
@@ -805,7 +799,6 @@ void AutoPlay::ScanFast(double angleStep) {
         
         // Sort the entire combined list by score first so we prioritize the best direct AND special/difficult shots!
         std::sort(fs.raw.begin(), fs.raw.end(), [](const Candidate& a, const Candidate& b) {
-    // Prioritaskan direct shot (score lebih kecil lebih baik)
             return a.score < b.score;
         });
         
@@ -1165,6 +1158,19 @@ void AutoPlay::Update() {
     buttonClicker.Update();
     powerSlider.Update();
 
+    g_lastFastShotTime = 0.0;
+    g_shotCooldownEnd = 0.0;
+
+    // Safety check
+    if (!sharedGameManager || !gPrediction) {
+        LOGI("HAHAHA : Update skipped: sharedGameManager or gPrediction null");
+        return;
+    }
+    if (!sharedGameManager.mTable) {
+        LOGI("HAHAHA :Update skipped: mTable null");
+        return;
+    }
+
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
     static int framesCueBallStill = 10;
@@ -1356,93 +1362,137 @@ void AutoPlay::Update() {
 
         double elapsed_shot = nowSec() - stateStartTime;
 
-        // State 1: brief hold then immediately start power pull
+        // State 1: STABILIZE PHASE (0.15 seconds) - hold joystick at target, then start power pull
         if (fastShotState == 1) {
-            NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR,
+    // Keep joystick held at EXACT target angle during stabilization.
+    NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                         jY + (float)sin(anim_TargetAngle) * jR);
+    setAimAngle(anim_TargetAngle);
+
+    bool shouldTriggerPower = false;
+    if (playStyle == STYLE_INSTANT) {
+        shouldTriggerPower = true;
+    } else if (elapsed_shot >= 0.15) {
+        shouldTriggerPower = true;
+    }
+
+    if (shouldTriggerPower) {
+        // Release joystick RIGHT before power slider starts.
+        NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
+                            jY + (float)sin(anim_TargetAngle) * jR);
+
+        // 🔥 SET POWER LANGSUNG (TANPA SLIDER)
+        setPower(anim_TargetPower);
+
+        stateStartTime = nowSec();
+        fastShotState = 2;
+    }
+    return;
+        }
+        
+        /*if (fastShotState == 1) {
+            // Keep joystick held at EXACT target angle during stabilization.
+            // This prevents the game from resetting aim direction.
+            NativeTouchesMove(5, jX + (float)cos(anim_TargetAngle) * jR, 
                                  jY + (float)sin(anim_TargetAngle) * jR);
             setAimAngle(anim_TargetAngle);
 
-            // Minimal hold (0.05s instant, 0.15s normal) then straight to slider
-            bool shouldTriggerPower = (playStyle == STYLE_INSTANT) ? true : (elapsed_shot >= 0.10);
+            bool shouldTriggerPower = false;
+            if (playStyle == STYLE_INSTANT) {
+                shouldTriggerPower = true;
+            } else if (elapsed_shot >= 0.15) {
+                shouldTriggerPower = true;
+            }
 
             if (shouldTriggerPower) {
-                NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR,
+                // Release joystick RIGHT before power slider starts.
+                // Minimal gap between joystick release and power pull to prevent aim reset.
+                NativeTouchesEnd(5, jX + (float)cos(anim_TargetAngle) * jR, 
                                     jY + (float)sin(anim_TargetAngle) * jR);
 
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
                 float sliderX = Width * sliderXPercent;
-                if (persistent_int[O("iPowerBarSide")] == 1)
-                    sliderX = Width * (1.0f - sliderXPercent);
+                if (persistent_int[O("iPowerBarSide")] == 1) {
+                    sliderX = Width * (1.0f - sliderXPercent); // Right Side
+                }
                 float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                float sliderYEnd   = Height * persistent_float[O("fPowerBarYEndPercent")];
+                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
                 ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-
-                // FIX power accuracy: set power in memory first via
-                // ShotPowerToPower so engine has exact value, then use slider
-                // drag as the visual gesture. This way even if slider Y
-                // calibration is slightly off, actual power is still correct.
-                setPower(anim_TargetPower);
-                if (playStyle == STYLE_INSTANT)
+                if (playStyle == STYLE_INSTANT) {
                     powerSlider.SimulateDrag(sliderRect, anim_TargetPower, 0.40f, 0.20f);
-                else
+                } else {
                     powerSlider.SimulateDrag(sliderRect, anim_TargetPower, 0.85f, 0.40f);
+                }
 
                 stateStartTime = nowSec();
-                fastShotState = 2;
+                fastShotState = 2; // Transition to wait-for-slider phase
             }
             return;
+        }*/
+
+        if (fastShotState == 2) {
+    
+    gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
+                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+    
+
+    // 🔥 TANPA CEK powerSlider.Active — langsung lanjut
+    stateStartTime = nowSec();
+    fastShotState = 3;
+    return;
         }
 
-        // State 2: Wait for power slider to FINISH before firing
-        if (fastShotState == 2) {
-            // FIX: previously this immediately called triggerShot() on the
-            // very first frame of state 2, while the slider was still
-            // actively dragging (powerSlider.Active == true). The shot fired
-            // at whatever intermediate power position the slider happened to
-            // be at that frame — almost always under-powered. Now we wait for
-            // the slider animation to complete naturally before firing.
-            if (powerSlider.Active) {
-                gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
-                                                 sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                return;
+        // State 2: Wait for power slider to complete (slider already started in state 1)
+      /*  if (fastShotState == 2) {
+           // LOGI("[AUTOPLAY] fastShotState 2: powerSlider.Active=%d", powerSlider.Active);
+            
+            gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
+                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            
+
+          /* if (powerSlider.Active) {
+                return; // Wait for slider simulation to finish and release touch
             }
-            triggerShot();
+
             stateStartTime = nowSec();
             fastShotState = 3;
             return;
-        }
+        }*/
 
         // State 3: WAIT FOR BALLS TO STOP
         if (fastShotState == 3) {
             setAimAngle(anim_TargetAngle);
 
             static double s_ballsStoppedAt = -1.0;
+            // Reset tracker kalau baru masuk state ini
             if (s_ballsStoppedAt < stateStartTime) {
-                s_ballsStoppedAt = stateStartTime;
+                s_ballsStoppedAt = nowSec();
             }
 
-            bool timedOut = (nowSec() - stateStartTime > 12.0);
+            bool timedOut = (nowSec() - stateStartTime > 10.0);
 
             if (AreBallsMoving() && !timedOut) {
-                s_ballsStoppedAt = nowSec();
+                s_ballsStoppedAt = nowSec(); // bola masih gerak, reset settled timer
                 return;
             }
 
+            // Tunggu 0.3s setelah bola berhenti sebelum lanjut
             double settledFor = nowSec() - s_ballsStoppedAt;
-            if (settledFor < 0.5 && !timedOut) {
-                return;
-            }
-            
-            //triggerShot();
+            if (settledFor < 0.3 && !timedOut) return;
 
+            triggerShot();  // ← TAMBAHKAN INI!
+
+            // Beres
             s_ballsStoppedAt = -1.0;
             anim_IsPulling = false;
             anim_RotationDone = false;
             anim_TouchStarted = false;
             fastShotState = 0;
-            ClearState();
-            state = IDLE;
             g_lastFastShotTime = nowSec();
+            // Set cooldown singkat biar tidak langsung scan ulang
+            g_shotCooldownEnd = nowSec() + 0.5;
+            state = IDLE;
+            g_CurrentCandidate.idx = -1;
             return;
         }
     }
@@ -1564,9 +1614,11 @@ void AutoPlay::Update() {
             NativeTouchesMove(5, tX, tY);
         };
 
-        // 1. THINKING (brief pause before moving)
+        // 1. THINKING (0.5s pause)
         if (humanState == HUM_THINKING) {
             if (now >= stateStartTime) {
+                overshootOffset = (gen() % 2 == 0 ? 1 : -1) * 0.058;
+                currentOvershootTarget = targetAngle + overshootOffset;
                 stateStartTime = now;
                 humanState = HUM_OVERSHOOTING;
                 NativeTouchesBegin(5, Width * 0.83f, Height * 0.82f);
@@ -1574,101 +1626,211 @@ void AutoPlay::Update() {
             return;
         }
 
-        // 2. DRAG smooth to target angle
+        // 2. ROTATION (1.1s smooth sweep to overshoot)
         if (humanState == HUM_OVERSHOOTING) {
-            double elapsed = now - stateStartTime;
-            double dragDuration = 0.6;
-            double t = elapsed / dragDuration;
-            if (t > 1.0) t = 1.0;
-
-            double ease = EaseInOutCubic(t);
-            double normalizedStart = normalizeAngle(startAngle);
-            double normalizedTarget = normalizeAngle(targetAngle);
-            double delta = normalizedTarget - normalizedStart;
-            if (delta >  M_PI) delta -= 2.0 * M_PI;
-            if (delta < -M_PI) delta += 2.0 * M_PI;
-            double curAngle = normalizedStart + delta * ease;
-
-            setAimAngle(curAngle);
-            UpdateJoystickVisuals(curAngle);
-
-            gPrediction->determineShotResult(true, targetAngle, pendingShotPower,
-                sharedGameManager.getShotSpin(), g_CurrentCandidate);
-
+            double t = (now - stateStartTime) / 1.1;
             if (t >= 1.0) {
-                setAimAngle(targetAngle);
-                UpdateJoystickVisuals(targetAngle);
+                setAimAngle(currentOvershootTarget);
+                UpdateJoystickVisuals(currentOvershootTarget);
                 stateStartTime = now;
-                humanState = HUM_STABILIZING;
+                humanState = HUM_CORRECTING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double normalizedStart = normalizeAngle(startAngle);
+                double normalizedTarget = normalizeAngle(currentOvershootTarget);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
             }
+            
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            
             return;
         }
 
-        // 3. HOLD at target, then start power pull
+        // 3. ELASTIC SNAP BACK (0.35s)
+        if (humanState == HUM_CORRECTING) {
+            double t = (now - stateStartTime) / 0.35;
+            double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
+            double nudgeAngle = targetAngle + dirSign * (1.5 * M_PI / 180.0);
+            
+            if (t >= 1.0) {
+                setAimAngle(nudgeAngle);
+                UpdateJoystickVisuals(nudgeAngle);
+                stateStartTime = now;
+                humanState = HUM_HOLDING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double normalizedStart = normalizeAngle(currentOvershootTarget);
+                double normalizedTarget = normalizeAngle(nudgeAngle);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            
+            return;
+        }
+
+        // 3b. HOLD TOUCH AT TARGET (0.40s slow nudge/adjustment to exact target + hold)
+        if (humanState == HUM_HOLDING) {
+            double t = (now - stateStartTime) / 0.40;
+            double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
+            double nudgeAngle = targetAngle + dirSign * (1.5 * M_PI / 180.0);
+            
+            if (t >= 1.0) {
+                setAimAngle(targetAngle);
+                UpdateJoystickVisuals(targetAngle);
+                
+                float jX = Width * 0.83f;
+                float jY = Height * 0.82f;
+                float jR = 65.0f;
+                // Keep joystick held at target - DO NOT release yet!
+                // Releasing here causes 0.4s+0.85s gap with no joystick touch,
+                // during which the game resets aim direction → wrong angle on shot.
+                NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
+                                     jY + (float)sin(targetAngle) * jR);
+                stateStartTime = now;
+                humanState = HUM_STABILIZING;
+            } else {
+                double ease = sin(t * M_PI_2); // Ease-out to slow down at target
+                double normalizedStart = normalizeAngle(nudgeAngle);
+                double normalizedTarget = normalizeAngle(targetAngle);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            
+            return;
+        }
+
+        // 4. STABILIZE & LOCK (0.4s) - joystick still held from HUM_HOLDING
         if (humanState == HUM_STABILIZING) {
             float jX = Width * 0.83f;
             float jY = Height * 0.82f;
             float jR = 65.0f;
-            NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR,
+            // Keep joystick actively held at target angle during stabilization.
+            // This ensures game always has native touch direction = targetAngle.
+            NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
                                  jY + (float)sin(targetAngle) * jR);
             setAimAngle(targetAngle);
+            if (now - stateStartTime >= 0.4) {
+                if (currentMode == MODE_AUTO_PLAY) {
+                    // Release joystick RIGHT when transitioning to power pull.
+                    // Minimal gap between release and power start prevents aim reset.
+                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
+                                        jY + (float)sin(targetAngle) * jR);
+                    stateStartTime = now;
+                    startPower = getCurrentPower();
+                    targetPower = pendingShotPower;
+                    humanState = HUM_PULLING;
+                } else {
+                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
+                                        jY + (float)sin(targetAngle) * jR);
+                    bAimedThisTurn = true;
+                    lastCuePosWhenAimed = gPrediction->guiData.balls[0].initialPosition;
+                    g_postAimLock = true;
+                    g_postAimAngle = targetAngle;
+                    g_postAimPower = pendingShotPower;
+                    g_postAimFrames = 20; // Hold for 20 frames to stabilize and prevent reset
+                    state = IDLE; humanState = HUM_IDLE;
+                }
+            }
+            return;
+        }
 
-           // if (now - stateStartTime >= 0.18) {
-                NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR,
-                                    jY + (float)sin(targetAngle) * jR);
-
+        // 5. POWER PULL (0.85s smooth) via simulated slider touch
+        /*if (humanState == HUM_PULLING) {
+            setAimAngle(targetAngle);
+            if (!powerSlider.Active) {
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
                 float sliderX = Width * sliderXPercent;
-                if (persistent_int[O("iPowerBarSide")] == 1)
-                    sliderX = Width * (1.0f - sliderXPercent);
+                if (persistent_int[O("iPowerBarSide")] == 1) {
+                    sliderX = Width * (1.0f - sliderXPercent); // Right Side
+                }
                 float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                float sliderYEnd   = Height * persistent_float[O("fPowerBarYEndPercent")];
+                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
                 ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
 
-                // FIX power accuracy: set exact power in memory first
-                setPower(pendingShotPower);
                 powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+            }
 
-                stateStartTime = now;
-                startPower  = getCurrentPower();
-                targetPower = pendingShotPower;
-                humanState  = HUM_PULLING;
-            //}
+            
+            gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            
+
+            if (powerSlider.Active) {
+                return; // Wait for slider simulation to finish and release touch
+            }
+
+            stateStartTime = now;
+            humanState = HUM_DELAY_BEFORE_SHOT;
             return;
-        }
+        }*/
 
-        // 4. PULLING — wait for slider, then fire
         if (humanState == HUM_PULLING) {
-            // FIX: slider finished — fire shot immediately.
-            // Previously used trigerShot() (typo version) which has a
-            // different code path and doesn't set cooldown consistently.
-            // Use triggerShot() (correct) to ensure cooldown is set and
-            // g_CurrentCandidate is cleared, preventing re-scan from
-            // picking the same candidate and pulling slider a second time.
-            if (powerSlider.Active) return;
-            triggerShot();
-            humanShotLocked = false;
-            ClearState();
-            state = IDLE;
-            humanState = HUM_IDLE;
-            return;
+    setAimAngle(targetAngle);
+
+    // 🔥 Mulai slider (kalau belum aktif)
+    if (!powerSlider.Active) {
+        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+        float sliderX = Width * sliderXPercent;
+        if (persistent_int[O("iPowerBarSide")] == 1) {
+            sliderX = Width * (1.0f - sliderXPercent);
+        }
+        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
+        float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
+        ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
+
+        powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+    }
+
+    // 🔥 Tunggu slider selesai DULU
+    if (powerSlider.Active) {
+        return; // slider masih jalan, tunggu
+    }
+
+    // 🔥 Simulasi prediksi SETELAH slider selesai
+    
+    gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+    
+
+    stateStartTime = now;
+    humanState = HUM_DELAY_BEFORE_SHOT;
+    return;
         }
 
+        // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
-            setAimAngle(targetAngle);
-        // if (now - stateStartTime >= 0.4) {
-                humanShotLocked = false;
-                ClearState();
-                state = IDLE; humanState = HUM_IDLE;
-          //  }
-            return;
+    setAimAngle(targetAngle);
+    if (now - stateStartTime >= 0.4) {
+        // 🔥 TAMBAHKAN INI!
+        triggerShot();
+
+        humanShotLocked = false;
+        ClearState();
+        state = IDLE;
+        humanState = HUM_IDLE;
+    }
+    return;
         }
     }
 
     // ABORT HANDLER: If user turns off AutoPlay or turn ends
     if (!bAutoPlaying || !isPlayerTurn) {
         if (humanShotLocked || anim_IsPulling || state == SCANNING || state == NOMINATING) {
-            if (humanState == HUM_OVERSHOOTING || humanState == HUM_STABILIZING) {
+            if (humanState == HUM_OVERSHOOTING || humanState == HUM_CORRECTING || humanState == HUM_HOLDING || humanState == HUM_STABILIZING) {
                 float jX = Width * 0.83f;
                 float jY = Height * 0.82f;
                 NativeTouchesEnd(5, jX, jY);
@@ -1701,10 +1863,6 @@ void AutoPlay::Update() {
             g_autoPlayCalculating = false;
         }
         g_autoPlayCalculating = false;
-
-        // ── Force release all touches ──
-        NativeTouchesEnd(5, 0, 0);      // lepas joystick
-        NativeTouchesEnd(8, 0, 0);      // lepas slider (jika pakai index 8)
         return; 
     }
 
