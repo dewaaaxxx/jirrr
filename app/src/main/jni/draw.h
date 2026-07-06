@@ -21,7 +21,7 @@ using namespace std;
 #include <GLES3/gl3.h>
 
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoPlay.impl.h"
+#include "8bp/inc/AutoPlay.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
@@ -1192,7 +1192,7 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
             Dummy(ImVec2(0,8));
 
             // ===== SCAN MODE =====
-TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Scan Mode", "ﺢﺴﻤﻟﺍ ﻊﻀﻭ"));
+/*TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Scan Mode", "ﺢﺴﻤﻟﺍ ﻊﻀﻭ"));
 Dummy(ImVec2(0, 8));
 
 int curScan = persistent_int.count("iScanMode") ? persistent_int["iScanMode"] : 0;
@@ -1264,7 +1264,7 @@ if (curScan == 2) {
     }
     PopStyleVar();
     Dummy(ImVec2(0, 14));
-}
+}*/
 
             // ── Slider X ──
 float sliderX = persistent_float[O("fPowerBarXPercent")];
