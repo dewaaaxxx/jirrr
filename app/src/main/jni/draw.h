@@ -1019,19 +1019,8 @@ static void DrawToggleButton() {
 
         // Logika Klik (Toggle ON/OFF)
         if (clicked) {
-    AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
-    
-    if (AutoPlay::bAutoPlaying) {
-        AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;  // <-- WAJIB!
-        persistent_bool[O("bAutoPlay")] = true;
-        AutoPlay::ClearState();
-    } else {
-        AutoPlay::currentMode = AutoPlay::MODE_OFF;
-        persistent_bool[O("bAutoPlay")] = false;
-        AutoPlay::ClearState();
-    }
-    
-    save_persistence();
+            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
+            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
         }
     }
     End();
