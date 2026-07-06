@@ -1,10 +1,14 @@
 #pragma once
 
 #include "include/input.h"
-//#include "AutoPlayy.h"
+
+extern struct Candidate;
+extern Candidate g_CurrentCandidate;
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
+
+extern Point2D lastFailedCuePos;
 
 extern bool IsShotValid();
 
