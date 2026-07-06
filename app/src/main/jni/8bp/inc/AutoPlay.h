@@ -2,10 +2,11 @@
 
 #include "Prediction.fast.h"
 #include <imgui/imgui.h>
+#include <chrono>  // ← TAMBAHKAN INI
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-//#include "mod/ButtonClicker.h"
+#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -228,6 +229,17 @@ namespace AutoPlay {
     bool didSetAngle = false;
     bool bAutoPlaying = false;
     double luxuryPrecisionModifier = 1.0;  // Adjustable precision for luxury mode
+    static inline HumanState humanState = HUM_IDLE;
+    static inline double targetAngle = 0;
+    static inline double startAngle = 0;
+    static inline double targetPower = 0;
+    static inline double stateStartTime = 0;
+
+    enum HumanState {
+       HUM_IDLE,
+       HUM_OVERSHOOTING,
+       HUM_PULLING,
+    };
 
     enum State {
         IDLE,
@@ -246,6 +258,16 @@ namespace AutoPlay {
         PRECISION,  // New luxury precision mode
     } scan = FAST;
 
+    static double nowSec() {
+       auto now = std::chrono::steady_clock::now();
+       auto duration = now.time_since_epoch();
+       return std::chrono::duration<double>(duration).count();
+    }
+
+    static double EaseInOutCubic(double t) {
+        return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+    }
+
     bool shouldAutoPlay() { 
         return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); 
     }
@@ -256,14 +278,15 @@ namespace AutoPlay {
     }
 
     void takeShot(double angle, double power) {
-        setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
-        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
-        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
-        
-        // Log metrics for luxury tracking
-        g_AutoPlayMetrics.totalShotsAttempted++;
-        g_AutoPlayMetrics.averagePower = (g_AutoPlayMetrics.averagePower * (g_AutoPlayMetrics.totalShotsAttempted - 1) + power) / g_AutoPlayMetrics.totalShotsAttempted;
+       targetAngle = angle;
+       targetPower = power;
+       startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+       stateStartTime = nowSec();
+       humanState = HUM_OVERSHOOTING;
+
+    // Jangan nembak langsung
+    // sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
+    // M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
     
     void ClearState() {
@@ -715,5 +738,50 @@ namespace AutoPlay {
                 state = IDLE;
         }
     }
+        // ─── DRAG JOYSTICK ──────────────────────────────────────
+if (humanState == HUM_OVERSHOOTING) {
+    double now = nowSec();
+    double t = (now - stateStartTime) / 0.6;
+    if (t > 1.0) t = 1.0;
+    double ease = EaseInOutCubic(t);
+    double curAngle = startAngle + (targetAngle - startAngle) * ease;
+    setAimAngle(curAngle);
+
+    auto UpdateJoystickVisuals = [&](double angle) {
+        float jX = Width * 0.83f;
+        float jY = Height * 0.82f;
+        float jR = 65.0f;
+        float tX = jX + cos(angle) * jR;
+        float tY = jY + sin(angle) * jR;
+        NativeTouchesMove(5, tX, tY);
+    };
+    UpdateJoystickVisuals(curAngle);
+
+    if (t >= 1.0) {
+        setAimAngle(targetAngle);
+        UpdateJoystickVisuals(targetAngle);
+        humanState = HUM_PULLING;
+    }
+    return;
+}
+
+// ─── DRAG SLIDER ──────────────────────────────────────
+if (humanState == HUM_PULLING) {
+    if (!powerSlider.Active) {
+        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+        float sliderX = Width * sliderXPercent;
+        if (persistent_int[O("iPowerBarSide")] == 1)
+            sliderX = Width * (1.0f - sliderXPercent);
+        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
+        float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
+        ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
+
+        powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+    }
+    if (powerSlider.Active) return;
+    takeShot(targetAngle, targetPower);
+    humanState = HUM_IDLE;
+    return;
+}
 }
 };
