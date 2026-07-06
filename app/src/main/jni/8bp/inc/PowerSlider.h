@@ -1,7 +1,7 @@
 #pragma once
 
 #include "include/input.h"
-#include "AutoPlayy.h"
+//#include "AutoPlayy.h"
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
