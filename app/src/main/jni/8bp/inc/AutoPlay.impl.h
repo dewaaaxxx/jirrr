@@ -69,7 +69,7 @@ double normalizeAngle(double angle) {
 
 static double CalculateRequiredPower(double totalDist) {
     // AIMX Physics Sync: v = sqrt(2 * a * s) where a = 196.0
-    double p = sqrt(totalDist * 2.0 * 196.0); 
+    double p = sqrt(totalDist * 2.0 * 185.0); // 196 → 185
     if (p < 100.0) p = 100.0; 
     if (p > 666.0) p = 666.0;
     return p;
@@ -242,7 +242,7 @@ void AutoPlay::takeShot(double angle, double power, bool preserveStartAngle) {
 void AutoPlay::triggerShot() {
     g_postShotLock = true;
     g_postShotAngle = (automationSpeed == SPEED_HUMAN) ? targetAngle : anim_TargetAngle;
-    g_postShotPower = (automationSpeed == SPEED_HUMAN) ? pendingShotPower : anim_TargetPower;
+    g_postShotPower = pendingShotPower; // selalu pakai pendingShotPower
     g_postShotFrames = 15;
     M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     // BUG FIX #2: set cooldown di sini — setelah shot benar-benar ditembak,
