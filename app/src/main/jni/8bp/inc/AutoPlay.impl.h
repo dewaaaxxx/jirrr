@@ -218,6 +218,7 @@ double AutoPlay::getCurrentPower() {
 void AutoPlay::takeShot(double angle, double power, bool preserveStartAngle) {
     anim_TargetAngle = angle;
     anim_TargetPower = power;
+    targetPower = power; // ← TAMBAHKAN INI
     anim_CurrentPower = 0.0;
     anim_IsPulling = true;
     anim_StartTime = 0;
