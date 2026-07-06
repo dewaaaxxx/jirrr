@@ -229,7 +229,6 @@ namespace AutoPlay {
     bool didSetAngle = false;
     bool bAutoPlaying = false;
     double luxuryPrecisionModifier = 1.0;  // Adjustable precision for luxury mode
-    static inline HumanState humanState = HUM_IDLE;
     static inline double targetAngle = 0;
     static inline double startAngle = 0;
     static inline double targetPower = 0;
@@ -240,6 +239,8 @@ namespace AutoPlay {
        HUM_OVERSHOOTING,
        HUM_PULLING,
     };
+
+    static inline HumanState humanState = HUM_IDLE;
 
     enum State {
         IDLE,
