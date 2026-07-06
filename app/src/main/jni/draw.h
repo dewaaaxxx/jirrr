@@ -32,7 +32,7 @@ static float g_sideBtnsX      = 0.0f;
 static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
 static std::chrono::steady_clock::time_point g_aqCountdownStart;
-static bool DEBUG_BYPASS_LOGIN = true;
+static bool DEBUG_BYPASS_LOGIN = false;
 static const int64_t EXPIRY_TS = O(1784426596);
 
 static const char* L(const char* en, const char* ar);
