@@ -1,3 +1,4 @@
+#include "PhysicsModel.h"
 #include "AutoPlayy.h"
 #include "Prediction.fast.h"
 extern ButtonClicker buttonClicker;
@@ -6,6 +7,216 @@ extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 // --- Static Helpers ---
+
+struct PhysicsEngine {
+    static constexpr double BALL_DIAMETER = 2.0 * Physics::BALL_RADIUS;
+    static constexpr double GRAVITY = 9.81;
+
+    // ========================================================================
+    // Power needed for the TARGET ball to travel from its position to the
+    // pocket, PLUS the power the cue ball loses traveling to the collision
+    // point. FIX: the previous version of this function accepted
+    // `cueToBallDist` as a parameter but never used it anywhere in the body
+    // — meaning a shot where the cue ball has to travel far before even
+    // reaching the target ball got the exact same power estimate as a shot
+    // where the cue ball is right next to the target. The cue ball would
+    // arrive at the target already too slow, transfer too little energy,
+    // and the target ball would fall short of the pocket. Both legs of the
+    // shot are now accounted for.
+    // ========================================================================
+    static double calculatePowerForTargetToPocket(
+        double cueToBallDist,      // Distance from cue to collision point
+        double ballToPocketDist,   // Distance the TARGET ball must travel
+        const FrictionProperties& friction
+    ) {
+        if (ballToPocketDist < 1.0) ballToPocketDist = 1.0;
+        if (cueToBallDist < 1.0) cueToBallDist = 1.0;
+
+        // Sliding-phase deceleration constant matching the real engine
+        // (see Prediction.fast.h's decompiled calcVelocity reference:
+        // _velocityReductionSlidingFactor == 196.0). Using a generic
+        // friction*gravity formula here would drastically under/over
+        // estimate the power needed.
+        double slidingDeceleration = friction._velocityReductionSlidingFactor;
+        if (slidingDeceleration < 1.0) slidingDeceleration = 196.0;
+
+        double velocityForTarget = std::sqrt(2.0 * slidingDeceleration * ballToPocketDist);
+        double velocityForCue    = std::sqrt(2.0 * slidingDeceleration * cueToBallDist);
+
+        // Combine both legs, plus a margin for collision transfer
+        // inefficiency (energy lost in the cue->target collision itself).
+        double power = (velocityForCue + velocityForTarget) * 1.25;
+
+        return std::min(std::max(power, 100.0), 666.0);
+    }
+
+    // ========================================================================
+    // GHOST BALL POSITION: where the CUE BALL's center must be at the
+    // moment of contact so the target ball travels toward `aimPoint`
+    // (normally the pocket — but for bank shots we pass in a MIRRORED
+    // pocket position instead, see ScanFast's bank-shot section below).
+    // ========================================================================
+    static Point2D calculateGhostBallPosition(
+        const Point2D& targetBallPos,
+        const Point2D& aimPoint
+    ) {
+        Point2D toAim = aimPoint - targetBallPos;
+        double distance = std::sqrt(toAim.square());
+        if (distance < 0.1) return targetBallPos;
+
+        Point2D direction = toAim * (1.0 / distance);
+        return targetBallPos - direction * BALL_DIAMETER;
+    }
+
+    // ========================================================================
+    // Aim angle for the cue ball: direction from the CUE BALL to the GHOST
+    // BALL position (NOT direction from target->pocket, which ignores
+    // where the cue ball actually is).
+    // ========================================================================
+    static double calculateAngleToAimPoint(
+        const Point2D& cueBallPos,
+        const Point2D& targetBallPos,
+        const Point2D& aimPoint
+    ) {
+        Point2D ghostBallPos = calculateGhostBallPosition(targetBallPos, aimPoint);
+        Point2D cueToGhost = ghostBallPos - cueBallPos;
+        double angle = std::atan2(cueToGhost.y, cueToGhost.x);
+        if (angle < 0) angle += TWO_PI;
+        return angle;
+    }
+
+    static Point2D calculateCollisionPoint(
+        const Point2D& targetBallPos,
+        const Point2D& aimPoint
+    ) {
+        return calculateGhostBallPosition(targetBallPos, aimPoint);
+    }
+
+    // ========================================================================
+    // Shot accuracy: alignment between cue->target and target->aimPoint.
+    // ========================================================================
+    static double calculateShotAccuracy(
+        const Point2D& cueBallPos,
+        const Point2D& targetBallPos,
+        const Point2D& aimPoint
+    ) {
+        Point2D cueToTarget = targetBallPos - cueBallPos;
+        Point2D targetToAim = aimPoint - targetBallPos;
+
+        double cueToTargetLen = std::sqrt(cueToTarget.square());
+        double targetToAimLen = std::sqrt(targetToAim.square());
+
+        if (cueToTargetLen < 0.1 || targetToAimLen < 0.1) return 0.0;
+
+        double dotProduct = (cueToTarget.x * targetToAim.x) + (cueToTarget.y * targetToAim.y);
+        double accuracy = dotProduct / (cueToTargetLen * targetToAimLen);
+
+        return std::max(0.0, std::min(1.0, accuracy));
+    }
+
+    // ========================================================================
+    // Shot score (lower = better/preferred).
+    // bankPenalty: multiplier applied to bank-shot candidates so direct
+    // shots are always tried first (bank shots are inherently riskier).
+    // ========================================================================
+    static double calculateShotScore(
+        double targetBallTravelDist,
+        double accuracy,
+        BallType ballType,
+        BallType myBallType,
+        bool isMyBall,
+        double bankPenalty = 1.0
+    ) {
+        double baseScore = targetBallTravelDist;
+        baseScore *= (1.0 - (accuracy * 0.5));
+
+        if (isMyBall) {
+            baseScore *= 0.2;
+        } else if (ballType != EIGHT_BALL) {
+            baseScore *= 3.0;
+        }
+
+        baseScore *= bankPenalty;
+        return baseScore;
+    }
+
+    static bool isPocketReachable(double dist) {
+        return dist >= MIN_POCKET_DIST && dist <= MAX_POCKET_DIST;
+    }
+
+    static bool validateCueBallSafety(const Prediction& pred) {
+        return pred.guiData.balls[0].onTable;
+    }
+
+    static bool validateEightBallSafety(const Prediction& pred, BallType myBallType) {
+        auto& ball8 = pred.guiData.balls[8];
+        if (ball8.originalOnTable && !ball8.onTable && myBallType != EIGHT_BALL) {
+            return false;
+        }
+        return true;
+    }
+
+    static bool validateFirstHit(const Prediction& pred, BallType myBallType, BallType targetBallType) {
+        auto firstHit = pred.guiData.collision.firstHitBall;
+        if (!firstHit) return false;
+
+        BallType hitType = INVALID;
+        if (firstHit->index == 8) {
+            hitType = EIGHT_BALL;
+        } else if (firstHit->classification == Ball::Classification::EIGHT_BALL) {
+            hitType = EIGHT_BALL;
+        } else if (firstHit->index >= 1 && firstHit->index <= 7) {
+            hitType = SOLIDS;
+        } else if (firstHit->index >= 9 && firstHit->index <= 15) {
+            hitType = STRIPES;
+        }
+
+        if (hitType == EIGHT_BALL) {
+            return myBallType == EIGHT_BALL;
+        }
+        return hitType == targetBallType;
+    }
+
+    static bool validateTargetBallPocketed(const Prediction& pred, int targetIdx) {
+        auto& targetBall = pred.guiData.balls[targetIdx];
+        return targetBall.originalOnTable && !targetBall.onTable;
+    }
+
+    // ========================================================================
+    // BANK SHOT GEOMETRY: mirror a pocket across one of the table's 4 flat
+    // rail walls. A ball aimed at the MIRRORED pocket position will, upon
+    // colliding with the real wall, naturally redirect toward the REAL
+    // pocket (standard mirror-image bank-shot trick). This is only an
+    // INITIAL angle estimate — the actual simulation (determineShotResult)
+    // still has to validate that the ball really ends up in the correct
+    // pocket, since this simplified rectangular-wall approximation ignores
+    // the table's rounded corners / pocket cutout shape.
+    // ========================================================================
+    struct BankWall { double axis; bool vertical; };
+
+    static void GetBankWalls(BankWall outWalls[4]) {
+        Table table = sharedGameManager.mTable;
+        double halfLen = 127.0, halfWid = 63.5;
+        if (table) {
+            auto props = table.mTableProperties();
+            if (props) {
+                halfLen = props.getLength() / 2.0;
+                halfWid = props.getWidth() / 2.0;
+            }
+        }
+        outWalls[0] = { -halfLen, true  }; // left rail
+        outWalls[1] = {  halfLen, true  }; // right rail
+        outWalls[2] = { -halfWid, false }; // top rail
+        outWalls[3] = {  halfWid, false }; // bottom rail
+    }
+
+    static Point2D MirrorAcrossWall(const Point2D& point, const BankWall& wall) {
+        return wall.vertical
+            ? Point2D(2.0 * wall.axis - point.x, point.y)
+            : Point2D(point.x, 2.0 * wall.axis - point.y);
+    }
+};
+
 
 // AutoPlay.h - di dalam class AutoPlay, bagian public
 static inline bool IsShotValid() {
@@ -445,7 +656,13 @@ void AutoPlay::ScanSlow(double angleStep) {
         currentScanAngle += angleStep;
         steps++;
 
-        std::vector<double> powers = { CalculateRequiredPower(150.0), CalculateRequiredPower(350.0), (double)powerMax };
+        const FrictionProperties& friction = sharedGameManager.mTable._frictionProperties();
+
+        // Hitung power pakai PhysicsEngine
+        double power1 = PhysicsEngine::calculatePowerForTargetToPocket(150.0, 150.0, friction);
+        double power2 = PhysicsEngine::calculatePowerForTargetToPocket(350.0, 350.0, friction);
+
+        std::vector<double> powers = { power1, power2, (double)powerMax };
         for (double power : powers) {
             // HUMAN/FAST: Always show lines during scan for flicker effect
             bool doSim = true;
@@ -642,7 +859,12 @@ void AutoPlay::ScanFast(double angleStep) {
                     double angle = atan2(shotLine.y, shotLine.x);
                     if (angle < 0) angle += 2 * M_PI;
                     double score = distCueToTarget + distTargetToPocket;
-                    double power = CalculateRequiredPower(score);
+                    const FrictionProperties& friction = sharedGameManager.mTable._frictionProperties();
+                    double power = PhysicsEngine::calculatePowerForTargetToPocket(
+                        distCueToTarget,
+                        distTargetToPocket,
+                        friction
+                    );
                     specialRaw.push_back({i, angle, score, pocketIdx, power});
 
 
