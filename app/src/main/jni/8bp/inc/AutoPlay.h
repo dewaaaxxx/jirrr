@@ -875,7 +875,6 @@ namespace AutoPlay {
             }
         }
     }
-};
     double lastSetAngle = 0.f;
     bool didSetAngle = false;
     bool bAutoPlaying = false;
