@@ -233,6 +233,20 @@ namespace AutoPlay {
     static inline double startAngle = 0;
     static inline double targetPower = 0;
     static inline double stateStartTime = 0;
+    static inline double overshootOffset = 0;
+    static inline double currentOvershootTarget = 0;
+    static inline double startPower = 0;
+    static inline bool humanShotLocked = false;
+    static inline bool humanNeedsNomination = false;
+    static inline int humanNominationPocket = -1;
+    static inline bool g_postAimLock = false;
+    static inline double g_postAimAngle = 0.0;
+    static inline double g_postAimPower = 0.0;
+    static inline int g_postAimFrames = 0;
+    
+    // ── Variabel tambahan untuk human state machine ──
+    static inline bool bAimedThisTurn = false;
+    static inline Point2D lastCuePosWhenAimed = { -1000.0, -1000.0 };
 
     enum HumanState {
        HUM_IDLE,
@@ -258,6 +272,28 @@ namespace AutoPlay {
         SLOW,
         PRECISION,  // New luxury precision mode
     } scan = FAST;
+    
+    static double getCurrentPower() {
+        if (!sharedGameManager) return 0.0;
+        auto vc = sharedGameManager.mVisualCue();
+        if (!vc) return 0.0;
+        return vc.mPower();
+    }
+    
+    static void setPower(double power) {
+        if (!sharedGameManager) return;
+        auto vc = sharedGameManager.mVisualCue();
+        if (!vc) return;
+        vc.mPower(ShotPowerToPower(power));
+    }
+    
+    static void triggerShot() {
+        g_postShotLock = true;
+        g_postShotAngle = targetAngle;
+        g_postShotPower = pendingShotPower;
+        g_postShotFrames = 15;
+        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+    }
 
     static double nowSec() {
        auto now = std::chrono::steady_clock::now();
@@ -739,50 +775,207 @@ namespace AutoPlay {
                 state = IDLE;
         }
     }
-        // ─── DRAG JOYSTICK ──────────────────────────────────────
-if (humanState == HUM_OVERSHOOTING) {
-    double now = nowSec();
-    double t = (now - stateStartTime) / 0.6;
-    if (t > 1.0) t = 1.0;
-    double ease = EaseInOutCubic(t);
-    double curAngle = startAngle + (targetAngle - startAngle) * ease;
-    setAimAngle(curAngle);
+    
+        // =====================================================================
+    // HUMAN STATE MACHINE - Must run FIRST, before any animation checks!
+    // =====================================================================
+    if (humanState != HUM_IDLE) {
+        if (state == NOMINATING_HUMAN) {
+            nominationFrameCounter++;
+            if (nominationFrameCounter == 15) buttonClicker.Click(GetPocketScreenPos(humanNominationPocket));
+            if (nominationFrameCounter > 35 && !buttonClicker.Active) {
+                humanState = HUM_THINKING; 
+                stateStartTime = nowSec() + 0.35;
+                state = EXECUTING; humanNeedsNomination = false;
+            }
+            return;
+        }
 
-    auto UpdateJoystickVisuals = [&](double angle) {
-        float jX = Width * 0.83f;
-        float jY = Height * 0.82f;
-        float jR = 65.0f;
-        float tX = jX + cos(angle) * jR;
-        float tY = jY + sin(angle) * jR;
-        NativeTouchesMove(5, tX, tY);
-    };
-    UpdateJoystickVisuals(curAngle);
+        double now = nowSec();
 
-    if (t >= 1.0) {
-        setAimAngle(targetAngle);
-        UpdateJoystickVisuals(targetAngle);
-        humanState = HUM_PULLING;
+        auto UpdateJoystickVisuals = [&](double angle) {
+            float jX = Width * 0.83f;
+            float jY = Height * 0.82f;
+            float jR = 65.0f;
+            float tX = jX + cos(angle) * jR;
+            float tY = jY + sin(angle) * jR;
+            NativeTouchesMove(5, tX, tY);
+        };
+
+        // 1. THINKING (0.5s pause)
+        if (humanState == HUM_THINKING) {
+            if (now >= stateStartTime) {
+                overshootOffset = (gen() % 2 == 0 ? 1 : -1) * 0.058;
+                currentOvershootTarget = targetAngle + overshootOffset;
+                stateStartTime = now;
+                humanState = HUM_OVERSHOOTING;
+                NativeTouchesBegin(5, Width * 0.83f, Height * 0.82f);
+            }
+            return;
+        }
+
+        // 2. ROTATION (1.1s smooth sweep to overshoot)
+        if (humanState == HUM_OVERSHOOTING) {
+            double t = (now - stateStartTime) / 1.1;
+            if (t >= 1.0) {
+                setAimAngle(currentOvershootTarget);
+                UpdateJoystickVisuals(currentOvershootTarget);
+                stateStartTime = now;
+                humanState = HUM_CORRECTING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double normalizedStart = normalizeAngle(startAngle);
+                double normalizedTarget = normalizeAngle(currentOvershootTarget);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            gPrediction->forceFullSimulation = false;
+            return;
+        }
+
+        // 3. ELASTIC SNAP BACK (0.35s)
+        if (humanState == HUM_CORRECTING) {
+            double t = (now - stateStartTime) / 0.35;
+            double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
+            double nudgeAngle = targetAngle + dirSign * (1.5 * M_PI / 180.0);
+            
+            if (t >= 1.0) {
+                setAimAngle(nudgeAngle);
+                UpdateJoystickVisuals(nudgeAngle);
+                stateStartTime = now;
+                humanState = HUM_HOLDING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double normalizedStart = normalizeAngle(currentOvershootTarget);
+                double normalizedTarget = normalizeAngle(nudgeAngle);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            gPrediction->forceFullSimulation = false;
+            return;
+        }
+
+        // 3b. HOLD TOUCH AT TARGET (0.40s slow nudge/adjustment to exact target + hold)
+        if (humanState == HUM_HOLDING) {
+            double t = (now - stateStartTime) / 0.40;
+            double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
+            double nudgeAngle = targetAngle + dirSign * (1.5 * M_PI / 180.0);
+            
+            if (t >= 1.0) {
+                setAimAngle(targetAngle);
+                UpdateJoystickVisuals(targetAngle);
+                
+                float jX = Width * 0.83f;
+                float jY = Height * 0.82f;
+                float jR = 65.0f;
+                // Keep joystick held at target - DO NOT release yet!
+                // Releasing here causes 0.4s+0.85s gap with no joystick touch,
+                // during which the game resets aim direction → wrong angle on shot.
+                NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
+                                     jY + (float)sin(targetAngle) * jR);
+                stateStartTime = now;
+                humanState = HUM_STABILIZING;
+            } else {
+                double ease = sin(t * M_PI_2); // Ease-out to slow down at target
+                double normalizedStart = normalizeAngle(nudgeAngle);
+                double normalizedTarget = normalizeAngle(targetAngle);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            gPrediction->forceFullSimulation = false;
+            return;
+        }
+
+        // 4. STABILIZE & LOCK (0.4s) - joystick still held from HUM_HOLDING
+        if (humanState == HUM_STABILIZING) {
+            float jX = Width * 0.83f;
+            float jY = Height * 0.82f;
+            float jR = 65.0f;
+            // Keep joystick actively held at target angle during stabilization.
+            // This ensures game always has native touch direction = targetAngle.
+            NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
+                                 jY + (float)sin(targetAngle) * jR);
+            setAimAngle(targetAngle);
+            if (now - stateStartTime >= 0.4) {
+                if (currentMode == MODE_AUTO_PLAY) {
+                    // Release joystick RIGHT when transitioning to power pull.
+                    // Minimal gap between release and power start prevents aim reset.
+                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
+                                        jY + (float)sin(targetAngle) * jR);
+                    stateStartTime = now;
+                    startPower = getCurrentPower();
+                    targetPower = pendingShotPower;
+                    humanState = HUM_PULLING;
+                } else {
+                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
+                                        jY + (float)sin(targetAngle) * jR);
+                    bAimedThisTurn = true;
+                    lastCuePosWhenAimed = gPrediction->guiData.balls[0].initialPosition;
+                    g_postAimLock = true;
+                    g_postAimAngle = targetAngle;
+                    g_postAimPower = pendingShotPower;
+                    g_postAimFrames = 20; // Hold for 20 frames to stabilize and prevent reset
+                    state = IDLE; humanState = HUM_IDLE;
+                }
+            }
+            return;
+        }
+
+        // 5. POWER PULL (0.85s smooth) via simulated slider touch
+        if (humanState == HUM_PULLING) {
+            setAimAngle(targetAngle);
+            if (!powerSlider.Active) {
+                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+                float sliderX = Width * sliderXPercent;
+                if (persistent_int[O("iPowerBarSide")] == 1) {
+                    sliderX = Width * (1.0f - sliderXPercent); // Right Side
+                }
+                float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
+                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
+                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
+
+                powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+            }
+
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            gPrediction->forceFullSimulation = false;
+
+            if (powerSlider.Active) {
+                return; // Wait for slider simulation to finish and release touch
+            }
+
+            stateStartTime = now;
+            humanState = HUM_DELAY_BEFORE_SHOT;
+            return;
+        }
+
+        // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
+        if (humanState == HUM_DELAY_BEFORE_SHOT) {
+            setAimAngle(targetAngle);
+            if (now - stateStartTime >= 0.4) {
+                humanShotLocked = false;
+                ClearState();
+                state = IDLE; humanState = HUM_IDLE;
+            }
+            return;
+        }
     }
-    return;
-}
-
-// ─── DRAG SLIDER ──────────────────────────────────────
-if (humanState == HUM_PULLING) {
-    if (!powerSlider.Active) {
-        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-        float sliderX = Width * sliderXPercent;
-        if (persistent_int[O("iPowerBarSide")] == 1)
-            sliderX = Width * (1.0f - sliderXPercent);
-        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-        float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
-        ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-
-        powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
-    }
-    if (powerSlider.Active) return;
-    takeShot(targetAngle, targetPower);
-    humanState = HUM_IDLE;
-    return;
-}
 }
 };
