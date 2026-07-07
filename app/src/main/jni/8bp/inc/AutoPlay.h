@@ -8,8 +8,6 @@
 #include <random>
 #include "ScreenTable.h"
 #include "PowerSlider.h"
-#include "ButtonClicker.h"
-
 using namespace ImGui;
 
 // ============================================================================
