@@ -1,14 +1,12 @@
 #pragma once
 
 #include "Prediction.fast.h"
+#include <chrono>
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
-#include <chrono>
-#include <random>
 #include "ScreenTable.h"
 #include "PowerSlider.h"
-#include "ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -151,6 +149,10 @@ inline double RankCandidate(
 // CORE AUTOPLAY IMPLEMENTATION
 // ============================================================================
 
+static double EaseInOutCubic(double t) {
+    return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+}
+
 double normalizeAngle(double angle) {
     double newAngle = angle;
     if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
@@ -226,45 +228,29 @@ bool IsShotValid() {
 
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
 
-// ── Human mode global state ───────────────────────────────────────────────────
-static std::mt19937 gen(std::random_device{}());
-
-// Timing helper
-static double nowSec() {
-    return std::chrono::duration<double>(
-        std::chrono::steady_clock::now().time_since_epoch()).count();
-}
-
-// Human animation state
-static double stateStartTime       = 0.0;
-static double targetAngle          = 0.0;
-static double startAngle           = 0.0;
-static double currentOvershootTarget = 0.0;
-static double overshootOffset      = 0.0;
-static double targetPower          = 0.0;
-static double startPower           = 0.0;
-static bool   humanShotLocked      = false;
-static bool   bAimedThisTurn       = false;
-
-// Post-shot lock to stabilize after firing
-static bool   g_postShotLock   = false;
-static double g_postShotAngle  = 0.0;
-static double g_postShotPower  = 0.0;
-static int    g_postShotFrames = 0;
-
-// Shot cooldown
-static double g_shotCooldownEnd = 0.0;
-
-// EaseInOutCubic helper
-static double EaseInOutCubic(double t) {
-    return t < 0.5 ? 4*t*t*t : 1.0 - pow(-2.0*t+2.0, 3.0)/2.0;
-}
-
 namespace AutoPlay {
-    double lastSetAngle = 0.0;
-    bool   didSetAngle  = false;
-    bool   bAutoPlaying = false;
+    double lastSetAngle = 0.f;
+    bool didSetAngle = false;
+    bool bAutoPlaying = false;
+    double luxuryPrecisionModifier = 1.0;  // Adjustable precision for luxury mode
 
+    enum State {
+        IDLE,
+        SCANNING,
+        NOMINATING,
+        EXECUTING,
+    } state = IDLE;
+    
+    double pendingShotPower = 0.f;
+    double pendingShotAngle = 0.f;
+    int nominationFrameCounter = 0;
+    
+    enum ScanMode {
+        FAST,
+        SLOW,
+        PRECISION,  // New luxury precision mode
+    } scan = FAST;
+    
     enum HumanState {
         HUM_IDLE,
         HUM_THINKING,
@@ -274,25 +260,34 @@ namespace AutoPlay {
         HUM_STABILIZING,
         HUM_PULLING,
         HUM_DELAY_BEFORE_SHOT,
-    } humanState = HUM_IDLE;
+    };
+    
+    // ── Variabel Human State ──
+    static inline HumanState humanState = HUM_IDLE;
+    static inline double stateStartTime = 0;
+    static inline double targetAngle = 0, startAngle = 0, currentOvershootTarget = 0;
+    static inline double overshootOffset = 0;
+    static inline double aimDuration = 0.8, pullDuration = 0.6;
+    static inline double stabilizeDuration = 0.3;
+    static inline double startPower = 0, targetPower = 0;
+    static inline bool humanShotLocked = false;
+    static inline bool g_PredictionLocked = false;
+    static inline bool humanNeedsNomination = false;
+    static inline int humanNominationPocket = -1;
+    
+    // ── Random engine ──
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_real_distribution<> humanDelayDist(0.15, 0.4);
+    
+    static double nowSec() {
+        auto now = std::chrono::steady_clock::now();
+        auto duration = now.time_since_epoch();
+        return std::chrono::duration<double>(duration).count();
+    }
 
-    enum AutoPlayState {
-        IDLE,
-        SCANNING,
-        NOMINATING,
-        EXECUTING,
-    } state = AutoPlayState::IDLE;
-
-    double pendingShotPower = 0.0;
-    double pendingShotAngle = 0.0;
-    int    nominationFrameCounter = 0;
-    int    humanNominationPocket  = -1;
-    bool   humanNeedsNomination   = false;
-
-    enum ScanMode { FAST, SLOW, PRECISION } scan = FAST;
-
-    bool shouldAutoPlay() {
-        return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+    bool shouldAutoPlay() { 
+        return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); 
     }
 
     void setAimAngle(double angle) {
@@ -300,470 +295,432 @@ namespace AutoPlay {
         sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(angle);
     }
 
-    void setPower(double power) {
-        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
+    void takeShot(double angle, double power) {
+        targetAngle = angle;
+        targetPower = power;
+        startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+        stateStartTime = ();
+        humanState = HUM_THINKING;
     }
-
-    double getCurrentPower() {
-        return sharedGameManager.mVisualCue().getShotPower(false);
+    
+    void triggerShot() {
+        g_postShotLock = true;
+        g_postShotAngle = targetAngle;
+        g_postShotPower = pendingShotPower;
+        g_postShotFrames = 15;
+        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
-
-    // Joystick helper
-    void UpdateJoystick(double angle) {
+    
+    auto UpdateJoystickVisuals = [&](double angle) {
         float jX = Width * 0.83f;
         float jY = Height * 0.82f;
         float jR = 65.0f;
-        NativeTouchesMove(5, jX + (float)cos(angle) * jR,
-                             jY + (float)sin(angle) * jR);
-    }
-
+        float tX = jX + cos(angle) * jR;
+        float tY = jY + sin(angle) * jR;
+        NativeTouchesMove(5, tX, tY);
+    };
+    
     void ClearState() {
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
-        humanShotLocked  = false;
-        humanState       = HUM_IDLE;
-
-        // Release joystick if held
-        float jX = Width * 0.83f, jY = Height * 0.82f;
-        NativeTouchesEnd(5, jX, jY);
-
-        // Cancel power slider if active
-        if (powerSlider.Active) powerSlider.Cancel();
-        if (buttonClicker.Active) {
-            NativeTouchesEnd(buttonClicker.TouchIndex, buttonClicker.ClickPos.x, buttonClicker.ClickPos.y);
-            buttonClicker.Active = false;
-        }
+        state = IDLE;
+        humanState = HUM_IDLE;
     }
-
-    void triggerShot() {
-        g_postShotLock   = true;
-        g_postShotAngle  = targetAngle;
-        g_postShotPower  = targetPower;
-        g_postShotFrames = 15;
-        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
-        g_shotCooldownEnd = nowSec() + 0.5;
-    }
-
-    void takeShot(double angle, double power) {
-        // Start human mode animation
-        startAngle   = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-        targetAngle  = angle;
-        targetPower  = power;
-        pendingShotPower = power;
-        pendingShotAngle = angle;
-
-        humanShotLocked = true;
-        humanState      = HUM_THINKING;
-        stateStartTime  = nowSec() + 0.5; // 0.5s thinking pause
-        state           = AutoPlayState::EXECUTING;
-    }
-
-    void Shoot(double angle, double power = 0.0) {
+    
+    void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
-        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+        gPrediction->determineShotResult(false, angle, power);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
         auto myclass = sharedGameManager.getPlayerClassification();
-        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) ||
-            (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-            if (g_CurrentCandidate.idx != -1 &&
-                sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
+            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
                 nominating = true;
             }
         }
 
         if (nominating) {
-            pendingShotPower         = power;
-            pendingShotAngle         = angle;
-            humanNominationPocket    = g_CurrentCandidate.pocketIndex;
-            humanNeedsNomination     = true;
-            state                    = AutoPlayState::NOMINATING;
-            nominationFrameCounter   = 0;
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            state = NOMINATING;
+            nominationFrameCounter = 0;
         } else {
             takeShot(angle, power);
+            ClearState();
+            state = IDLE;
         }
     }
-
-    // ── Human state machine ────────────────────────────────────────────────────
-    void RunHumanStateMachine() {
-        if (humanState == HUM_IDLE) return;
-
-        double now = nowSec();
-
-        // 1. THINKING — wait before starting rotation
-        if (humanState == HUM_THINKING) {
-            if (now >= stateStartTime) {
-                overshootOffset      = ((gen() % 2 == 0) ? 1 : -1) * 0.058;
-                currentOvershootTarget = targetAngle + overshootOffset;
-                stateStartTime       = now;
-                humanState           = HUM_OVERSHOOTING;
-                NativeTouchesBegin(5, Width * 0.83f, Height * 0.82f);
-            }
-            return;
-        }
-
-        // 2. OVERSHOOTING — smooth sweep to overshoot angle (1.1s)
-        if (humanState == HUM_OVERSHOOTING) {
-            double t = (now - stateStartTime) / 1.1;
-            if (t >= 1.0) {
-                setAimAngle(currentOvershootTarget);
-                UpdateJoystick(currentOvershootTarget);
-                stateStartTime = now;
-                humanState     = HUM_CORRECTING;
-            } else {
-                double ease = EaseInOutCubic(t);
-                double ns   = normalizeAngle(startAngle);
-                double nt   = normalizeAngle(currentOvershootTarget);
-                double d    = nt - ns;
-                if (d >  M_PI) d -= 2.0*M_PI;
-                if (d < -M_PI) d += 2.0*M_PI;
-                double cur  = ns + d * ease;
-                setAimAngle(cur);
-                UpdateJoystick(cur);
-            }
-            gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            return;
-        }
-
-        // 3. CORRECTING — elastic snap back to nudge angle (0.35s)
-        if (humanState == HUM_CORRECTING) {
-            double t = (now - stateStartTime) / 0.35;
-            double dirSign  = (overshootOffset > 0) ? 1.0 : -1.0;
-            double nudgeAng = targetAngle + dirSign * (1.5 * M_PI / 180.0);
-            if (t >= 1.0) {
-                setAimAngle(nudgeAng);
-                UpdateJoystick(nudgeAng);
-                stateStartTime = now;
-                humanState     = HUM_HOLDING;
-            } else {
-                double ease = EaseInOutCubic(t);
-                double ns   = normalizeAngle(currentOvershootTarget);
-                double nt   = normalizeAngle(nudgeAng);
-                double d    = nt - ns;
-                if (d >  M_PI) d -= 2.0*M_PI;
-                if (d < -M_PI) d += 2.0*M_PI;
-                setAimAngle(ns + d * ease);
-                UpdateJoystick(ns + d * ease);
-            }
-            gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            return;
-        }
-
-        // 4. HOLDING — slow nudge to exact target (0.40s)
-        if (humanState == HUM_HOLDING) {
-            double t = (now - stateStartTime) / 0.40;
-            double dirSign  = (overshootOffset > 0) ? 1.0 : -1.0;
-            double nudgeAng = targetAngle + dirSign * (1.5 * M_PI / 180.0);
-            if (t >= 1.0) {
-                setAimAngle(targetAngle);
-                UpdateJoystick(targetAngle);
-                stateStartTime = now;
-                humanState     = HUM_STABILIZING;
-            } else {
-                double ease = sin(t * M_PI / 2.0);
-                double ns   = normalizeAngle(nudgeAng);
-                double nt   = normalizeAngle(targetAngle);
-                double d    = nt - ns;
-                if (d >  M_PI) d -= 2.0*M_PI;
-                if (d < -M_PI) d += 2.0*M_PI;
-                setAimAngle(ns + d * ease);
-                UpdateJoystick(ns + d * ease);
-            }
-            gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            return;
-        }
-
-        // 5. STABILIZING — hold joystick at target (0.4s) then start power pull
-        if (humanState == HUM_STABILIZING) {
-            float jX = Width * 0.83f, jY = Height * 0.82f, jR = 65.0f;
-            NativeTouchesMove(5, jX + (float)cos(targetAngle)*jR,
-                                 jY + (float)sin(targetAngle)*jR);
-            setAimAngle(targetAngle);
-
-            if (now - stateStartTime >= 0.4) {
-                // Release joystick RIGHT before power pull
-                NativeTouchesEnd(5, jX + (float)cos(targetAngle)*jR,
-                                    jY + (float)sin(targetAngle)*jR);
-                stateStartTime = now;
-                startPower     = getCurrentPower();
-                humanState     = HUM_PULLING;
-            }
-            return;
-        }
-
-        // 6. PULLING — simulate power slider drag (0.85s)
-        if (humanState == HUM_PULLING) {
-            setAimAngle(targetAngle);
-
-            if (!powerSlider.Active) {
-                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-                float sliderX = (sliderXPercent > 0.01f) ? Width * sliderXPercent : Width * 0.858f;
-                if (persistent_int.count(O("iPowerBarSide")) && persistent_int[O("iPowerBarSide")] == 1)
-                    sliderX = Width * (1.0f - sliderXPercent);
-                float sliderYStart = persistent_float[O("fPowerBarYStartPercent")];
-                float sliderYEnd   = persistent_float[O("fPowerBarYEndPercent")];
-                sliderYStart = (sliderYStart > 0.01f) ? Height * sliderYStart : Height * 0.18f;
-                sliderYEnd   = (sliderYEnd   > 0.01f) ? Height * sliderYEnd   : Height * 0.82f;
-                ImVec4 rect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-                powerSlider.SimulateDrag(rect, (float)targetPower, 0.85f, 0.40f);
-            }
-
-            gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-
-            if (powerSlider.Active) return; // tunggu slider selesai
-
-            stateStartTime = now;
-            humanState     = HUM_DELAY_BEFORE_SHOT;
-            return;
-        }
-
-        // 7. DELAY BEFORE SHOT — final pause (0.4s) then FIRE
-        if (humanState == HUM_DELAY_BEFORE_SHOT) {
-            setAimAngle(targetAngle);
-            if (now - stateStartTime >= 0.4) {
-                // Set angle + power di memory sekali lagi biar tidak drift
-                setAimAngle(targetAngle);
-                setPower(targetPower);
-                triggerShot();
-                humanShotLocked = false;
-                humanState      = HUM_IDLE;
-                ClearState();
-                state = AutoPlayState::IDLE;
-            }
-            return;
-        }
-    }
-
+    
     void ScanPrecision(double angleStep = 0.005f) {
-        static double currentScanAngle = 0.0;
-        static bool isScanning = false;
-        static Point2D lastScanCuePos = { -1000.0, -1000.0 };
+    static double currentScanAngle = 0.0;
+    static bool isScanning = false;
+    static Point2D lastScanCuePos = { -1000.0, -1000.0 };
 
-        if (g_CurrentCandidate.idx != -1) return;
-        if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
-            currentScanAngle = 0.0; isScanning = true;
-            lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
-        }
+    if (g_CurrentCandidate.idx != -1) return;
 
-        Ball::Classification myclass = sharedGameManager.getPlayerClassification();
-        uint nominatedPocket = sharedGameManager.getNominatedPocket();
-
-        bool only8BallLeft = false;
-        if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
-            bool found = false;
-            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                auto& b = gPrediction->guiData.balls[i];
-                if (b.originalOnTable && b.classification == myclass) { found = true; break; }
-            }
-            if (!found) only8BallLeft = true;
-        }
-
-        int steps = 0;
-        while (steps < 15 && currentScanAngle < maxAngle) {
-            double angle = currentScanAngle;
-            currentScanAngle += angleStep;
-            steps++;
-
-            std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
-            for (double power : powers) {
-                gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-                if (!gPrediction->guiData.balls[0].onTable) continue;
-                auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                if (!firstHit) continue;
-                if (only8BallLeft) {
-                    if (firstHit->classification != Ball::Classification::EIGHT_BALL) continue;
-                } else if (myclass != Ball::Classification::ANY) {
-                    if (firstHit->classification != myclass) continue;
-                } else {
-                    if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
-                }
-
-                int targetIdx = -1;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.originalOnTable || ball.onTable) continue;
-                    bool isValid = false;
-                    if (only8BallLeft) { if (ball.classification == Ball::Classification::EIGHT_BALL) isValid = true; }
-                    else if (myclass == Ball::Classification::ANY) { if (ball.classification != Ball::Classification::EIGHT_BALL && ball.classification != Ball::Classification::CUE_BALL) isValid = true; }
-                    else { if (ball.classification == myclass) isValid = true; }
-                    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                    if (isValid) { targetIdx = i; break; }
-                }
-                if (targetIdx == -1) continue;
-                if (targetIdx == 8 && !only8BallLeft) continue;
-                if (gPrediction->guiData.balls[targetIdx].onTable) continue;
-
-                g_CurrentCandidate.idx = targetIdx;
-                g_CurrentCandidate.angle = angle;
-                g_CurrentCandidate.power = power;
-                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
-                isScanning = false; currentScanAngle = 0.0;
-                Shoot(angle, power);
-                return;
-            }
-        }
-        if (currentScanAngle >= maxAngle) { isScanning = false; currentScanAngle = 0.0; scan = SLOW; state = AutoPlayState::IDLE; }
+    if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
+        currentScanAngle = 0.0;
+        isScanning = true;
+        lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
     }
 
+    Ball::Classification myclass = sharedGameManager.getPlayerClassification();
+    uint nominatedPocket = sharedGameManager.getNominatedPocket();
+
+    // FIX: Detect if all our balls are gone (only 8-ball left to shoot)
+    bool only8BallLeft = false;
+    if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+        bool foundOwnBall = false;
+        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+            auto& b = gPrediction->guiData.balls[i];
+            if (b.originalOnTable && b.classification == myclass) {
+                foundOwnBall = true;
+                break;
+            }
+        }
+        if (!foundOwnBall) only8BallLeft = true;
+    }
+
+    int steps = 0;
+
+    while (steps < 15 && currentScanAngle < maxAngle) {
+        double angle = currentScanAngle;
+        currentScanAngle += angleStep;
+        steps++;
+
+        std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
+        for (double power : powers) {
+            gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+
+            if (!gPrediction->guiData.balls[0].onTable) continue;
+
+            // FIX: firstHit validation — handle 8-ball turn correctly
+            auto firstHit = gPrediction->guiData.collision.firstHitBall;
+            if (!firstHit) continue;
+
+            if (only8BallLeft) {
+                // When it's time to shoot the 8-ball, first hit MUST be the 8-ball
+                if (firstHit->classification != Ball::Classification::EIGHT_BALL) continue;
+            } else if (myclass != Ball::Classification::ANY) {
+                // Normal turn: first hit must be our own group
+                if (firstHit->classification != myclass) continue;
+            } else {
+                // Open table: can't hit 8-ball first
+                if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
+            }
+
+            // Find valid target that was potted
+            int targetIdx = -1;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (!ball.originalOnTable || ball.onTable) continue;
+
+                bool isValid = false;
+
+                if (only8BallLeft) {
+                    // FIX: Only 8-ball is valid target now
+                    if (ball.classification == Ball::Classification::EIGHT_BALL) isValid = true;
+                } else if (myclass == Ball::Classification::ANY) {
+                    if (ball.classification != Ball::Classification::EIGHT_BALL &&
+                        ball.classification != Ball::Classification::CUE_BALL) {
+                        isValid = true;
+                    }
+                } else {
+                    // Match our group only (exclude 8-ball unless only8BallLeft)
+                    if (ball.classification == myclass) isValid = true;
+                }
+
+                if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                if (isValid) { targetIdx = i; break; }
+            }
+
+            if (targetIdx == -1) continue;
+
+            // FIX: prevent premature 8-ball pot
+            if (targetIdx == 8 && !only8BallLeft) continue;
+
+            // FIX: make sure the specific candidate ball actually went in
+            if (gPrediction->guiData.balls[targetIdx].onTable) continue;
+
+            LOGI("ScanPrecision: Found shot - Ball %d, angle %.4f, power %.1f", targetIdx, angle, power);
+            g_CurrentCandidate.idx = targetIdx;
+            g_CurrentCandidate.angle = angle;
+            g_CurrentCandidate.power = power;
+            g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
+            isScanning = false;
+            currentScanAngle = 0.0;
+            Shoot(angle, power);
+            return;
+        }
+    }
+
+    if (currentScanAngle >= maxAngle) {
+        LOGI("ScanPrecision: No shot found, switching to ScanSlow");
+        isScanning = false;
+        currentScanAngle = 0.0;
+        scan = SLOW;
+        state = IDLE;
+    }
+}
+
+    
     void ScanSlow(double angleStep = 0.01f) {
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
+
         if (g_CurrentCandidate.idx != -1) return;
+        
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
-            currentScanAngle = 0.0; isScanning = true;
+            currentScanAngle = 0.0;
+            isScanning = true;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
         }
+
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
+        
         int steps = 0;
         bool foundShot = false;
+        
         while (steps < 10 && currentScanAngle < maxAngle) {
-            double angle = currentScanAngle; currentScanAngle += angleStep; steps++;
+            double angle = currentScanAngle;
+            currentScanAngle += angleStep;
+            steps++;
+
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-                bool isPotentiallyValid = false; int targetIdx = -1;
+                
+                bool isPotentiallyValid = false;
+                int targetIdx = -1;
                 bool isNineBallGame = myclass == Ball::Classification::NINE_BALL_RULE;
+
                 if (isNineBallGame) {
-                    int lowest = -1;
-                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) { if (gPrediction->guiData.balls[i].originalOnTable) { lowest = i; break; } }
-                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                    if (!firstHit || firstHit->index != lowest || !gPrediction->guiData.balls[0].onTable) continue;
-                    int best = -1;
+                    int iFoundLowestNumberedBall = -1;
                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                        auto& b = gPrediction->guiData.balls[i];
-                        if (b.originalOnTable && !b.onTable) {
-                            if (nominatedPocket < 6 && b.pocketIndex != nominatedPocket) continue;
-                            if (i == 9) { best = 9; break; }
-                            if (best == -1 || i == firstHit->index) best = i;
+                        if (gPrediction->guiData.balls[i].originalOnTable) {
+                            iFoundLowestNumberedBall = i;
+                            break;
                         }
                     }
-                    if (best == -1) continue;
-                    g_CurrentCandidate = {best, angle, 0.0, (int)(gPrediction->guiData.balls[best].pocketIndex), power};
-                    foundShot = true; Shoot(angle, power); break;
+
+                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                    if (!firstHit || firstHit->index != iFoundLowestNumberedBall) continue;
+                    if (!gPrediction->guiData.balls[0].onTable) continue;
+
+                    int bestPottedIdx = -1;
+                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                        auto& ball = gPrediction->guiData.balls[i];
+                        if (ball.originalOnTable && !ball.onTable) {
+                            if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                            if (i == 9) { bestPottedIdx = 9; break; }
+                            if (bestPottedIdx == -1 || i == firstHit->index) bestPottedIdx = i;
+                        }
+                    }
+
+                    if (bestPottedIdx == -1) continue;
+                    g_CurrentCandidate.idx = bestPottedIdx;
+                    g_CurrentCandidate.angle = angle;
+                    g_CurrentCandidate.power = power;
+                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
+
+                    foundShot = true;
+                    Shoot(angle, power);
+                    break;
                 }
+
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (ball.originalOnTable && !ball.onTable) {
-                        bool isValid = (myclass == Ball::Classification::ANY)
-                            ? (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL)
-                            : (ball.classification == myclass);
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                        if (isValid) { targetIdx = i; break; }
+                        bool isValidTarget = false;
+                        if (myclass == Ball::Classification::ANY) {
+                            if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                        } else {
+                            if (ball.classification == myclass) isValidTarget = true;
+                        }
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValidTarget = false;
+                        if (isValidTarget) { targetIdx = i; break; }
                     }
                 }
+
                 if (targetIdx != -1) {
                     if (!gPrediction->guiData.balls[0].onTable) continue;
                     if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
-                    auto fh = gPrediction->guiData.collision.firstHitBall;
-                    if (!fh) continue;
-                    if (myclass == Ball::Classification::ANY) { if (fh->classification == Ball::Classification::EIGHT_BALL) continue; }
-                    else if (fh->classification != myclass) continue;
+                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                    if (!firstHit) continue;
+                    if (myclass == Ball::Classification::ANY) {
+                        if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
+                    } else if (firstHit->classification != myclass) continue;
+
                     isPotentiallyValid = true;
-                    g_CurrentCandidate = {targetIdx, angle, 0.0, (int)(gPrediction->guiData.balls[targetIdx].pocketIndex), power};
+                    g_CurrentCandidate.idx = targetIdx;
+                    g_CurrentCandidate.angle = angle;
+                    g_CurrentCandidate.power = power;
+                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
                 }
-                if (isPotentiallyValid) { foundShot = true; Shoot(angle, power); break; }
+
+                if (isPotentiallyValid) {
+                    foundShot = true;
+                    Shoot(angle, power);
+                    break;
+                }
             }
             if (foundShot) break;
         }
-        if (!foundShot && currentScanAngle >= maxAngle) { isScanning = false; currentScanAngle = 0.0; state = AutoPlayState::IDLE; }
-    }
 
+        if (!foundShot && currentScanAngle >= maxAngle) {
+            isScanning = false;
+            currentScanAngle = 0.0;
+            state = IDLE;
+        }
+    }
+    
     void ScanFast(double angleStep = 0.1f) {
+        /**
+         * EXPLOSIVE FAST SCAN: Dynamic multi-candidate ranking algorithm
+         * Uses advanced physics-based scoring to identify explosive shot combinations
+         */
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
 
+        double startingAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         std::vector<Candidate> candidates;
         auto pockets = getPockets();
         auto& cueBall = gPrediction->guiData.balls[0];
-
-        bool bFoundLowest = false; int iLowest = -1;
-        bool isNineBall = myclass == Ball::Classification::NINE_BALL_RULE;
+        double spinMagnitude = ExtractSpinMagnitude(sharedGameManager.getShotSpin());
+        
+        bool bFoundLowestNumberedBall = false;
+        int iFoundLowestNumberedBall = -1;
+        bool isNineBallGame = myclass == Ball::Classification::NINE_BALL_RULE;
+        int ballsRemaining = gPrediction->guiData.ballsCount;
 
         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-            if (isNineBall && bFoundLowest) break;
+            if (isNineBallGame && bFoundLowestNumberedBall) break;
             auto& ball = gPrediction->guiData.balls[i];
             if (!ball.originalOnTable) continue;
-            if (!bFoundLowest) { bFoundLowest = true; iLowest = i; }
-            if (!isNineBall) {
-                bool ok = (myclass == Ball::Classification::ANY)
-                    ? ball.classification != Ball::Classification::EIGHT_BALL
-                    : ball.classification == myclass;
-                if (!ok) continue;
+            if (!bFoundLowestNumberedBall) { bFoundLowestNumberedBall = true; iFoundLowestNumberedBall = i; }
+
+            if (!isNineBallGame) {
+                bool isACandidate = myclass == Ball::Classification::ANY ? ball.classification != Ball::Classification::EIGHT_BALL : ball.classification == myclass;
+                if (!isACandidate) continue;
             }
-            for (int pi = 0; pi < (int)pockets.size(); pi++) {
-                if (nominatedPocket < 6 && pi != nominatedPocket) continue;
-                Point2D toPocket = pockets[pi] - ball.initialPosition;
-                double dist = sqrt(toPocket.square());
-                if (dist < 0.1) continue;
-                Point2D dir = toPocket * (1.0/dist);
-                Point2D ghost = ball.initialPosition - dir * (2.0*BALL_RADIUS);
-                Point2D shot  = ghost - cueBall.initialPosition;
-                double distCue = sqrt(shot.square());
-                double angle = atan2(shot.y, shot.x);
-                if (angle < 0) angle += 2*M_PI;
-                double power = CalculateOptimalPowerAdvanced(distCue + dist);
-                candidates.push_back({i, angle, distCue+dist, pi, power});
+
+            for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
+                if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
+                Point2D pocket = pockets[pocketIdx];
+                Point2D toPocket = pocket - ball.initialPosition;
+                double distTargetToPocket = sqrt(toPocket.square());
+                if (distTargetToPocket < 0.1) continue;
+                
+                Point2D direction = toPocket * (1.0 / distTargetToPocket);
+                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
+                Point2D shotLine = ghostBallPos - cueBall.initialPosition;
+                double distCueToTarget = sqrt(shotLine.square());
+                double angle = atan2(shotLine.y, shotLine.x);
+                if (angle < 0) angle += 2 * M_PI;
+                
+                // REVOLUTIONARY PHYSICS: Advanced power calculation
+                double power = CalculateOptimalPowerAdvanced(distCueToTarget + distTargetToPocket, spinMagnitude, 1.0);
+                double compositeScore = distCueToTarget + distTargetToPocket;
+                
+                if (power > 666.0) power = 666.0;
+                candidates.push_back({i, angle, compositeScore, pocketIdx, power});
             }
         }
+        
+        // Sort by total distance (cue->ball + ball->pocket) — closest/easiest
+        // shot first. The previous RankCandidate() function used
+        // `cos(cand.angle - atan2(0, cand.power))` as "angle quality", but
+        // atan2(0, positiveNumber) is always 0, so this was really just
+        // cos(cand.angle) — a bonus/penalty based on the shot's absolute
+        // direction in world space, completely unrelated to shot difficulty.
+        // That caused shots aimed roughly rightward (~0 rad) to score higher
+        // than easy direct shots aimed in other directions, and sometimes
+        // preferred bank shots that happened to have a "good" absolute angle
+        // over simpler direct shots.
         std::sort(candidates.begin(), candidates.end());
-
-        bool found = false;
+        
+        bool foundShot = false;
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
             if (!gPrediction->firstHitIsTarget) continue;
             if (!gPrediction->guiData.balls[0].onTable) continue;
 
-            if (isNineBall) {
-                auto fh = gPrediction->guiData.collision.firstHitBall;
-                if (!fh || fh->index != cand.idx) continue;
-                int best = -1;
+            if (isNineBallGame) {
+                auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                if (!firstHit || firstHit->index != cand.idx) continue;
+
+                int bestPottedIdx = -1;
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& b = gPrediction->guiData.balls[i];
-                    if (b.originalOnTable && !b.onTable) {
-                        if (nominatedPocket < 6 && b.pocketIndex != nominatedPocket) continue;
-                        if (i == 9) { best = 9; break; }
-                        if (best == -1 || i == cand.idx) best = i;
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (ball.originalOnTable && !ball.onTable) {
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                        if (i == 9) { bestPottedIdx = 9; break; }
+                        if (bestPottedIdx == -1 || i == cand.idx) bestPottedIdx = i;
                     }
                 }
-                if (best == -1) continue;
-                g_CurrentCandidate = cand; g_CurrentCandidate.idx = best;
-                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[best].pocketIndex;
-                found = true; Shoot(angle, cand.power); break;
+                if (bestPottedIdx == -1) continue;
+                g_CurrentCandidate = cand;
+                g_CurrentCandidate.idx = bestPottedIdx;
+                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
+                foundShot = true;
+                Shoot(angle, cand.power);
+                break;
             }
 
             if (gPrediction->guiData.balls[cand.idx].onTable) continue;
             if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
 
-            auto& tb = gPrediction->guiData.balls[cand.idx];
-            bool good = (tb.originalOnTable && !tb.onTable);
-            if (good && gPrediction->guiData.collision.firstHitBall) {
-                auto fh = gPrediction->guiData.collision.firstHitBall;
-                if (myclass != Ball::Classification::ANY && fh->classification != myclass) good = false;
-                else if (myclass == Ball::Classification::ANY && fh->classification == Ball::Classification::EIGHT_BALL) good = false;
-            }
-            if (good && !gPrediction->guiData.balls[0].onTable) good = false;
-            auto& eb = gPrediction->guiData.balls[8];
-            bool only8 = false;
-            if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
-                bool fw = false;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) { auto& b = gPrediction->guiData.balls[i]; if (b.originalOnTable && b.classification == myclass) { fw = true; break; } }
-                if (!fw) only8 = true;
-            }
-            if (good && eb.originalOnTable && !eb.onTable && !only8 && myclass != Ball::Classification::EIGHT_BALL) good = false;
+            // FIX: previously checked if ANY ball of our group was potted,
+            // meaning a shot that potted an OPPONENT's ball could still pass
+            // if one of our balls happened to also go in during the same
+            // simulation. Now we specifically verify that `cand.idx` (the
+            // intended target ball) is the one that actually got potted.
+            auto& targetBall = gPrediction->guiData.balls[cand.idx];
+            bool isAngleGood = (targetBall.originalOnTable && !targetBall.onTable);
 
-            if (good) { g_CurrentCandidate = cand; found = true; Shoot(angle, cand.power); break; }
+            if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
+                 auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                 if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) isAngleGood = false;
+                 else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
+            }
+
+            if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
+            
+            // FIX: check only8BallLeft same way as IsShotValid — don't reject
+            // the 8-ball pot when it IS the right time to shoot it.
+            auto& eightBallRef = gPrediction->guiData.balls[8];
+            bool only8Left = false;
+            if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+                bool foundOwn = false;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& b = gPrediction->guiData.balls[i];
+                    if (b.originalOnTable && b.classification == myclass) { foundOwn = true; break; }
+                }
+                if (!foundOwn) only8Left = true;
+            }
+            if (isAngleGood && eightBallRef.originalOnTable && !eightBallRef.onTable
+                && !only8Left && myclass != Ball::Classification::EIGHT_BALL) {
+                isAngleGood = false;
+            }
+            
+            if (isAngleGood) {
+                g_CurrentCandidate = cand;
+                foundShot = true;
+                Shoot(angle, cand.power);
+                break;
+            }
         }
-        if (!found) { lastFailedCuePos = cueBall.initialPosition; scan = SLOW; }
+
+        if (!foundShot) {
+            lastFailedCuePos = cueBall.initialPosition;
+            scan = SLOW;
+        }
     }
 
     bool isAnimationActive() {
@@ -771,108 +728,187 @@ namespace AutoPlay {
         if (!visualCue) return true;
         auto _powerBarView = F(ptr, visualCue + 0x510);
         if (!_powerBarView) return true;
+        
         uintptr_t activeAction = M(uintptr_t, libmain + 0x2de6f30, ptr)(_powerBarView);
-        return (activeAction != 0);
+        return (activeAction != 0); 
     }
-
-    bool AreBallsMoving() {
-        if (!sharedGameManager) return false;
-        Table table = sharedGameManager.mTable;
-        if (!table) return false;
-        auto& balls = table.mBalls();
-        for (int i = 0; i < 16 && balls; i++) {
-            auto b = balls[i];
-            if (b.instance) {
-                auto v = b.velocity();
-                if (v.x*v.x + v.y*v.y > 0.01) return true;
-            }
-        }
-        return false;
-    }
-
-    void DrawToggleButton() {
-        ImGuiIO& io = GetIO();
-        float button_size = ImGui::GetFrameHeight() * 2.3f;
-        float winW = button_size + GetStyle().WindowPadding.x * 2;
-        float winH = button_size + GetStyle().WindowPadding.y * 2;
-        SetNextWindowPos(ImVec2(io.DisplaySize.x - 155 - winW, io.DisplaySize.y - 20 - winH), ImGuiCond_Always);
-        SetNextWindowSize(ImVec2(winW, winH), ImGuiCond_Always);
-        PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0,0,0,0));
-        PushStyleColor(ImGuiCol_Border,   IM_COL32(0,0,0,0));
-        PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0f);
-        if (Begin("AutoPlay", nullptr, ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|
-                  ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoSavedSettings)) {
-            ImVec2 pos = GetCursorScreenPos();
-            ImVec2 size(button_size, button_size);
-            ImVec2 center(pos.x+size.x*0.5f, pos.y+size.y*0.5f);
-            PushStyleColor(ImGuiCol_Button,        IM_COL32(50,50,50,180));
-            PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(80,80,80,200));
-            PushStyleColor(ImGuiCol_ButtonActive,  IM_COL32(100,100,100,200));
-            PushStyleColor(ImGuiCol_Text,          IM_COL32(255,255,255,255));
-            bool clicked = Button("##AutoPlayBtn", size);
-            ImDrawList* dl = GetWindowDrawList();
-            float h = size.y*0.4f, w = h*0.8f;
-            if (bAutoPlaying) {
-                float bw = w*0.35f, gap = w*0.3f;
-                dl->AddRectFilled(ImVec2(center.x-gap/2-bw,center.y-h/2),ImVec2(center.x-gap/2,center.y+h/2),IM_COL32(255,255,255,180));
-                dl->AddRectFilled(ImVec2(center.x+gap/2,center.y-h/2),ImVec2(center.x+gap/2+bw,center.y+h/2),IM_COL32(255,255,255,180));
-            } else {
-                float ox = h*0.3f;
-                dl->AddTriangleFilled(ImVec2(center.x-ox,center.y-h/2),ImVec2(center.x-ox,center.y+h/2),ImVec2(center.x+ox*1.5f,center.y),IM_COL32(255,255,255,180));
-            }
-            GetForegroundDrawList()->AddRect(pos, ImVec2(pos.x+size.x,pos.y+size.y), IM_COL32(200,200,200,255), 5.0f, 0, 2.0f);
-            PopStyleColor(4);
-            if (clicked) { bAutoPlaying = !bAutoPlaying; if (bAutoPlaying) ClearState(); }
-        } End();
-        PopStyleVar(); PopStyleColor(2);
-    }
-
+    
     void Update() {
-        buttonClicker.Update();
-        powerSlider.Update();
-        DrawToggleButton();
-
-        // postShotLock
-        if (g_postShotLock) {
-            if (g_postShotFrames > 0) {
-                setAimAngle(g_postShotAngle);
-                setPower(g_postShotPower);
-                g_postShotFrames--;
-            } else {
-                g_postShotLock = false;
-                state = AutoPlayState::IDLE;
-            }
-            return;
-        }
-
-        // Human state machine — harus jalan SEBELUM early return apapun
-        RunHumanStateMachine();
-        if (humanState != HUM_IDLE) return;
-
+        // FIX: check both conditions:
+        // 1. bAutoPlay = "Enable Auto Play" toggle in menu (feature enabled at all)
+        // 2. bAutoPlaying = play/pause button on screen (user pressed play)
+        // Previously only bAutoPlay was checked, so the play/pause button had
+        // no effect on whether scanning/shooting actually happened.
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            if (!humanShotLocked) state = AutoPlayState::IDLE;
+            state = IDLE;
             return;
         }
+        
+        buttonClicker.Update();
 
         if (isAnimationActive()) return;
-        if (nowSec() < g_shotCooldownEnd) return;
 
-        if (state == AutoPlayState::IDLE) {
-            state = AutoPlayState::SCANNING;
-            scan  = FAST;
-        }
-        if (state == AutoPlayState::SCANNING) {
+        /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+            state = IDLE;
+            return;
+        }*/
+
+        if (state == IDLE) {
+            state = SCANNING;
+            scan = FAST;
+        } else if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
-            else if (scan == PRECISION) ScanPrecision(0.005f);
-        }
-        if (state == AutoPlayState::NOMINATING) {
+        //    else if (scan == PRECISION) ScanPrecision(0.005f);
+        } else if (state == NOMINATING) {
             nominationFrameCounter++;
-            if (nominationFrameCounter == 10)
+            if (nominationFrameCounter == 10) {
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
+            }
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-                takeShot(pendingShotAngle, pendingShotPower);
+                uint nominatedPocket = sharedGameManager.getNominatedPocket();
+                if (nominatedPocket == g_CurrentCandidate.pocketIndex) {
+                    targetAngle = pendingShotAngle;
+                    g_PredictionLocked = true;
+        
+                    // 🔥 Re-validasi pocketIndex
+                    gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
+                                                      sharedGameManager.getShotSpin(), g_CurrentCandidate);
+                    if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
+                        int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
+                        if (freshPocket >= 0 && freshPocket < 6) {
+                            g_CurrentCandidate.pocketIndex = freshPocket;
+                        }
+                    }
+        
+                    // 🔥 Transisi ke Human State Machine (tanpa EXECUTING)
+                    humanShotLocked = true;
+                    humanState = HUM_THINKING;
+                    stateStartTime = nowSec() + 0.3;
+                    startAngle = pendingShotAngle;
+                    state = IDLE; // ← Kembali ke IDLE, tapi humanState tetap jalan
+                } else {
+                    if (nominationFrameCounter > 40) {
+                        nominationFrameCounter = 0;
+                    }
+                }
             }
         }
+            // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
+    if (humanState != HUM_IDLE) {
+        double now = nowSec();
+    
+        // 1. HUM_THINKING (0.5s pause)
+        if (humanState == HUM_THINKING) {
+            if (now >= stateStartTime) {
+                overshootOffset = (gen() % 2 == 0 ? 1 : -1) * 0.058;
+                currentOvershootTarget = targetAngle + overshootOffset;
+                stateStartTime = now;
+                humanState = HUM_OVERSHOOTING;
+                NativeTouchesBegin(5, Width * 0.83f, Height * 0.82f);
+            }
+            return;
+        }
+    
+        // 2. HUM_OVERSHOOTING (1.1s overshoot)
+        if (humanState == HUM_OVERSHOOTING) {
+            double t = (now - stateStartTime) / 1.1;
+            if (t >= 1.0) {
+                setAimAngle(currentOvershootTarget);
+                UpdateJoystickVisuals(currentOvershootTarget);
+                stateStartTime = now;
+                humanState = HUM_CORRECTING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double curAngle = startAngle + (currentOvershootTarget - startAngle) * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            return;
+        }
+    
+        // 3. HUM_CORRECTING (0.35s snap back)
+        if (humanState == HUM_CORRECTING) {
+            double t = (now - stateStartTime) / 0.35;
+            double nudgeAngle = targetAngle + (overshootOffset > 0 ? 1 : -1) * (1.5 * M_PI / 180.0);
+            if (t >= 1.0) {
+                setAimAngle(nudgeAngle);
+                UpdateJoystickVisuals(nudgeAngle);
+                stateStartTime = now;
+                humanState = HUM_HOLDING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double curAngle = currentOvershootTarget + (nudgeAngle - currentOvershootTarget) * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            return;
+        }
+    
+        // 4. HUM_HOLDING (0.4s hold at target)
+        if (humanState == HUM_HOLDING) {
+            double t = (now - stateStartTime) / 0.40;
+            double nudgeAngle = targetAngle + (overshootOffset > 0 ? 1 : -1) * (1.5 * M_PI / 180.0);
+            if (t >= 1.0) {
+                setAimAngle(targetAngle);
+                NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                     Height * 0.82f + sin(targetAngle) * 65.0f);
+                stateStartTime = now;
+                humanState = HUM_STABILIZING;
+            } else {
+                double ease = sin(t * M_PI_2);
+                double curAngle = nudgeAngle + (targetAngle - nudgeAngle) * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            return;
+        }
+    
+        // 5. HUM_STABILIZING (0.4s stabilize + start slider)
+        if (humanState == HUM_STABILIZING) {
+            NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                 Height * 0.82f + sin(targetAngle) * 65.0f);
+            setAimAngle(targetAngle);
+    
+            if (now - stateStartTime >= 0.4) {
+                NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                    Height * 0.82f + sin(targetAngle) * 65.0f);
+    
+                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+                float sliderX = Width * sliderXPercent;
+                if (persistent_int[O("iPowerBarSide")] == 1)
+                    sliderX = Width * (1.0f - sliderXPercent);
+                float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
+                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
+                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
+    
+                powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+                stateStartTime = now;
+                humanState = HUM_PULLING;
+            }
+            return;
+        }
+    
+        // 6. HUM_PULLING (wait for slider, then fire)
+        if (humanState == HUM_PULLING) {
+            if (powerSlider.Active) return;
+            triggerShot();
+            stateStartTime = now;
+            humanState = HUM_DELAY_BEFORE_SHOT;
+            return;
+        }
+    
+        // 7. HUM_DELAY_BEFORE_SHOT (0.4s pause before firing)
+        if (humanState == HUM_DELAY_BEFORE_SHOT) {
+            setAimAngle(targetAngle);
+            if (now - stateStartTime >= 0.4) {
+                humanShotLocked = false;
+                ClearState();
+                state = IDLE;
+                humanState = HUM_IDLE;
+            }
+            return;
+        }
     }
+}
 };
