@@ -750,7 +750,7 @@ namespace AutoPlay {
         }
         
         buttonClicker.Update();
-        powerSlider.Update()
+        powerSlider.Update();
 
         if (isAnimationActive()) return;
 
