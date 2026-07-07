@@ -744,6 +744,7 @@ namespace AutoPlay {
         }
         
         buttonClicker.Update();
+        powerSlider.Update();
 
         if (isAnimationActive()) return;
 
