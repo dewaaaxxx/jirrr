@@ -1,12 +1,11 @@
 #pragma once
 
 #include "Prediction.fast.h"
-#include <chrono>
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-#include "PowerSlider.h"
+//#include "mod/ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -295,8 +294,13 @@ namespace AutoPlay {
     }
 
     void setAimAngle(double angle) {
-        lastSetAngle = angle;
-        sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(angle);
+        if (!sharedGameManager) return;
+        auto vc = sharedGameManager.mVisualCue();
+        if (!vc) return;
+        auto vg = vc.mVisualGuide();
+        if (!vg) return;
+        lastSetCuePos = gPrediction->guiData.balls[0].initialPosition;
+        vg.mAimAngle(angle);
     }
 
     void takeShot(double angle, double power) {
@@ -314,15 +318,6 @@ namespace AutoPlay {
         g_postShotFrames = 15;
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
-    
-    auto UpdateJoystickVisuals(double angle) {
-        float jX = Width * 0.83f;
-        float jY = Height * 0.82f;
-        float jR = 65.0f;
-        float tX = jX + cos(angle) * jR;
-        float tY = jY + sin(angle) * jR;
-        NativeTouchesMove(5, tX, tY);
-    };
     
     void ClearState() {
         g_CurrentCandidate.idx = -1;
@@ -801,6 +796,15 @@ namespace AutoPlay {
             // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
     if (humanState != HUM_IDLE) {
         double now = nowSec();
+
+        auto UpdateJoystickVisuals = [&](double angle) {
+            float jX = Width * 0.83f;
+            float jY = Height * 0.82f;
+            float jR = 65.0f;
+            float tX = jX + cos(angle) * jR;
+            float tY = jY + sin(angle) * jR;
+            NativeTouchesMove(5, tX, tY);
+        };
     
         // 1. HUM_THINKING (0.5s pause)
         if (humanState == HUM_THINKING) {
