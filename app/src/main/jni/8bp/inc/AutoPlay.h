@@ -17,7 +17,7 @@ constexpr double maxAngle = 360.0 / (180.0 / M_PI);
 constexpr double GRAVITATIONAL_CONSTANT = 9.81;
 constexpr double FRICTION_COEFFICIENT = 0.12;           // Cloth-to-ball friction
 constexpr double ROLLING_RESISTANCE = 0.003;            // Advanced rolling dynamics
-constexpr double BALL_DECELERATION = 196.0;             // Professional deceleration rate
+constexpr double BALL_DECELERATION = 190.0;             // Professional deceleration rate
 constexpr double COLLISION_DAMPING = 0.95;              // Energy retention in collisions
 constexpr double SPIN_DECAY_RATE = 0.015;               // Topspin/backspin dissipation
 constexpr double ENGLISH_MULTIPLIER = 1.15;             // Sidespin power modifier
@@ -274,6 +274,7 @@ namespace AutoPlay {
     static inline bool g_PredictionLocked = false;
     static inline bool humanNeedsNomination = false;
     static inline int humanNominationPocket = -1;
+    static inline bool bAutoSpin = true;
     static bool g_postShotLock = false;
     static double g_postShotAngle = 0.0;
     static double g_postShotPower = 0.0;
@@ -288,6 +289,20 @@ namespace AutoPlay {
         auto now = std::chrono::steady_clock::now();
         auto duration = now.time_since_epoch();
         return std::chrono::duration<double>(duration).count();
+    }
+
+    void applyAutoSpin() {
+    if (!bAutoSpin) return;
+    Vec2d spin = {0.0, 0.0};
+    constexpr double s = 0.7;
+    switch (spinPreset) {
+        case SPIN_TOP:    spin = {0.0,  s}; break;
+        case SPIN_BOTTOM: spin = {0.0, -s}; break;
+        case SPIN_LEFT:   spin = {-s,  0.0}; break;
+        case SPIN_RIGHT:  spin = { s,  0.0}; break;
+        case SPIN_CENTER: spin = {0.0, 0.0}; break;
+    }
+    sharedGameManager.mVisualEnglishControl().mEnglish(spin);
     }
 
     bool shouldAutoPlay() { 
@@ -328,6 +343,8 @@ namespace AutoPlay {
     }
     
     void Shoot(double angle, double power = 0.f) {
+        applyAutoSpin(); // AIMX SYNC: Apply spin BEFORE simulation so visuals match
+        
         setAimAngle(angle);
         gPrediction->determineShotResult(false, angle, power);
 
@@ -796,6 +813,7 @@ namespace AutoPlay {
                     }
         
                     // 🔥 Transisi ke Human State Machine (tanpa EXECUTING)
+                    applyAutoSpin(); // AIMX SYNC: Apply spin BEFORE simulation so visuals match
                     humanShotLocked = true;
                     humanState = HUM_THINKING;
                     stateStartTime = nowSec() + 0.3;
@@ -935,5 +953,7 @@ namespace AutoPlay {
             return;
         }
     }
+    bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
+    if (isPlayerTurn && bAutoSpin) applyAutoSpin();
 }
 };
