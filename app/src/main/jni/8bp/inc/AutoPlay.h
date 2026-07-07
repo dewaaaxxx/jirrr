@@ -315,7 +315,7 @@ namespace AutoPlay {
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
     
-    auto UpdateJoystickVisuals = [&](double angle) {
+    auto UpdateJoystickVisuals(double angle) {
         float jX = Width * 0.83f;
         float jY = Height * 0.82f;
         float jR = 65.0f;
