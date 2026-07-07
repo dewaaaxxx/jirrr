@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-#include "PowerSlider.h"
+//#include "mod/ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -346,9 +346,14 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
+            // BUG FIX #1: JANGAN panggil ClearState() di sini.
+            // takeShot() set humanState = HUM_THINKING, tapi ClearState() langsung
+            // mereset humanState = HUM_IDLE → human state machine tidak pernah jalan.
+            // State cleanup dilakukan di HUM_DELAY_BEFORE_SHOT setelah shot selesai.
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            state = IDLE; // kembali ke IDLE supaya IDLE→SCANNING guard bisa cek humanState
             takeShot(angle, power);
-            ClearState();
-            state = IDLE;
         }
     }
     
@@ -745,7 +750,6 @@ namespace AutoPlay {
         }
         
         buttonClicker.Update();
-        powerSlider.Update();
 
         if (isAnimationActive()) return;
 
@@ -755,8 +759,14 @@ namespace AutoPlay {
         }*/
 
         if (state == IDLE) {
-            state = SCANNING;
-            scan = FAST;
+            // BUG FIX #2: Kalau humanState != HUM_IDLE, artinya human state machine
+            // sedang jalan (aim, pull, dll). Jangan langsung SCANNING lagi —
+            // biarkan human machine selesai dulu. Tanpa guard ini, IDLE langsung
+            // jadi SCANNING → ScanFast lagi → Shoot lagi → loop selamanya.
+            if (humanState == HUM_IDLE) {
+                state = SCANNING;
+                scan = FAST;
+            }
         } else if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
@@ -899,16 +909,18 @@ namespace AutoPlay {
             return;
         }
     
-        // 6. HUM_PULLING (wait for slider, then fire)
+        // 6. HUM_PULLING (wait for slider to finish)
         if (humanState == HUM_PULLING) {
             if (powerSlider.Active) return;
-            triggerShot();
+            // BUG FIX #3: JANGAN panggil triggerShot() di sini.
+            // powerSlider.SimulateDrag() sudah touch-down → drag → touch-up.
+            // Game engine execute shot dari slider release. triggerShot() = double-shoot.
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
         }
     
-        // 7. HUM_DELAY_BEFORE_SHOT (0.4s pause before firing)
+        // 7. HUM_DELAY_BEFORE_SHOT (0.4s cooldown, lalu cleanup)
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
             if (now - stateStartTime >= 0.4) {
