@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-//#include "mod/ButtonClicker.h"
+#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -226,6 +226,7 @@ bool IsShotValid() {
 }
 
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
+static inline Point2D lastSetCuePos = {-1000, -1000};
 
 namespace AutoPlay {
     double lastSetAngle = 0.f;
