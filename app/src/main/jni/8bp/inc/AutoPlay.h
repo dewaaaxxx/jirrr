@@ -830,7 +830,13 @@ namespace AutoPlay {
             }
         }
             // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
-    if (humanState != HUM_IDLE) {
+        // ─── HIDE PREDICTION LINES DURING HUMAN STATE ──────────────────────────
+if (humanState != HUM_IDLE) {
+    persistent_bool["bESP_DrawPredictionLine"] = false;  // Hilang saat drag
+} else {
+    persistent_bool["bESP_DrawPredictionLine"] = true;   // Muncul saat idle
+}
+        if (humanState != HUM_IDLE) {
         double now = nowSec();
 
         auto UpdateJoystickVisuals = [&](double angle) {
@@ -932,7 +938,7 @@ namespace AutoPlay {
                 float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
                 ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
     
-                powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
+                powerSlider.SimulateDrag(sliderRect, targetPower, 1.5f, 0.7f);
                 stateStartTime = now;
                 humanState = HUM_PULLING;
             }
