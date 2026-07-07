@@ -101,7 +101,10 @@ struct PowerSlider {
         
         if (this->state == STARTING) {
             this->HoldTime += dt;
-            if (this->HoldTime >= this->HoldDuration * 2.f) {
+            // BUG FIX #2: sebelumnya nunggu HoldDuration*2 (bisa 1.4s!) sebelum
+            // NativeTouchesBegin. Ini terlalu lama dan membuat HUM_PULLING stuck
+            // menunggu slider. 0.15s sudah cukup untuk stabilize sebelum touch-down.
+            if (this->HoldTime >= 0.15f) {
                 NativeTouchesBegin(this->TouchIndex, this->StartPos.x, this->StartPos.y);
                 this->state = MOVING;
                 this->HoldTime = 0.f;
@@ -142,11 +145,24 @@ struct PowerSlider {
         if (this->state == ENDING) {
             this->HoldTime += dt;
             if (this->HoldTime >= this->HoldDuration) {
+                // BUG FIX #1 & #4: IsShotValid() membaca gPrediction->guiData yang
+                // mungkin sudah STALE — diisi dari simulasi sebelum drag dimulai.
+                // Power game sesungguhnya (dari touch drag) bisa berbeda dari power
+                // yang terakhir di-simulate. Harus re-run dulu dengan nilai AKTUAL
+                // dari game agar IsShotValid() membaca hasil yang benar.
+                double actualAngle = sharedGameManager.mVisualCue().getShotAngle();
+                double actualPower = sharedGameManager.mVisualCue().getShotPower(true);
+                gPrediction->forceFullSimulation = true;
+                gPrediction->determineShotResult(true, actualAngle, actualPower,
+                    sharedGameManager.getShotSpin(), g_CurrentCandidate);
+                gPrediction->forceFullSimulation = false;
+                LOGI("ENDING check: actualAngle=%.4f actualPower=%.1f", actualAngle, actualPower);
+
                 if (IsShotValid()) {
                     this->End();
                 } else {
-                   LOGI("Shot invalid before release. Canceling.");
-                   this->Cancel();
+                    LOGI("Shot invalid before release. actualAngle=%.4f actualPower=%.1f. Canceling.", actualAngle, actualPower);
+                    this->Cancel();
                 }
             }
         }
