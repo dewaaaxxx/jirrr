@@ -274,6 +274,10 @@ namespace AutoPlay {
     static inline bool g_PredictionLocked = false;
     static inline bool humanNeedsNomination = false;
     static inline int humanNominationPocket = -1;
+    static bool g_postShotLock = false;
+    static double g_postShotAngle = 0.0;
+    static double g_postShotPower = 0.0;
+    static int g_postShotFrames = 0;
     
     // ── Random engine ──
     static std::random_device rd;
@@ -299,7 +303,7 @@ namespace AutoPlay {
         targetAngle = angle;
         targetPower = power;
         startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-        stateStartTime = ();
+        stateStartTime = nowSec();
         humanState = HUM_THINKING;
     }
     
