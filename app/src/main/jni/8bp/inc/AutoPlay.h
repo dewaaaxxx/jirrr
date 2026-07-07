@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-//#include "mod/ButtonClicker.h"
+#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -750,6 +750,7 @@ namespace AutoPlay {
         }
         
         buttonClicker.Update();
+        powerSlider.Update()
 
         if (isAnimationActive()) return;
 
