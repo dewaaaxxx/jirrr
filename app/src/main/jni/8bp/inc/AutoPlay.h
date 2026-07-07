@@ -261,6 +261,8 @@ namespace AutoPlay {
         HUM_PULLING,
         HUM_DELAY_BEFORE_SHOT,
     };
+
+    enum SpinPreset { SPIN_TOP = 0, SPIN_BOTTOM, SPIN_LEFT, SPIN_RIGHT, SPIN_CENTER };
     
     // ── Variabel Human State ──
     static inline HumanState humanState = HUM_IDLE;
@@ -274,6 +276,7 @@ namespace AutoPlay {
     static inline bool g_PredictionLocked = false;
     static inline bool humanNeedsNomination = false;
     static inline int humanNominationPocket = -1;
+    static inline SpinPreset spinPreset = SPIN_CENTER;
     static inline bool bAutoSpin = true;
     static bool g_postShotLock = false;
     static double g_postShotAngle = 0.0;
