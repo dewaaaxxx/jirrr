@@ -16,8 +16,8 @@ struct PowerSlider {
     bool Active = false;
     float TargetPower = 0.5f;
     float CurrentPower = 0.0f;
-    float ElapsedTime = 0.f, Duration = 1.5f;
-    float HoldTime = 0.f, HoldDuration = 0.7f;
+    float ElapsedTime = 0.f, Duration = 0.f;
+    float HoldTime = 0.f, HoldDuration = 0.f;
     ImVec2 StartPos;
     ImVec2 EndPos; // Max drag position
     ImVec2 TargetPos; // Actual target based on power
