@@ -16,8 +16,8 @@ struct PowerSlider {
     bool Active = false;
     float TargetPower = 0.5f;
     float CurrentPower = 0.0f;
-    float ElapsedTime = 0.f, Duration = 0.f;
-    float HoldTime = 0.f, HoldDuration = 0.f;
+    float ElapsedTime = 0.f, Duration = 1.5f;
+    float HoldTime = 0.f, HoldDuration = 0.7f;
     ImVec2 StartPos;
     ImVec2 EndPos; // Max drag position
     ImVec2 TargetPos; // Actual target based on power
@@ -129,8 +129,8 @@ struct PowerSlider {
             }
 
             ImDrawList* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
-                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline
+                fg->AddCircleFilled(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
+                fg->AddCircle(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline*/
 
            /* if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
@@ -142,12 +142,12 @@ struct PowerSlider {
         if (this->state == ENDING) {
             this->HoldTime += dt;
             if (this->HoldTime >= this->HoldDuration) {
-                if (IsShotValid()) {
+                //if (IsShotValid()) {
                     this->End();
-                } else {
-                    LOGI("Shot invalid before release. Canceling.");
-                    this->Cancel();
-                }
+        ///    } else {
+            //        LOGI("Shot invalid before release. Canceling.");
+            //        this->Cancel();
+         //       }
             }
         }
 
@@ -169,11 +169,11 @@ struct PowerSlider {
                 End();
             }
 
-            if (dynamic_bool["DebugTouch"]) {
+           // if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100));
-                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
-            }
+                fg->AddCircleFilled(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 100));
+                fg->AddCircle(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+         //   }
         }
 
     }
