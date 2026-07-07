@@ -128,11 +128,15 @@ struct PowerSlider {
                 this->state = ENDING;
             }
 
-            if (dynamic_bool["DebugTouch"]) {
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
+                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline
+
+           /* if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
                 fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
                 fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline
-            }
+            }*/
         }
 
         if (this->state == ENDING) {
