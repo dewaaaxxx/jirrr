@@ -142,12 +142,12 @@ struct PowerSlider {
         if (this->state == ENDING) {
             this->HoldTime += dt;
             if (this->HoldTime >= this->HoldDuration) {
-                //if (IsShotValid()) {
+                if (IsShotValid()) {
                     this->End();
-        ///    } else {
-            //        LOGI("Shot invalid before release. Canceling.");
-            //        this->Cancel();
-         //       }
+                } else {
+                   LOGI("Shot invalid before release. Canceling.");
+                   this->Cancel();
+                }
             }
         }
 
