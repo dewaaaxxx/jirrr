@@ -837,6 +837,12 @@ namespace AutoPlay {
             float tX = jX + cos(angle) * jR;
             float tY = jY + sin(angle) * jR;
             NativeTouchesMove(5, tX, tY);
+
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+    if (fg) {
+        fg->AddCircleFilled(ImVec2(tX, tY), 25.0f, IM_COL32(255, 255, 255, 100));
+        fg->AddCircle(ImVec2(tX, tY), 25.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+    }
         };
     
         // 1. HUM_THINKING (0.5s pause)
