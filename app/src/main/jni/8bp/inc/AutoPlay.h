@@ -8,6 +8,8 @@
 #include <random>
 #include "ScreenTable.h"
 #include "PowerSlider.h"
+#include "ButtonClicker.h"
+
 using namespace ImGui;
 
 // ============================================================================
@@ -274,12 +276,12 @@ namespace AutoPlay {
         HUM_DELAY_BEFORE_SHOT,
     } humanState = HUM_IDLE;
 
-    enum State {
+    enum AutoPlayState {
         IDLE,
         SCANNING,
         NOMINATING,
         EXECUTING,
-    } state = IDLE;
+    } state = AutoPlayState::IDLE;
 
     double pendingShotPower = 0.0;
     double pendingShotAngle = 0.0;
@@ -353,7 +355,7 @@ namespace AutoPlay {
         humanShotLocked = true;
         humanState      = HUM_THINKING;
         stateStartTime  = nowSec() + 0.5; // 0.5s thinking pause
-        state           = EXECUTING;
+        state           = AutoPlayState::EXECUTING;
     }
 
     void Shoot(double angle, double power = 0.0) {
@@ -376,7 +378,7 @@ namespace AutoPlay {
             pendingShotAngle         = angle;
             humanNominationPocket    = g_CurrentCandidate.pocketIndex;
             humanNeedsNomination     = true;
-            state                    = NOMINATING;
+            state                    = AutoPlayState::NOMINATING;
             nominationFrameCounter   = 0;
         } else {
             takeShot(angle, power);
@@ -531,7 +533,7 @@ namespace AutoPlay {
                 humanShotLocked = false;
                 humanState      = HUM_IDLE;
                 ClearState();
-                state = IDLE;
+                state = AutoPlayState::IDLE;
             }
             return;
         }
@@ -605,7 +607,7 @@ namespace AutoPlay {
                 return;
             }
         }
-        if (currentScanAngle >= maxAngle) { isScanning = false; currentScanAngle = 0.0; scan = SLOW; state = IDLE; }
+        if (currentScanAngle >= maxAngle) { isScanning = false; currentScanAngle = 0.0; scan = SLOW; state = AutoPlayState::IDLE; }
     }
 
     void ScanSlow(double angleStep = 0.01f) {
@@ -670,7 +672,7 @@ namespace AutoPlay {
             }
             if (foundShot) break;
         }
-        if (!foundShot && currentScanAngle >= maxAngle) { isScanning = false; currentScanAngle = 0.0; state = IDLE; }
+        if (!foundShot && currentScanAngle >= maxAngle) { isScanning = false; currentScanAngle = 0.0; state = AutoPlayState::IDLE; }
     }
 
     void ScanFast(double angleStep = 0.1f) {
@@ -838,7 +840,7 @@ namespace AutoPlay {
                 g_postShotFrames--;
             } else {
                 g_postShotLock = false;
-                state = IDLE;
+                state = AutoPlayState::IDLE;
             }
             return;
         }
@@ -848,23 +850,23 @@ namespace AutoPlay {
         if (humanState != HUM_IDLE) return;
 
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            if (!humanShotLocked) state = IDLE;
+            if (!humanShotLocked) state = AutoPlayState::IDLE;
             return;
         }
 
         if (isAnimationActive()) return;
         if (nowSec() < g_shotCooldownEnd) return;
 
-        if (state == IDLE) {
-            state = SCANNING;
+        if (state == AutoPlayState::IDLE) {
+            state = AutoPlayState::SCANNING;
             scan  = FAST;
         }
-        if (state == SCANNING) {
+        if (state == AutoPlayState::SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
             else if (scan == PRECISION) ScanPrecision(0.005f);
         }
-        if (state == NOMINATING) {
+        if (state == AutoPlayState::NOMINATING) {
             nominationFrameCounter++;
             if (nominationFrameCounter == 10)
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
@@ -879,12 +881,12 @@ namespace AutoPlay {
     bool bAutoPlaying = false;
     double luxuryPrecisionModifier = 1.0;  // Adjustable precision for luxury mode
 
-    enum State {
+    enum AutoPlayState {
         IDLE,
         SCANNING,
         NOMINATING,
         EXECUTING,
-    } state = IDLE;
+    } state = AutoPlayState::IDLE;
     
     double pendingShotPower = 0.f;
     double pendingShotAngle = 0.f;
@@ -937,12 +939,12 @@ namespace AutoPlay {
         if (nominating) {
             pendingShotPower = power;
             pendingShotAngle = angle;
-            state = NOMINATING;
+            state = AutoPlayState::NOMINATING;
             nominationFrameCounter = 0;
         } else {
             takeShot(angle, power);
             ClearState();
-            state = IDLE;
+            state = AutoPlayState::IDLE;
         }
     }
     
@@ -1054,7 +1056,7 @@ namespace AutoPlay {
         isScanning = false;
         currentScanAngle = 0.0;
         scan = SLOW;
-        state = IDLE;
+        state = AutoPlayState::IDLE;
     }
 }
 
@@ -1167,7 +1169,7 @@ namespace AutoPlay {
         if (!foundShot && currentScanAngle >= maxAngle) {
             isScanning = false;
             currentScanAngle = 0.0;
-            state = IDLE;
+            state = AutoPlayState::IDLE;
         }
     }
     
@@ -1334,7 +1336,7 @@ namespace AutoPlay {
         // Previously only bAutoPlay was checked, so the play/pause button had
         // no effect on whether scanning/shooting actually happened.
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            state = IDLE;
+            state = AutoPlayState::IDLE;
             return;
         }
         
@@ -1343,18 +1345,18 @@ namespace AutoPlay {
         if (isAnimationActive()) return;
 
         /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            state = IDLE;
+            state = AutoPlayState::IDLE;
             return;
         }*/
 
-        if (state == IDLE) {
-            state = SCANNING;
+        if (state == AutoPlayState::IDLE) {
+            state = AutoPlayState::SCANNING;
             scan = FAST;
-        } else if (state == SCANNING) {
+        } else if (state == AutoPlayState::SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
         //    else if (scan == PRECISION) ScanPrecision(0.005f);
-        } else if (state == NOMINATING) {
+        } else if (state == AutoPlayState::NOMINATING) {
             nominationFrameCounter++;
             if (nominationFrameCounter == 10) {
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
