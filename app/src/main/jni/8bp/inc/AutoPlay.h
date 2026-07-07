@@ -745,6 +745,8 @@ namespace AutoPlay {
         // Previously only bAutoPlay was checked, so the play/pause button had
         // no effect on whether scanning/shooting actually happened.
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+            NativeTouchesEnd(5, 0, 0);      // joystick
+            NativeTouchesEnd(powerSlider.TouchIndex, 0, 0); // slider
             state = IDLE;
             return;
         }
