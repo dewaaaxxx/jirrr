@@ -587,8 +587,29 @@ namespace AutoPlay {
                 }
 
                 if (isPotentiallyValid) {
+                    // Power refinement: cari power minimum yang masih valid
+                    // supaya bola tidak overshoot pocket.
+                    // Binary search antara power/2 dan power dalam 5 iterasi.
+                    float refinedPower = power;
+                    float lo = power * 0.5f, hi = power;
+                    for (int r = 0; r < 5; r++) {
+                        float mid = (lo + hi) * 0.5f;
+                        gPrediction->forceFullSimulation = true;
+                        gPrediction->determineShotResult(true, angle, mid, sharedGameManager.getShotSpin());
+                        gPrediction->forceFullSimulation = false;
+                        bool stillValid = gPrediction->guiData.balls[0].onTable &&
+                                         !gPrediction->guiData.balls[targetIdx].onTable == false &&
+                                         gPrediction->guiData.balls[targetIdx].pocketIndex == g_CurrentCandidate.pocketIndex;
+                        // Benar: bola target harus onTable=false (masuk pocket)
+                        stillValid = gPrediction->guiData.balls[0].onTable &&
+                                     (!gPrediction->guiData.balls[targetIdx].onTable) &&
+                                     (gPrediction->guiData.balls[targetIdx].pocketIndex == g_CurrentCandidate.pocketIndex);
+                        if (stillValid) { refinedPower = mid; hi = mid; }
+                        else { lo = mid; }
+                    }
+                    g_CurrentCandidate.power = refinedPower;
                     foundShot = true;
-                    Shoot(angle, power);
+                    Shoot(angle, refinedPower);
                     break;
                 }
             }
@@ -929,17 +950,6 @@ if (humanState != HUM_IDLE) {
             if (now - stateStartTime >= 0.4) {
                 NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
                                     Height * 0.82f + sin(targetAngle) * 65.0f);
-
-                // FIX: Run full simulation dengan angle+power final sebelum slider dimulai.
-                // Ini memastikan gPrediction->guiData sudah berisi hasil yang benar
-                // pada saat IsShotValid() nanti dipanggil di ENDING state PowerSlider.
-                // Cache juga dibersihkan (forceFullSimulation bypass cache).
-                gPrediction->forceFullSimulation = true;
-                gPrediction->determineShotResult(true, targetAngle, targetPower,
-                    sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                gPrediction->forceFullSimulation = false;
-                LOGI("HUM_STABILIZING: pre-slider sim angle=%.4f power=%.1f valid=%d",
-                     targetAngle, targetPower, IsShotValid());
     
                 float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
                 float sliderX = Width * sliderXPercent;
@@ -959,19 +969,13 @@ if (humanState != HUM_IDLE) {
         // 6. HUM_PULLING (wait for slider to finish)
         if (humanState == HUM_PULLING) {
             if (powerSlider.Active) return;
-            // Slider selesai. Ada 2 kemungkinan:
-            // A) IsShotValid() pass → slider.End() dipanggil → shot fired → lanjut ke delay
-            // B) IsShotValid() fail → slider.Cancel() dipanggil → g_CurrentCandidate.idx = -1
-            //    Kalau cancel, reset state dan scan ulang dari awal untuk cari shot baru.
-            if (g_CurrentCandidate.idx == -1) {
-                // Slider di-cancel karena shot tidak valid. Reset dan scan ulang.
-                LOGI("HUM_PULLING: slider was cancelled, re-scanning.");
-                humanShotLocked = false;
-                humanState = HUM_IDLE;
-                state = SCANNING;
-                scan = FAST;
-                return;
-            }
+            // Sync gPrediction dengan angle+power aktual sebelum slider release.
+            // Ini penting supaya state gPrediction fresh dan konsisten dengan
+            // angle yang sekarang di-apply ke game, bukan sisa state dari scan.
+            gPrediction->forceFullSimulation = true;
+            gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
+            gPrediction->forceFullSimulation = false;
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
