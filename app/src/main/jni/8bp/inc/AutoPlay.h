@@ -852,11 +852,6 @@ namespace AutoPlay {
         }
             // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
         // ─── HIDE PREDICTION LINES DURING HUMAN STATE ──────────────────────────
-if (humanState != HUM_IDLE) {
-    persistent_bool["bESP_DrawPredictionLine"] = false;  // Hilang saat drag
-} else {
-    persistent_bool["bESP_DrawPredictionLine"] = true;   // Muncul saat idle
-}
         if (humanState != HUM_IDLE) {
         double now = nowSec();
 
@@ -870,8 +865,8 @@ if (humanState != HUM_IDLE) {
 
             ImDrawList* fg = ImGui::GetForegroundDrawList();
     if (fg) {
-        fg->AddCircleFilled(ImVec2(tX, tY), 25.0f, IM_COL32(255, 255, 255, 100));
-        fg->AddCircle(ImVec2(tX, tY), 25.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+        fg->AddCircleFilled(ImVec2(tX, tY), 10.0f, IM_COL32(255, 255, 255, 100));
+        fg->AddCircle(ImVec2(tX, tY), 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
     }
         };
     
