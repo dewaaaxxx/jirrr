@@ -416,7 +416,9 @@ namespace AutoPlay {
 
         std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
         for (double power : powers) {
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+            gPrediction->forceFullSimulation = false;
 
             if (!gPrediction->guiData.balls[0].onTable) continue;
 
@@ -505,6 +507,17 @@ namespace AutoPlay {
 
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
+
+        // FIX: deteksi apakah semua bola kita sudah masuk (giliran tembak 8-ball)
+        bool only8BallLeft = false;
+        if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+            bool foundOwnBall = false;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& b = gPrediction->guiData.balls[i];
+                if (b.originalOnTable && b.classification == myclass) { foundOwnBall = true; break; }
+            }
+            if (!foundOwnBall) only8BallLeft = true;
+        }
         
         int steps = 0;
         bool foundShot = false;
@@ -516,7 +529,11 @@ namespace AutoPlay {
 
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
+                // FIX: forceFullSimulation wajib di semua scan supaya scratch dan
+                // bola lawan terdeteksi dengan benar oleh safety checks di bawah.
+                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->forceFullSimulation = false;
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -560,8 +577,12 @@ namespace AutoPlay {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (ball.originalOnTable && !ball.onTable) {
                         bool isValidTarget = false;
-                        if (myclass == Ball::Classification::ANY) {
-                            if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                        if (only8BallLeft) {
+                            // Giliran tembak 8-ball: target harus 8-ball
+                            if (ball.classification == Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                        } else if (myclass == Ball::Classification::ANY) {
+                            if (ball.classification != Ball::Classification::CUE_BALL &&
+                                ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
                         }
@@ -572,12 +593,25 @@ namespace AutoPlay {
 
                 if (targetIdx != -1) {
                     if (!gPrediction->guiData.balls[0].onTable) continue;
-                    if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
+
+                    // FIX: blokir 8-ball premature (saat belum waktunya tembak 8-ball)
+                    if (!only8BallLeft && myclass != Ball::Classification::EIGHT_BALL) {
+                        if (targetIdx == 8) continue; // jangan tembak 8-ball dulu
+                        auto& ball8 = gPrediction->guiData.balls[8];
+                        if (ball8.originalOnTable && !ball8.onTable) continue; // 8-ball ikut masuk = foul
+                    }
+
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
-                    if (myclass == Ball::Classification::ANY) {
+
+                    // FIX: firstHit validation lengkap dengan only8BallLeft
+                    if (only8BallLeft) {
+                        if (firstHit->classification != Ball::Classification::EIGHT_BALL) continue;
+                    } else if (myclass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
-                    } else if (firstHit->classification != myclass) continue;
+                    } else {
+                        if (firstHit->classification != myclass) continue;
+                    }
 
                     isPotentiallyValid = true;
                     g_CurrentCandidate.idx = targetIdx;
@@ -597,13 +631,11 @@ namespace AutoPlay {
                         gPrediction->forceFullSimulation = true;
                         gPrediction->determineShotResult(true, angle, mid, sharedGameManager.getShotSpin());
                         gPrediction->forceFullSimulation = false;
-                        bool stillValid = gPrediction->guiData.balls[0].onTable &&
-                                         !gPrediction->guiData.balls[targetIdx].onTable == false &&
-                                         gPrediction->guiData.balls[targetIdx].pocketIndex == g_CurrentCandidate.pocketIndex;
-                        // Benar: bola target harus onTable=false (masuk pocket)
-                        stillValid = gPrediction->guiData.balls[0].onTable &&
-                                     (!gPrediction->guiData.balls[targetIdx].onTable) &&
-                                     (gPrediction->guiData.balls[targetIdx].pocketIndex == g_CurrentCandidate.pocketIndex);
+                        // FIX operator precedence: (!x == false) selalu true karena
+                        // ! lebih tinggi dari ==. Harus pakai: !(x) → (x == false) → !x
+                        bool stillValid = gPrediction->guiData.balls[0].onTable
+                                      && !gPrediction->guiData.balls[targetIdx].onTable
+                                      && gPrediction->guiData.balls[targetIdx].pocketIndex == g_CurrentCandidate.pocketIndex;
                         if (stillValid) { refinedPower = mid; hi = mid; }
                         else { lo = mid; }
                     }
@@ -693,7 +725,14 @@ namespace AutoPlay {
         bool foundShot = false;
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+
+            // FIX: forceFullSimulation wajib supaya scratch dan bola lawan
+            // terdeteksi dengan benar. Tanpa ini simulasi partial → safety check
+            // tidak akurat → lolos padahal shot sebenarnya foul.
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
+            gPrediction->forceFullSimulation = false;
+
             if (!gPrediction->firstHitIsTarget) continue;
             if (!gPrediction->guiData.balls[0].onTable) continue;
 
@@ -732,8 +771,14 @@ namespace AutoPlay {
 
             if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
                  auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                 if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) isAngleGood = false;
-                 else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
+                 if (only8Left) {
+                     // Sudah waktunya tembak 8-ball: first hit HARUS 8-ball, bukan bola lain
+                     if (firstHit->classification != Ball::Classification::EIGHT_BALL) isAngleGood = false;
+                 } else if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) {
+                     isAngleGood = false;
+                 } else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) {
+                     isAngleGood = false;
+                 }
             }
 
             if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
@@ -826,9 +871,11 @@ namespace AutoPlay {
                     targetAngle = pendingShotAngle;
                     g_PredictionLocked = true;
         
-                    // 🔥 Re-validasi pocketIndex
+                    // Re-validasi pocketIndex setelah nominasi dikonfirmasi
+                    gPrediction->forceFullSimulation = true;
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
                                                       sharedGameManager.getShotSpin(), g_CurrentCandidate);
+                    gPrediction->forceFullSimulation = false;
                     if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
                         int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
                         if (freshPocket >= 0 && freshPocket < 6) {
