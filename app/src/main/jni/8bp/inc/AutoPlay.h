@@ -1019,7 +1019,7 @@ namespace AutoPlay {
                 if (sliderYEnd   <= 0.01f) sliderYEnd   = 0.82f;
                 sliderYStart *= Height;
                 sliderYEnd   *= Height;
-                ImVec4 sliderRect(sliderX - 20.0f, sliderYEnd, 40.0f, sliderYStart - sliderYEnd);
+                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
                 powerSlider.SimulateDrag(sliderRect, (float)targetPower, 1.5f, 0.7f);
                 stateStartTime = now;
                 humanState = HUM_PULLING;
@@ -1028,7 +1028,7 @@ namespace AutoPlay {
         }
     
         // 6. HUM_PULLING (wait for slider to finish)
-        if (humanState == HUM_PULLING) {
+      /*  if (humanState == HUM_PULLING) {
             if (powerSlider.Active) return;
             // Slider selesai — set angle+power di memory sekali lagi biar sync
             setAimAngle(targetAngle);
@@ -1036,10 +1036,20 @@ namespace AutoPlay {
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
+        }*/
+
+        if (humanState == HUM_PULLING) {
+    if (powerSlider.Active) return;
+    // Lock angle di memory tepat sebelum shot dikirim
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+    stateStartTime = now;
+    humanState = HUM_DELAY_BEFORE_SHOT;
+    return;
         }
     
         // 7. HUM_DELAY_BEFORE_SHOT (0.4s cooldown, lalu fire shot)
-        if (humanState == HUM_DELAY_BEFORE_SHOT) {
+        /*if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
             if (now - stateStartTime >= 0.4) {
                 // Set angle + power di memory sekali lagi biar tidak drift
@@ -1053,6 +1063,18 @@ namespace AutoPlay {
                 state = IDLE;
             }
             return;
+        }*/
+
+        if (humanState == HUM_DELAY_BEFORE_SHOT) {
+    // Terus lock angle tiap frame biar engine tidak drift
+    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+    if (now - stateStartTime >= 0.1) { // cukup 0.1s aja
+        humanShotLocked = false;
+        humanState = HUM_IDLE;
+        ClearState();
+        state = IDLE;
+    }
+    return;
         }
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
