@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction_fast_fixed.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -538,7 +538,14 @@ namespace AutoPlay {
 
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
+                // WAJIB forceFullSimulation=true: supaya simulasi berjalan penuh
+                // dan scratch (cue ball masuk pocket) terdeteksi dengan benar.
+                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->forceFullSimulation = false;
+                
+                // Cek scratch PERTAMA sebelum cek lain apapun
+                if (!gPrediction->guiData.balls[0].onTable) continue;
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -593,7 +600,7 @@ namespace AutoPlay {
                 }
 
                 if (targetIdx != -1) {
-                    if (!gPrediction->guiData.balls[0].onTable) continue;
+                    // balls[0].onTable sudah di-cek di atas (awal loop power)
                     if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
@@ -670,13 +677,16 @@ namespace AutoPlay {
                 double angle = atan2(shotLine.y, shotLine.x);
                 if (angle < 0) angle += 2 * M_PI;
                 
-                // FIX POWER: Sync dengan physics engine (a=196, v=sqrt(2*a*s)).
-                // CalculateOptimalPowerAdvanced pakai rumus sendiri yang tidak sama dg engine
-                // → bola tidak sampai pocket untuk shot jauh (power terlalu pelan).
-                // Tambah faktor 1.25 untuk overhead friction + collision energy loss.
+                // Power formula: sync dengan physics engine (a=196).
+                // Factor 1.35 (bukan 1.25) karena:
+                //   - Energy loss di cloth: ~15%
+                //   - Energy loss di collision cue→target: ~10%
+                //   - Overhead supaya bola target punya cukup speed sampai pocket
+                // Untuk shot langsung faktor ini sedikit terlalu besar tapi aman —
+                // ScanFast tetap verifikasi via simulasi (kPowerFactors sweep ke bawah juga).
                 double totalDist = distCueToTarget + distTargetToPocket;
-                double power = sqrt(totalDist * 2.0 * 196.0) * 1.25;
-                if (power < 120.0) power = 120.0;
+                double power = sqrt(totalDist * 2.0 * 196.0) * 1.35;
+                if (power < 150.0) power = 150.0;
                 if (power > 666.0) power = 666.0;
                 double compositeScore = totalDist;
                 
@@ -703,7 +713,10 @@ namespace AutoPlay {
         //    benar-benar diverifikasi masuk oleh engine via determineShotResult().
         // Ini yang bikin autoplay akurat — verifikasi via simulasi, bukan hanya geometri.
         static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
-        static const double kPowerFactors[] = {1.0, 1.15, 0.85, 1.3, 0.7}; // variasi ±power
+        // Power sweep: mulai dari base, coba lebih tinggi dulu (untuk shot jauh/pantulan),
+        // lalu lebih rendah (untuk shot dekat yang butuh kontrol).
+        // Range 0.65–1.5 supaya cover semua jarak tanpa undershoot/overshoot.
+        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.5, 0.65};
 
         bool foundShot = false;
         for (const auto& cand : candidates) {
@@ -713,14 +726,20 @@ namespace AutoPlay {
             double confirmedAngle = baseAngle;
             double confirmedPower = cand.power;
 
-            // Coba kombinasi angle offset x power factor
+            // WAJIB forceFullSimulation=true di sini:
+            // Tanpa ini, determineShotResult early-return saat firstHit bukan target →
+            // simulasi berhenti di tengah → cue ball belum selesai bergerak →
+            // balls[0].onTable masih true walau sebenarnya scratch → scratch lolos.
+            gPrediction->forceFullSimulation = true;
             for (double dA : kAngleOffsets) {
                 if (simOk) break;
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
                 for (double pf : kPowerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
                     gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
-                    if (gPrediction->firstHitIsTarget && gPrediction->guiData.balls[0].onTable) {
+                    // Cek scratch dulu: kalau cue ball masuk pocket, skip tanpa syarat
+                    if (!gPrediction->guiData.balls[0].onTable) continue;
+                    if (gPrediction->firstHitIsTarget) {
                         confirmedAngle = tryAngle;
                         confirmedPower = tryPower;
                         simOk = true;
@@ -728,6 +747,7 @@ namespace AutoPlay {
                     }
                 }
             }
+            gPrediction->forceFullSimulation = false;
             if (!simOk) continue;
 
             double angle = confirmedAngle;
@@ -866,6 +886,14 @@ namespace AutoPlay {
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
                                                       sharedGameManager.getShotSpin(), g_CurrentCandidate);
                     gPrediction->forceFullSimulation = false;
+
+                    // Kalau simulasi ulang deteksi scratch, batalkan shot ini
+                    if (!gPrediction->guiData.balls[0].onTable) {
+                        LOGI("[AUTOPLAY] Post-nomination scratch detected, cancelling shot");
+                        ClearState();
+                        return;
+                    }
+
                     if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
                         int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
                         if (freshPocket >= 0 && freshPocket < 6) {
