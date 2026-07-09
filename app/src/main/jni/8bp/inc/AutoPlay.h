@@ -43,15 +43,29 @@ constexpr double IMPACT_FORCE_THRESHOLD = 2.0;          // Detect dynamic collis
  * Where: μ = friction coefficient, g = gravity, d = distance, s = spin factor, k = english multiplier
  */
 inline double CalculateOptimalPowerAdvanced(double distance, double spinFactor = 0.0, double englishInfluence = 1.0) {
-    // FIX: use the real engine deceleration constant (196.0) instead of
-    // FRICTION_COEFFICIENT * GRAVITATIONAL_CONSTANT (0.12 * 9.81 ≈ 1.18),
-    // which was ~83x too weak — causing almost every shot to be massively
-    // underpowered and miss the pocket.
-    double cueDist   = distance * 0.4;  // rough 40/60 split cue-to-ball / ball-to-pocket
-    double ballDist  = distance * 0.6;
-    double vForBall  = sqrt(2.0 * BALL_DECELERATION * ballDist);
-    double vForCue   = sqrt(2.0 * BALL_DECELERATION * cueDist);
-    double optimalPower = (vForCue + vForBall) * 1.25;
+    // Pakai konstanta deceleration dari engine (196.0)
+    // Collision transfer ~50% energy dari cue ke target ball
+    // Jadi cue ball butuh kecepatan 2x dari yang target butuhkan
+    constexpr double DECEL = 196.0;
+
+    // Estimasi split jarak: 40% cue-to-ball, 60% ball-to-pocket
+    double distCue  = distance * 0.40;
+    double distBall = distance * 0.60;
+
+    // Kecepatan yang dibutuhkan target untuk sampai pocket
+    double vTarget = sqrt(2.0 * DECEL * distBall);
+
+    // Karena collision billiard ~elastic, cue butuh kecepatan ~= vTarget
+    // Tambah overhead untuk cover jarak cue-to-ball
+    double vCue = sqrt(2.0 * DECEL * distCue);
+
+    // Total power = kecepatan cue yang dibutuhkan + overhead jarak
+    // Factor 1.15 = kompensasi energy loss di cloth + slight overhead
+    double optimalPower = (vTarget + vCue * 0.5) * 1.15;
+
+    // Spin sedikit tambah power yang dibutuhkan
+    if (spinFactor > 0.0) optimalPower *= (1.0 + spinFactor * 0.05);
+
     return std::min(std::max(optimalPower, 80.0), 666.0);
 }
 
@@ -994,15 +1008,19 @@ namespace AutoPlay {
                 NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
                                     Height * 0.82f + sin(targetAngle) * 65.0f);
     
-                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
+                float sliderXPercent = 0.080f;
+                if (sliderXPercent <= 0.01f) sliderXPercent = 0.858f;
                 float sliderX = Width * sliderXPercent;
-                if (persistent_int[O("iPowerBarSide")] == 1)
+                if (persistent_int.count(O("iPowerBarSide")) && persistent_int[O("iPowerBarSide")] == 1)
                     sliderX = Width * (1.0f - sliderXPercent);
-                float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
-                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-    
-                powerSlider.SimulateDrag(sliderRect, targetPower, 1.5f, 0.7f);
+                float sliderYStart = 0.273f;
+                float sliderYEnd   = 0.872;
+                if (sliderYStart <= 0.01f) sliderYStart = 0.18f;
+                if (sliderYEnd   <= 0.01f) sliderYEnd   = 0.82f;
+                sliderYStart *= Height;
+                sliderYEnd   *= Height;
+                ImVec4 sliderRect(sliderX - 20.0f, sliderYEnd, 40.0f, sliderYStart - sliderYEnd);
+                powerSlider.SimulateDrag(sliderRect, (float)targetPower, 1.5f, 0.7f);
                 stateStartTime = now;
                 humanState = HUM_PULLING;
             }
@@ -1012,26 +1030,27 @@ namespace AutoPlay {
         // 6. HUM_PULLING (wait for slider to finish)
         if (humanState == HUM_PULLING) {
             if (powerSlider.Active) return;
-            // Sync gPrediction dengan angle+power aktual sebelum slider release.
-            // Ini penting supaya state gPrediction fresh dan konsisten dengan
-            // angle yang sekarang di-apply ke game, bukan sisa state dari scan.
-            gPrediction->forceFullSimulation = true;
-            gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            gPrediction->forceFullSimulation = false;
+            // Slider selesai — set angle+power di memory sekali lagi biar sync
+            setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
         }
     
-        // 7. HUM_DELAY_BEFORE_SHOT (0.4s cooldown, lalu cleanup)
+        // 7. HUM_DELAY_BEFORE_SHOT (0.4s cooldown, lalu fire shot)
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
             if (now - stateStartTime >= 0.4) {
+                // Set angle + power di memory sekali lagi biar tidak drift
+                setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+                // FIRE SHOT
+               // triggerShot();
                 humanShotLocked = false;
+                humanState = HUM_IDLE;
                 ClearState();
                 state = IDLE;
-                humanState = HUM_IDLE;
             }
             return;
         }
