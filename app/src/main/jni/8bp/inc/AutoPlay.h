@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-#include "PowerSlider.h"
+//#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -853,7 +853,7 @@ namespace AutoPlay {
         }
         
         buttonClicker.Update();
-        powerSlider.Update();
+      //  powerSlider.Update();
 
         if (isAnimationActive()) return;
 
@@ -1007,20 +1007,6 @@ namespace AutoPlay {
             if (now - stateStartTime >= 0.4) {
                 NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
                                     Height * 0.82f + sin(targetAngle) * 65.0f);
-    
-                float sliderXPercent = 0.080f;
-                if (sliderXPercent <= 0.01f) sliderXPercent = 0.858f;
-                float sliderX = Width * sliderXPercent;
-                if (persistent_int.count(O("iPowerBarSide")) && persistent_int[O("iPowerBarSide")] == 1)
-                    sliderX = Width * (1.0f - sliderXPercent);
-                float sliderYStart = 0.273f;
-                float sliderYEnd   = 0.872;
-                if (sliderYStart <= 0.01f) sliderYStart = 0.18f;
-                if (sliderYEnd   <= 0.01f) sliderYEnd   = 0.82f;
-                sliderYStart *= Height;
-                sliderYEnd   *= Height;
-                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-                powerSlider.SimulateDrag(sliderRect, (float)targetPower, 1.5f, 0.7f);
                 stateStartTime = now;
                 humanState = HUM_PULLING;
             }
@@ -1028,44 +1014,34 @@ namespace AutoPlay {
         }
     
         // 6. HUM_PULLING (wait for slider to finish)
-      /*  if (humanState == HUM_PULLING) {
-            if (powerSlider.Active) return;
+        if (humanState == HUM_PULLING) {
+        //    if (powerSlider.Active) return;
             // Slider selesai — set angle+power di memory sekali lagi biar sync
             setAimAngle(targetAngle);
             sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
-        }*/
-
-        if (humanState == HUM_PULLING) {
-    if (powerSlider.Active) return;
-    // Lock angle di memory tepat sebelum shot dikirim
-    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
-    stateStartTime = now;
-    humanState = HUM_DELAY_BEFORE_SHOT;
-    return;
         }
     
         // 7. HUM_DELAY_BEFORE_SHOT (0.4s cooldown, lalu fire shot)
-        /*if (humanState == HUM_DELAY_BEFORE_SHOT) {
+        if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
             if (now - stateStartTime >= 0.4) {
                 // Set angle + power di memory sekali lagi biar tidak drift
                 setAimAngle(targetAngle);
                 sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
                 // FIRE SHOT
-               // triggerShot();
+                triggerShot();
                 humanShotLocked = false;
                 humanState = HUM_IDLE;
                 ClearState();
                 state = IDLE;
             }
             return;
-        }*/
+        }
 
-        if (humanState == HUM_DELAY_BEFORE_SHOT) {
+      /*  if (humanState == HUM_DELAY_BEFORE_SHOT) {
     // Terus lock angle tiap frame biar engine tidak drift
     sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
     if (now - stateStartTime >= 0.1) { // cukup 0.1s aja
@@ -1076,7 +1052,7 @@ namespace AutoPlay {
     }
     return;
         }
-    }
+    }*/
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
     if (isPlayerTurn && bAutoSpin) applyAutoSpin();
 }
