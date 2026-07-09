@@ -839,7 +839,7 @@ namespace AutoPlay {
         return (activeAction != 0); 
     }
     
-    void Update() {
+     void Update() {
         // FIX: check both conditions:
         // 1. bAutoPlay = "Enable Auto Play" toggle in menu (feature enabled at all)
         // 2. bAutoPlaying = play/pause button on screen (user pressed play)
@@ -847,13 +847,13 @@ namespace AutoPlay {
         // no effect on whether scanning/shooting actually happened.
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             NativeTouchesEnd(5, 0, 0);      // joystick
-        // NativeTouchesEnd(powerSlider.TouchIndex, 0, 0); // slider
+            //NativeTouchesEnd(powerSlider.TouchIndex, 0, 0); // slider
             state = IDLE;
             return;
         }
         
         buttonClicker.Update();
-      //  powerSlider.Update();
+       // powerSlider.Update();
 
         if (isAnimationActive()) return;
 
@@ -1006,7 +1006,7 @@ namespace AutoPlay {
     
             if (now - stateStartTime >= 0.4) {
                 NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
-                                    Height * 0.82f + sin(targetAngle) * 65.0f);
+                                    Height * 0.82f + sin(targetAngle) * 65.0f);    
                 stateStartTime = now;
                 humanState = HUM_PULLING;
             }
@@ -1015,7 +1015,7 @@ namespace AutoPlay {
     
         // 6. HUM_PULLING (wait for slider to finish)
         if (humanState == HUM_PULLING) {
-        //    if (powerSlider.Active) return;
+          //  if (powerSlider.Active) return;
             // Slider selesai — set angle+power di memory sekali lagi biar sync
             setAimAngle(targetAngle);
             sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
@@ -1040,19 +1040,7 @@ namespace AutoPlay {
             }
             return;
         }
-
-      /*  if (humanState == HUM_DELAY_BEFORE_SHOT) {
-    // Terus lock angle tiap frame biar engine tidak drift
-    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-    if (now - stateStartTime >= 0.1) { // cukup 0.1s aja
-        humanShotLocked = false;
-        humanState = HUM_IDLE;
-        ClearState();
-        state = IDLE;
     }
-    return;
-        }
-    }*/
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
     if (isPlayerTurn && bAutoSpin) applyAutoSpin();
 }
