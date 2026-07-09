@@ -771,34 +771,35 @@ namespace AutoPlay {
 
             if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
                  auto firstHit = gPrediction->guiData.collision.firstHitBall;
+
+                 // Hitung only8Left di sini supaya bisa dipakai di firstHit check
+                 auto& eightBallRef = gPrediction->guiData.balls[8];
+                 bool only8Left = false;
+                 if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+                     bool foundOwn = false;
+                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                         auto& b = gPrediction->guiData.balls[i];
+                         if (b.originalOnTable && b.classification == myclass) { foundOwn = true; break; }
+                     }
+                     if (!foundOwn) only8Left = true;
+                 }
+
                  if (only8Left) {
-                     // Sudah waktunya tembak 8-ball: first hit HARUS 8-ball, bukan bola lain
                      if (firstHit->classification != Ball::Classification::EIGHT_BALL) isAngleGood = false;
                  } else if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) {
                      isAngleGood = false;
                  } else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) {
                      isAngleGood = false;
                  }
+
+                 // 8-ball masuk prematur = foul
+                 if (isAngleGood && eightBallRef.originalOnTable && !eightBallRef.onTable
+                     && !only8Left && myclass != Ball::Classification::EIGHT_BALL) {
+                     isAngleGood = false;
+                 }
             }
 
             if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
-            
-            // FIX: check only8BallLeft same way as IsShotValid — don't reject
-            // the 8-ball pot when it IS the right time to shoot it.
-            auto& eightBallRef = gPrediction->guiData.balls[8];
-            bool only8Left = false;
-            if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
-                bool foundOwn = false;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& b = gPrediction->guiData.balls[i];
-                    if (b.originalOnTable && b.classification == myclass) { foundOwn = true; break; }
-                }
-                if (!foundOwn) only8Left = true;
-            }
-            if (isAngleGood && eightBallRef.originalOnTable && !eightBallRef.onTable
-                && !only8Left && myclass != Ball::Classification::EIGHT_BALL) {
-                isAngleGood = false;
-            }
             
             if (isAngleGood) {
                 g_CurrentCandidate = cand;
