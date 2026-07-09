@@ -760,6 +760,7 @@ namespace AutoPlay {
             if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
             scan = SLOW;
+            }
         }
     }
 
