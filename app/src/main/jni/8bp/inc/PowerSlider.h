@@ -140,21 +140,22 @@ struct PowerSlider {
         }
 
         if (this->state == ENDING) {
-            this->HoldTime += dt;
-            if (this->HoldTime >= this->HoldDuration) {
-                // ROOT CAUSE FIX: Hapus IsShotValid() check di sini.
-                //
-                // IsShotValid() baca dari gPrediction->guiData yang merupakan hasil
-                // simulasi TERAKHIR dari scan — bukan dari angle+power yang sekarang
-                // aktif di game engine. Karena gPrediction tidak di-update ulang saat
-                // slider bergerak, IsShotValid() sering return false meskipun shot valid
-                // → Cancel() dipanggil → slider balik → tidak nembak.
-                //
-                // Shot sudah divalidasi dengan forceFullSimulation=true saat scan.
-                // Kandidat tidak berubah antara scan dan ENDING. Tidak perlu cek ulang.
-                this->End();
-            }
+    this->HoldTime += dt;
+    if (this->HoldTime >= this->HoldDuration) {
+        // Refresh simulasi dengan angle+power yang aktif sekarang
+        gPrediction->determineShotResult(true,
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(),
+            sharedGameManager.mVisualCue().getShotPower(false),
+            sharedGameManager.getShotSpin());
+
+        if (IsShotValid()) {
+            this->End();
+        } else {
+            LOGI("Shot invalid, canceling.");
+            this->Cancel();
         }
+    }
+}
 
         if (this->state == RETURNING) {
             this->ElapsedTime += dt;
