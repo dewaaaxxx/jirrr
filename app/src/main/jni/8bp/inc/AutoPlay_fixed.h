@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction_fast_fixed.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -347,7 +347,10 @@ namespace AutoPlay {
     void triggerShot() {
         g_postShotLock = true;
         g_postShotAngle = targetAngle;
-        g_postShotPower = pendingShotPower;
+        // BUG FIX: pendingShotPower tidak selalu sync dengan targetPower.
+        // takeShot() set targetPower, tapi triggerShot() baca pendingShotPower → power salah/lebih pelan.
+        // Pakai targetPower yang di-set oleh takeShot() dan di-hold sepanjang human state machine.
+        g_postShotPower = targetPower;
         g_postShotFrames = 15;
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
@@ -360,10 +363,17 @@ namespace AutoPlay {
     }
     
     void Shoot(double angle, double power = 0.f) {
-        applyAutoSpin(); // AIMX SYNC: Apply spin BEFORE simulation so visuals match
+        applyAutoSpin();
         
         setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
+        // BUG FIX (tembak tanpa nominasi): determineShotResult(false,...) tidak jalankan
+        // simulasi lengkap → guiData.balls[i].pocketIndex tidak valid → nominasi check
+        // di bawah ini selalu melihat pocketIndex = 0 (atau garbage) → nominasi tidak
+        // dipicu padahal seharusnya → autoplay nembak ke lubang yang belum dipilih.
+        // Harus pakai forceFullSimulation=true supaya pocketIndex ter-update benar.
+        gPrediction->forceFullSimulation = true;
+        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+        gPrediction->forceFullSimulation = false;
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -380,13 +390,9 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
-            // BUG FIX #1: JANGAN panggil ClearState() di sini.
-            // takeShot() set humanState = HUM_THINKING, tapi ClearState() langsung
-            // mereset humanState = HUM_IDLE → human state machine tidak pernah jalan.
-            // State cleanup dilakukan di HUM_DELAY_BEFORE_SHOT setelah shot selesai.
             pendingShotPower = power;
             pendingShotAngle = angle;
-            state = IDLE; // kembali ke IDLE supaya IDLE→SCANNING guard bisa cek humanState
+            state = IDLE;
             takeShot(angle, power);
         }
     }
@@ -423,9 +429,7 @@ namespace AutoPlay {
 
     int steps = 0;
 
-    // FIX: Naikkan steps dari 15 → 50 per frame. angleStep=0.005 dg 15 steps/frame
-    // butuh ~840 frame (~14 detik). Dengan 50 steps → ~4 detik.
-    while (steps < 50 && currentScanAngle < maxAngle) {
+    while (steps < 15 && currentScanAngle < maxAngle) {
         double angle = currentScanAngle;
         currentScanAngle += angleStep;
         steps++;
@@ -526,24 +530,13 @@ namespace AutoPlay {
         
         int steps = 0;
         bool foundShot = false;
-
-        // FIX SCAN SPEED: Naikkan steps per frame dari 20 → 60.
-        // Dengan angleStep=0.003 dan 20 steps/frame butuh ~1047 frame (~17 detik di 60fps).
-        // Dengan 60 steps/frame → ~5-6 detik. Masih akurat karena step kecil (0.003 rad ≈ 0.17°).
-        while (steps < 60 && currentScanAngle < maxAngle) {
+        
+        while (steps < 20 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
-            // FIX POWER: Hitung power dari jarak aktual, bukan list fixed dari 666 ke bawah.
-            // Mulai dari max power lalu turun, supaya shot dengan power lebih rendah
-            // (lebih mudah dikontrol) dipilih kalau memungkinkan.
-            auto& cb = gPrediction->guiData.balls[0];
-            double estDist = 150.0; // default jarak estimasi
-            std::vector<double> powers = {
-                std::min(666.0, std::max(100.0, sqrt(estDist * 2.0 * 196.0))),
-                400.0, 266.0, 150.0, 666.0
-            };
+            std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
@@ -677,11 +670,13 @@ namespace AutoPlay {
                 double angle = atan2(shotLine.y, shotLine.x);
                 if (angle < 0) angle += 2 * M_PI;
                 
-                // FIX: Gunakan power berdasarkan jarak aktual (physics engine sync: v=sqrt(2*a*s), a=196)
-                // Bukan CalculateOptimalPowerAdvanced yang pakai rumus sendiri tidak sync dg engine.
+                // FIX POWER: Sync dengan physics engine (a=196, v=sqrt(2*a*s)).
+                // CalculateOptimalPowerAdvanced pakai rumus sendiri yang tidak sama dg engine
+                // → bola tidak sampai pocket untuk shot jauh (power terlalu pelan).
+                // Tambah faktor 1.25 untuk overhead friction + collision energy loss.
                 double totalDist = distCueToTarget + distTargetToPocket;
-                double power = sqrt(totalDist * 2.0 * 196.0);
-                if (power < 100.0) power = 100.0;
+                double power = sqrt(totalDist * 2.0 * 196.0) * 1.25;
+                if (power < 120.0) power = 120.0;
                 if (power > 666.0) power = 666.0;
                 double compositeScore = totalDist;
                 
@@ -701,37 +696,40 @@ namespace AutoPlay {
         // over simpler direct shots.
         std::sort(candidates.begin(), candidates.end());
         
-        // FIX AKURASI: Ghost ball formula memberikan angle teoritis yang bisa meleset
-        // 0.5-2 derajat karena friction, spin, dan BALL_RADIUS offset.
-        // Kita refine angle dengan sweep ±2 derajat di sekitar teoritis,
-        // dan coba beberapa power level via simulasi untuk konfirmasi.
-        // Ini yang bikin autoplay "teman" kamu akurat banget — dia verifikasi via sim.
-        static const std::vector<double> angleOffsets  = {0.0, -0.017, +0.017, -0.035, +0.035}; // 0, ±1°, ±2°
-        static const std::vector<double> powerVariants = {0.0, -30.0, +30.0, -60.0, +60.0};
+        // FIX AKURASI (foto 1): Ghost ball formula tidak 100% akurat karena friction,
+        // BALL_RADIUS offset, dan spin engine. Untuk tiap kandidat:
+        // 1. Coba ±1° dan ±2° di sekitar angle teoritis (angle refinement)
+        // 2. Coba beberapa power levels (power sweep) supaya ketemu kombinasi yang
+        //    benar-benar diverifikasi masuk oleh engine via determineShotResult().
+        // Ini yang bikin autoplay akurat — verifikasi via simulasi, bukan hanya geometri.
+        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
+        static const double kPowerFactors[] = {1.0, 1.15, 0.85, 1.3, 0.7}; // variasi ±power
 
         bool foundShot = false;
         for (const auto& cand : candidates) {
             double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
 
-            // Coba angle refinement ± sekitar angle teoritis
             bool simOk = false;
-            double confirmedPower = cand.power;
             double confirmedAngle = baseAngle;
-            for (double dA : angleOffsets) {
+            double confirmedPower = cand.power;
+
+            // Coba kombinasi angle offset x power factor
+            for (double dA : kAngleOffsets) {
+                if (simOk) break;
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
-                for (double dP : powerVariants) {
-                    double tryPower = std::min(std::max(cand.power + dP, 100.0), 666.0);
+                for (double pf : kPowerFactors) {
+                    double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
                     gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
                     if (gPrediction->firstHitIsTarget && gPrediction->guiData.balls[0].onTable) {
-                        confirmedPower = tryPower;
                         confirmedAngle = tryAngle;
+                        confirmedPower = tryPower;
                         simOk = true;
                         break;
                     }
                 }
-                if (simOk) break;
             }
             if (!simOk) continue;
+
             double angle = confirmedAngle;
 
             if (isNineBallGame) {
@@ -750,8 +748,9 @@ namespace AutoPlay {
                 if (bestPottedIdx == -1) continue;
                 g_CurrentCandidate = cand;
                 g_CurrentCandidate.idx = bestPottedIdx;
-                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
+                g_CurrentCandidate.angle = confirmedAngle;
                 g_CurrentCandidate.power = confirmedPower;
+                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
                 foundShot = true;
                 Shoot(confirmedAngle, confirmedPower);
                 break;
@@ -760,11 +759,6 @@ namespace AutoPlay {
             if (gPrediction->guiData.balls[cand.idx].onTable) continue;
             if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
 
-            // FIX: previously checked if ANY ball of our group was potted,
-            // meaning a shot that potted an OPPONENT's ball could still pass
-            // if one of our balls happened to also go in during the same
-            // simulation. Now we specifically verify that `cand.idx` (the
-            // intended target ball) is the one that actually got potted.
             auto& targetBall = gPrediction->guiData.balls[cand.idx];
             bool isAngleGood = (targetBall.originalOnTable && !targetBall.onTable);
 
@@ -776,8 +770,6 @@ namespace AutoPlay {
 
             if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
             
-            // FIX: check only8BallLeft same way as IsShotValid — don't reject
-            // the 8-ball pot when it IS the right time to shoot it.
             auto& eightBallRef = gPrediction->guiData.balls[8];
             bool only8Left = false;
             if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
@@ -795,16 +787,17 @@ namespace AutoPlay {
             
             if (isAngleGood) {
                 g_CurrentCandidate = cand;
-                g_CurrentCandidate.power = confirmedPower; // pakai power yang sudah diverifikasi simulasi
+                g_CurrentCandidate.angle = confirmedAngle;
+                g_CurrentCandidate.power = confirmedPower;
                 foundShot = true;
-                Shoot(angle, confirmedPower);
+                Shoot(confirmedAngle, confirmedPower);
                 break;
             }
         }
 
-        // BUG FIX #3: Set lastFailedCuePos DI LUAR loop, bukan di dalam.
-        // Sebelumnya di-set setiap kandidat yang gagal → ScanSlow di-block
-        // bahkan ketika masih ada kandidat lain yang belum dievaluasi.
+        // BUG FIX: set lastFailedCuePos DI LUAR loop.
+        // Sebelumnya di-set di DALAM loop setiap kandidat gagal → ScanSlow
+        // di-block bahkan ketika masih ada kandidat lain yang belum dicoba.
         if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
             scan = SLOW;
@@ -1025,5 +1018,25 @@ namespace AutoPlay {
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
     if (isPlayerTurn && bAutoSpin) applyAutoSpin();
+
+    // PREDICTION LINES:
+    // Di Prediction ini, lines digambar berdasarkan parameter `isAuto` di determineShotResult:
+    //   isAuto=false → fastCalc=false → positions di-track → lines TAMPIL
+    //   isAuto=true  → fastCalc=true  → positions tidak di-track → lines HILANG
+    //
+    // - Saat humanState aktif (lagi aiming/pulling): panggil isAuto=true → lines hilang
+    // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
+    if (humanState != HUM_IDLE) {
+        // Lines hilang selama human state machine jalan
+        gPrediction->determineShotResult(true, targetAngle, targetPower, sharedGameManager.getShotSpin());
+    } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
+        // Lines tampil lagi setelah shot, ikuti aim angle real-time
+        if (gPrediction && sharedGameManager) {
+            double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+            double curPower = sharedGameManager.mVisualCue().mPower();
+            if (curPower < 80.0) curPower = 400.0;
+            gPrediction->determineShotResult(false, curAngle, curPower, sharedGameManager.getShotSpin());
+        }
+    }
 }
 };
