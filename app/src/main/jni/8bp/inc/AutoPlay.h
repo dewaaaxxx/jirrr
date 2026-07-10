@@ -299,6 +299,10 @@ namespace AutoPlay {
     // determineShotResult call (scan, display, tembak) sampai shot selesai.
     static inline Vec2d lockedShotSpin = {0.0, 0.0};
     static inline bool spinIsLocked = false;
+    // Scan state di namespace level supaya bisa di-reset oleh ClearState() dan turn-end reset
+    static inline double slowScanAngle = 0.0;
+    static inline bool slowScanActive = false;
+    static inline Point2D slowScanCuePos = {-1000.0, -1000.0};
     // FIX POWER: Power yang dipakai scan harus sama persis dengan yang ditembak.
     // confirmedPower dari scan disimpan di g_CurrentCandidate.power dan di targetPower.
     // Konversi ke mPower() via ShotPowerToPower() sudah benar — tidak perlu diubah.
@@ -372,7 +376,12 @@ namespace AutoPlay {
         lastFailedCuePos = { -1000.0, -1000.0 };
         state = IDLE;
         humanState = HUM_IDLE;
-        spinIsLocked = false; // Unlock spin supaya scan berikutnya lock spin fresh
+        spinIsLocked = false;
+        // Reset scan state supaya ScanSlow tidak lanjut dari posisi angle lama
+        slowScanAngle = 0.0;
+        slowScanActive = false;
+        slowScanCuePos = {-1000.0, -1000.0};
+        scan = FAST;
     }
     
     void Shoot(double angle, double power = 0.f) {
@@ -523,17 +532,13 @@ namespace AutoPlay {
 
     
     void ScanSlow(double angleStep = 0.01f) {
-        static double currentScanAngle = 0.0;
-        static bool isScanning = false;
-        static Point2D lastScanCuePos = { -1000.0, -1000.0 };
-
+        // Pakai namespace-level variables supaya bisa di-reset oleh ClearState() dan turn-end
         if (g_CurrentCandidate.idx != -1) return;
         
-        if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
-            currentScanAngle = 0.0;
-            isScanning = true;
-            lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
-            // Lock spin saat mulai scan baru
+        if (!slowScanActive || gPrediction->guiData.balls[0].initialPosition != slowScanCuePos) {
+            slowScanAngle = 0.0;
+            slowScanActive = true;
+            slowScanCuePos = gPrediction->guiData.balls[0].initialPosition;
             if (!spinIsLocked) {
                 if (bAutoSpin) applyAutoSpin();
                 lockedShotSpin = sharedGameManager.getShotSpin();
@@ -551,9 +556,12 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        while (steps < 20 && currentScanAngle < maxAngle) {
-            double angle = currentScanAngle;
-            currentScanAngle += angleStep;
+        // BUG FIX SPEED: steps=20 dengan angleStep=0.003 butuh ~1047 frame (~17 detik di 60fps)
+        // untuk full scan → waktu giliran habis sebelum scan selesai.
+        // Naikkan ke 60 steps/frame → ~5-6 detik. Akurasi tetap karena step kecil (0.003 rad).
+        while (steps < 60 && slowScanAngle < maxAngle) {
+            double angle = slowScanAngle;
+            slowScanAngle += angleStep;
             steps++;
 
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
@@ -656,9 +664,9 @@ namespace AutoPlay {
             if (foundShot) break;
         }
 
-        if (!foundShot && currentScanAngle >= maxAngle) {
-            isScanning = false;
-            currentScanAngle = 0.0;
+        if (!foundShot && slowScanAngle >= maxAngle) {
+            slowScanActive = false;
+            slowScanAngle = 0.0;
             state = IDLE;
         }
     }
@@ -923,6 +931,10 @@ namespace AutoPlay {
         uintptr_t activeAction = M(uintptr_t, libmain + 0x2de6f30, ptr)(_powerBarView);
         return (activeAction != 0); 
     }
+
+    // Waktu pertama kali giliran dimulai — untuk deteksi stuck di animationActive
+    static inline double turnStartTime = 0.0;
+    static inline bool turnStarted = false;
     
      void Update() {
         // FIX: check both conditions:
@@ -936,14 +948,32 @@ namespace AutoPlay {
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
             if (state == EXECUTING) return;
             NativeTouchesEnd(5, 0, 0);
+
+            // BUG FIX STALE STATE: Reset SEMUA state saat giliran berakhir.
+            // Tanpa ini, g_CurrentCandidate / spinIsLocked / scan state dari turn
+            // sebelumnya masih aktif → giliran berikutnya langsung eksekusi kandidat
+            // stale → tembak ke posisi bola yang sudah tidak ada → ngaco.
+            g_CurrentCandidate.idx = -1;
+            lastFailedCuePos = { -1000.0, -1000.0 };
+            spinIsLocked = false;
             state = IDLE;
+            scan = FAST;
+            turnStarted = false; // Reset timer untuk giliran berikutnya
             return;
         }
         
         buttonClicker.Update();
-       // powerSlider.Update();
 
-        if (isAnimationActive()) return;
+        // BUG FIX STUCK: Track kapan giliran dimulai.
+        // isAnimationActive() kadang return true terus di awal turn (power bar dari
+        // giliran sebelumnya belum clear) → scan tidak pernah dimulai → waktu habis.
+        // Paksa mulai scan setelah 1.5 detik walau isAnimationActive masih true.
+        if (!turnStarted) {
+            turnStartTime = nowSec();
+            turnStarted = true;
+        }
+        bool animStuck = (nowSec() - turnStartTime > 1.5);
+        if (isAnimationActive() && !animStuck) return;
 
         /*if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             state = IDLE;
