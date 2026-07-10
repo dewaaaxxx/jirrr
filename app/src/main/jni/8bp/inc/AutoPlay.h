@@ -971,7 +971,7 @@ namespace AutoPlay {
 // ─── SHOT FOUND INDICATOR ──────────────────────────────────────────────
 static float shotFoundTimer = 0.0f;
 if (g_CurrentCandidate.idx != -1) {
-    shotFoundTimer = 0.2f;
+    shotFoundTimer = 0.1f;
 }
 
 if (shotFoundTimer > 0.0f) {
