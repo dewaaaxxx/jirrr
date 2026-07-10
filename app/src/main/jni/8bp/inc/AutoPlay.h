@@ -968,6 +968,46 @@ namespace AutoPlay {
             state = IDLE;
             return;
         }
+
+         // ─── SHOT FOUND INDICATOR ──────────────────────────────────────────────
+static float shotFoundTimer = 0.0f;
+if (g_CurrentCandidate.idx != -1) {
+    shotFoundTimer = 2.0f; // Reset timer ke 2 detik
+}
+
+if (shotFoundTimer > 0.0f) {
+    shotFoundTimer -= ImGui::GetIO().DeltaTime; // Kurangi waktu setiap frame
+
+    ImDrawList* fg = ImGui::GetForegroundDrawList();
+    if (fg) {
+        ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+        const char* text = "Shot Found!";
+        ImVec2 textSize = ImGui::CalcTextSize(text);
+        float padding = 10.0f;
+        ImVec2 pos = ImVec2(screenSize.x - textSize.x - padding * 2 - 20, screenSize.y - textSize.y - padding * 2 - 20);
+
+        // 🔥 Background hijau tua
+        fg->AddRectFilled(
+            ImVec2(pos.x - padding, pos.y - padding),
+            ImVec2(pos.x + textSize.x + padding, pos.y + textSize.y + padding),
+            IM_COL32(0, 100, 0, 220), // ← Ganti warna
+            4.0f
+        );
+
+        // Outline putih tipis
+        fg->AddRect(
+            ImVec2(pos.x - padding, pos.y - padding),
+            ImVec2(pos.x + textSize.x + padding, pos.y + textSize.y + padding),
+            IM_COL32(255, 255, 255, 200),
+            4.0f,
+            0,
+            1.5f
+        );
+
+        // Teks putih
+        fg->AddText(pos, IM_COL32(255, 255, 255, 255), text);
+    }
+}
         
         buttonClicker.Update();
        // powerSlider.Update();
