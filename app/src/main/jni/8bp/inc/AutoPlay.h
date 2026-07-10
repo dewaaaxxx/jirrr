@@ -381,7 +381,7 @@ namespace AutoPlay {
         // → simulasi scan (dengan spin lama) berbeda dengan simulasi display (dengan spin baru)
         // → prediction line kelihatan masuk tapi setelah tembak meleset.
         setAimAngle(angle);
-      //  gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -952,7 +952,7 @@ namespace AutoPlay {
             // Kalau human state machine sedang jalan, jangan interrupt
             if (humanState != HUM_IDLE) return;
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
-            g_CurrentCandidate.idx = -1
+            g_CurrentCandidate.idx = -1;
             if (state == EXECUTING) return;
             NativeTouchesEnd(5, 0, 0);
             state = IDLE;
