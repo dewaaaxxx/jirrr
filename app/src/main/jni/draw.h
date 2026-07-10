@@ -812,6 +812,7 @@ if (fg) {
 
     // ─── 1. Watermark di tengah ──────────────────────────────────────────
     const char* centerText = "@CM_ENGINE_MOD_v1.8";
+    ImGui::PushFont(fontShotFound); // ← Pakai font yang sama (Montserrat 15px)
     ImVec2 centerTextSize = ImGui::CalcTextSize(centerText);
     ImVec2 center = ImVec2(
         (screenSize.x - centerTextSize.x) * 0.5f,
@@ -822,34 +823,9 @@ if (fg) {
     fg->AddText(ImVec2(center.x + 1, center.y + 1), IM_COL32(0, 0, 0, 80), centerText);
     fg->AddText(ImVec2(center.x - 1, center.y - 1), IM_COL32(0, 0, 0, 80), centerText);
 
-    // 🔥 Teks utama: hijau terang, opacity rendah
-    fg->AddText(center, IM_COL32(0, 255, 0, 60), centerText); // ← Hijau terang, opacity 100
-
-    const char* bottomText = "tg: @Cmengine";
-    ImVec2 bottomTextSize = ImGui::CalcTextSize(bottomText);
-    float padding = 8.0f;
-    ImVec2 bottomPos = ImVec2(10, screenSize.y - bottomTextSize.y - padding - 10);
-
-    // 🔥 Background hitam transparan
-    fg->AddRectFilled(
-        ImVec2(bottomPos.x - padding, bottomPos.y - padding),
-        ImVec2(bottomPos.x + bottomTextSize.x + padding, bottomPos.y + bottomTextSize.y + padding),
-        IM_COL32(0, 0, 0, 180),
-        4.0f
-    );
-
-    // Outline hijau tipis
-    fg->AddRect(
-        ImVec2(bottomPos.x - padding, bottomPos.y - padding),
-        ImVec2(bottomPos.x + bottomTextSize.x + padding, bottomPos.y + bottomTextSize.y + padding),
-        IM_COL32(0, 255, 0, 150),
-        4.0f,
-        0,
-        1.0f
-    );
-
-    // Teks putih
-    fg->AddText(bottomPos, IM_COL32(255, 255, 255, 255), bottomText);
+    // Teks utama: hijau terang, opacity 60
+    fg->AddText(center, IM_COL32(0, 255, 0, 60), centerText);
+    ImGui::PopFont();
 }
         
         
