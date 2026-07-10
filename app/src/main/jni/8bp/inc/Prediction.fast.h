@@ -412,7 +412,7 @@ void Prediction::handleBallBallCollision() const {
 /* BALL PUBLIC METHODS ========================================================================== */
 
 const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
-    static const std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
+    static std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
             Point2D(-130.8, -67.3),
             Point2D(0, -72),
             Point2D(130.8, -67.3),
