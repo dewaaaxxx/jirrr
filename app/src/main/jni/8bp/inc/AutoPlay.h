@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction_fast_fixed.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
@@ -347,7 +347,10 @@ namespace AutoPlay {
     void triggerShot() {
         g_postShotLock = true;
         g_postShotAngle = targetAngle;
-        g_postShotPower = pendingShotPower;
+        // BUG FIX: pendingShotPower tidak selalu sync dengan targetPower.
+        // takeShot() set targetPower, tapi triggerShot() baca pendingShotPower → power salah/lebih pelan.
+        // Pakai targetPower yang di-set oleh takeShot() dan di-hold sepanjang human state machine.
+        g_postShotPower = targetPower;
         g_postShotFrames = 15;
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
@@ -360,16 +363,20 @@ namespace AutoPlay {
     }
     
     void Shoot(double angle, double power = 0.f) {
-        applyAutoSpin(); // AIMX SYNC: Apply spin BEFORE simulation so visuals match
-        
+        applyAutoSpin();
         setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
+        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
         auto myclass = sharedGameManager.getPlayerClassification();
-        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+        uint currentNominated = sharedGameManager.getNominatedPocket();
+
+        bool mustNominate = (nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL)
+                         || (nominationMode == 2 && myclass != Ball::Classification::ANY);
+
+        if (mustNominate && g_CurrentCandidate.idx != -1) {
+            if (currentNominated != (uint)g_CurrentCandidate.pocketIndex) {
                 nominating = true;
             }
         }
@@ -380,13 +387,8 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
-            // BUG FIX #1: JANGAN panggil ClearState() di sini.
-            // takeShot() set humanState = HUM_THINKING, tapi ClearState() langsung
-            // mereset humanState = HUM_IDLE → human state machine tidak pernah jalan.
-            // State cleanup dilakukan di HUM_DELAY_BEFORE_SHOT setelah shot selesai.
             pendingShotPower = power;
             pendingShotAngle = angle;
-            state = IDLE; // kembali ke IDLE supaya IDLE→SCANNING guard bisa cek humanState
             takeShot(angle, power);
         }
     }
@@ -430,9 +432,7 @@ namespace AutoPlay {
 
         std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
         for (double power : powers) {
-            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-            gPrediction->forceFullSimulation = false;
 
             if (!gPrediction->guiData.balls[0].onTable) continue;
 
@@ -521,6 +521,10 @@ namespace AutoPlay {
 
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
+        int nominationMode = sharedGameManager.getPocketNominationMode();
+        bool mustNominate = (nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL)
+                         || (nominationMode == 2 && myclass != Ball::Classification::ANY);
+        bool pocketAlreadyNominated = (nominatedPocket < 6);
         
         int steps = 0;
         bool foundShot = false;
@@ -532,7 +536,11 @@ namespace AutoPlay {
 
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
+                // dan scratch (cue ball masuk pocket) terdeteksi dengan benar.
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                
+                // Cek scratch PERTAMA sebelum cek lain apapun
+                if (!gPrediction->guiData.balls[0].onTable) continue;
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -555,7 +563,8 @@ namespace AutoPlay {
                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                         auto& ball = gPrediction->guiData.balls[i];
                         if (ball.originalOnTable && !ball.onTable) {
-                            if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                            // Hanya filter pocket kalau sudah ada nominasi
+                            if (pocketAlreadyNominated && ball.pocketIndex != nominatedPocket) continue;
                             if (i == 9) { bestPottedIdx = 9; break; }
                             if (bestPottedIdx == -1 || i == firstHit->index) bestPottedIdx = i;
                         }
@@ -581,13 +590,14 @@ namespace AutoPlay {
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
                         }
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValidTarget = false;
+                        // Hanya filter pocket kalau sudah ada nominasi
+                        if (pocketAlreadyNominated && ball.pocketIndex != nominatedPocket) isValidTarget = false;
                         if (isValidTarget) { targetIdx = i; break; }
                     }
                 }
 
                 if (targetIdx != -1) {
-                    if (!gPrediction->guiData.balls[0].onTable) continue;
+                    // balls[0].onTable sudah di-cek di atas (awal loop power)
                     if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
@@ -619,16 +629,32 @@ namespace AutoPlay {
     }
     
     void ScanFast(double angleStep = 0.1f) {
-        /**
-         * EXPLOSIVE FAST SCAN: Dynamic multi-candidate ranking algorithm
-         * Uses advanced physics-based scoring to identify explosive shot combinations
-         */
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
 
         double startingAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
+        int nominationMode = sharedGameManager.getPocketNominationMode();
+
+        // BUG FIX NOMINATION: Di meja yang wajib pilih lubang (nominationMode > 0),
+        // getNominatedPocket() return nilai >= 6 (misal 255) sebelum user pilih lubang.
+        // Kondisi `nominatedPocket < 6` jadi false → filter pocket dimatikan →
+        // scan generate kandidat ke semua 6 pocket → pilih pocket yang paling dekat
+        // tanpa peduli nominasi → akurasi hancur di meja nomination.
+        //
+        // Fix: Kalau meja wajib nominasi DAN pocket belum dipilih (>= 6),
+        // kita harus nominasi dulu sebelum bisa scan dengan benar.
+        // Untuk itu: scan dulu ke semua pocket untuk cari shot terbaik,
+        // set g_CurrentCandidate, lalu biarkan Shoot() yang trigger nominasi.
+        // Yang TIDAK boleh: filter pocket saat nominasi belum ada.
+        bool mustNominate = (nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL)
+                         || (nominationMode == 2 && myclass != Ball::Classification::ANY);
+        bool pocketAlreadyNominated = (nominatedPocket < 6);
+
+        // Kalau sudah ada nominasi, hanya scan ke pocket itu.
+        // Kalau belum (mustNominate=true, pocketAlreadyNominated=false),
+        // scan semua pocket — Shoot() nanti yang akan trigger nominasi ke pocket terbaik.
         std::vector<Candidate> candidates;
         auto pockets = getPockets();
         auto& cueBall = gPrediction->guiData.balls[0];
@@ -650,8 +676,11 @@ namespace AutoPlay {
                 if (!isACandidate) continue;
             }
 
-            for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
-                if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
+            for (int pocketIdx = 0; pocketIdx < (int)pockets.size(); pocketIdx++) {
+                // Kalau pocket sudah dinominasi, hanya generate kandidat ke pocket itu.
+                // Kalau belum dinominasi (mustNominate && !pocketAlreadyNominated),
+                // generate semua pocket — Shoot() yang akan nominasi pocket terbaik.
+                if (pocketAlreadyNominated && pocketIdx != (int)nominatedPocket) continue;
                 Point2D pocket = pockets[pocketIdx];
                 Point2D toPocket = pocket - ball.initialPosition;
                 double distTargetToPocket = sqrt(toPocket.square());
@@ -664,11 +693,19 @@ namespace AutoPlay {
                 double angle = atan2(shotLine.y, shotLine.x);
                 if (angle < 0) angle += 2 * M_PI;
                 
-                // REVOLUTIONARY PHYSICS: Advanced power calculation
-                double power = CalculateOptimalPowerAdvanced(distCueToTarget + distTargetToPocket, spinMagnitude, 1.0);
-                double compositeScore = distCueToTarget + distTargetToPocket;
-                
+                // Power formula: sync dengan physics engine (a=196).
+                // Factor 1.35 (bukan 1.25) karena:
+                //   - Energy loss di cloth: ~15%
+                //   - Energy loss di collision cue→target: ~10%
+                //   - Overhead supaya bola target punya cukup speed sampai pocket
+                // Untuk shot langsung faktor ini sedikit terlalu besar tapi aman —
+                // ScanFast tetap verifikasi via simulasi (kPowerFactors sweep ke bawah juga).
+                double totalDist = distCueToTarget + distTargetToPocket;
+                double power = sqrt(totalDist * 2.0 * 196.0) * 1.35;
+                if (power < 150.0) power = 150.0;
                 if (power > 666.0) power = 666.0;
+                double compositeScore = totalDist;
+                
                 candidates.push_back({i, angle, compositeScore, pocketIdx, power});
             }
         }
@@ -685,12 +722,48 @@ namespace AutoPlay {
         // over simpler direct shots.
         std::sort(candidates.begin(), candidates.end());
         
+        // FIX AKURASI (foto 1): Ghost ball formula tidak 100% akurat karena friction,
+        // BALL_RADIUS offset, dan spin engine. Untuk tiap kandidat:
+        // 1. Coba ±1° dan ±2° di sekitar angle teoritis (angle refinement)
+        // 2. Coba beberapa power levels (power sweep) supaya ketemu kombinasi yang
+        //    benar-benar diverifikasi masuk oleh engine via determineShotResult().
+        // Ini yang bikin autoplay akurat — verifikasi via simulasi, bukan hanya geometri.
+        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
+        // Power sweep: mulai dari base, coba lebih tinggi dulu (untuk shot jauh/pantulan),
+        // lalu lebih rendah (untuk shot dekat yang butuh kontrol).
+        // Range 0.65–1.5 supaya cover semua jarak tanpa undershoot/overshoot.
+        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.5, 0.65};
+
         bool foundShot = false;
         for (const auto& cand : candidates) {
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-            gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
-            if (!gPrediction->firstHitIsTarget) continue;
-            if (!gPrediction->guiData.balls[0].onTable) continue;
+            double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+
+            bool simOk = false;
+            double confirmedAngle = baseAngle;
+            double confirmedPower = cand.power;
+
+            // Tanpa ini, determineShotResult early-return saat firstHit bukan target →
+            // simulasi berhenti di tengah → cue ball belum selesai bergerak →
+            // balls[0].onTable masih true walau sebenarnya scratch → scratch lolos.
+            for (double dA : kAngleOffsets) {
+                if (simOk) break;
+                double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
+                for (double pf : kPowerFactors) {
+                    double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
+                    gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+                    // Cek scratch dulu: kalau cue ball masuk pocket, skip tanpa syarat
+                    if (!gPrediction->guiData.balls[0].onTable) continue;
+                    if (gPrediction->firstHitIsTarget) {
+                        confirmedAngle = tryAngle;
+                        confirmedPower = tryPower;
+                        simOk = true;
+                        break;
+                    }
+                }
+            }
+            if (!simOk) continue;
+
+            double angle = confirmedAngle;
 
             if (isNineBallGame) {
                 auto firstHit = gPrediction->guiData.collision.firstHitBall;
@@ -700,7 +773,7 @@ namespace AutoPlay {
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (ball.originalOnTable && !ball.onTable) {
-                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                        if (pocketAlreadyNominated && ball.pocketIndex != (int)nominatedPocket) continue;
                         if (i == 9) { bestPottedIdx = 9; break; }
                         if (bestPottedIdx == -1 || i == cand.idx) bestPottedIdx = i;
                     }
@@ -708,20 +781,17 @@ namespace AutoPlay {
                 if (bestPottedIdx == -1) continue;
                 g_CurrentCandidate = cand;
                 g_CurrentCandidate.idx = bestPottedIdx;
+                g_CurrentCandidate.angle = confirmedAngle;
+                g_CurrentCandidate.power = confirmedPower;
                 g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
                 foundShot = true;
-                Shoot(angle, cand.power);
+                Shoot(confirmedAngle, confirmedPower);
                 break;
             }
 
             if (gPrediction->guiData.balls[cand.idx].onTable) continue;
             if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
 
-            // FIX: previously checked if ANY ball of our group was potted,
-            // meaning a shot that potted an OPPONENT's ball could still pass
-            // if one of our balls happened to also go in during the same
-            // simulation. Now we specifically verify that `cand.idx` (the
-            // intended target ball) is the one that actually got potted.
             auto& targetBall = gPrediction->guiData.balls[cand.idx];
             bool isAngleGood = (targetBall.originalOnTable && !targetBall.onTable);
 
@@ -733,8 +803,6 @@ namespace AutoPlay {
 
             if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
             
-            // FIX: check only8BallLeft same way as IsShotValid — don't reject
-            // the 8-ball pot when it IS the right time to shoot it.
             auto& eightBallRef = gPrediction->guiData.balls[8];
             bool only8Left = false;
             if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
@@ -752,15 +820,20 @@ namespace AutoPlay {
             
             if (isAngleGood) {
                 g_CurrentCandidate = cand;
+                g_CurrentCandidate.angle = confirmedAngle;
+                g_CurrentCandidate.power = confirmedPower;
                 foundShot = true;
-                Shoot(angle, cand.power);
+                Shoot(confirmedAngle, confirmedPower);
                 break;
             }
-            
-            if (!foundShot) {
+        }
+
+        // BUG FIX: set lastFailedCuePos DI LUAR loop.
+        // Sebelumnya di-set di DALAM loop setiap kandidat gagal → ScanSlow
+        // di-block bahkan ketika masih ada kandidat lain yang belum dicoba.
+        if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
             scan = SLOW;
-            }
         }
     }
 
@@ -781,8 +854,11 @@ namespace AutoPlay {
         // Previously only bAutoPlay was checked, so the play/pause button had
         // no effect on whether scanning/shooting actually happened.
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            NativeTouchesEnd(5, 0, 0);      // joystick
-            //NativeTouchesEnd(powerSlider.TouchIndex, 0, 0); // slider
+            // Kalau human state machine sedang jalan, jangan interrupt
+            if (humanState != HUM_IDLE) return;
+            // Kalau sedang EXECUTING (nomination → shot), jangan reset
+            if (state == EXECUTING) return;
+            NativeTouchesEnd(5, 0, 0);
             state = IDLE;
             return;
         }
@@ -817,32 +893,53 @@ namespace AutoPlay {
             }
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
                 uint nominatedPocket = sharedGameManager.getNominatedPocket();
-                if (nominatedPocket == g_CurrentCandidate.pocketIndex) {
-                    targetAngle = pendingShotAngle;
-                    g_PredictionLocked = true;
-        
-                    // Re-validasi pocketIndex setelah nominasi dikonfirmasi
-                    gPrediction->forceFullSimulation = true;
+                if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
+                    // Nominasi confirmed — re-validasi shot
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
-                                                      sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                    gPrediction->forceFullSimulation = false;
+                                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+
+                    // Scratch check setelah nominasi
+                    if (!gPrediction->guiData.balls[0].onTable) {
+                        LOGI("[AUTOPLAY] Post-nomination scratch detected, cancelling");
+                        ClearState();
+                        return;
+                    }
+
+                    // Update pocketIndex dari simulasi fresh
                     if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
                         int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
                         if (freshPocket >= 0 && freshPocket < 6) {
                             g_CurrentCandidate.pocketIndex = freshPocket;
                         }
                     }
-        
-                    // 🔥 Transisi ke Human State Machine (tanpa EXECUTING)
-                    applyAutoSpin(); // AIMX SYNC: Apply spin BEFORE simulation so visuals match
+
+                    // Cek bola target masih valid ke pocket yang dinominasi
+                    if (g_CurrentCandidate.pocketIndex != (int)nominatedPocket) {
+                        LOGI("[AUTOPLAY] Target pocket mismatch after nomination, cancelling");
+                        ClearState();
+                        return;
+                    }
+
+                    // Start human state machine
+                    applyAutoSpin();
+                    startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+                    targetAngle = pendingShotAngle;
+                    targetPower = pendingShotPower;
                     humanShotLocked = true;
                     humanState = HUM_THINKING;
                     stateStartTime = nowSec() + 0.3;
-                    startAngle = pendingShotAngle;
-                    state = IDLE; // ← Kembali ke IDLE, tapi humanState tetap jalan
+                    state = EXECUTING; // EXECUTING biar tidak di-reset oleh isPlayerTurn check
                 } else {
-                    if (nominationFrameCounter > 40) {
-                        nominationFrameCounter = 0;
+                    // Retry setiap 30 frame, timeout 150 frame
+                    if (nominationFrameCounter % 30 == 0) {
+                        if (nominationFrameCounter > 150) {
+                            LOGI("[AUTOPLAY] Nomination timeout, resetting");
+                            ClearState();
+                            lastFailedCuePos = gPrediction->guiData.balls[0].initialPosition;
+                        } else {
+                            LOGI("[AUTOPLAY] Nomination retry #%d", nominationFrameCounter / 30);
+                            buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
+                        }
                     }
                 }
             }
@@ -978,5 +1075,25 @@ namespace AutoPlay {
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
     if (isPlayerTurn && bAutoSpin) applyAutoSpin();
+
+    // PREDICTION LINES:
+    // Di Prediction ini, lines digambar berdasarkan parameter `isAuto` di determineShotResult:
+    //   isAuto=false → fastCalc=false → positions di-track → lines TAMPIL
+    //   isAuto=true  → fastCalc=true  → positions tidak di-track → lines HILANG
+    //
+    // - Saat humanState aktif (lagi aiming/pulling): panggil isAuto=true → lines hilang
+    // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
+    if (humanState != HUM_IDLE) {
+        // Lines hilang selama human state machine jalan
+        gPrediction->determineShotResult(true, targetAngle, targetPower, sharedGameManager.getShotSpin());
+    } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
+        // Lines tampil lagi setelah shot, ikuti aim angle real-time
+        if (gPrediction && sharedGameManager) {
+            double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+            double curPower = sharedGameManager.mVisualCue().mPower();
+            if (curPower < 80.0) curPower = 400.0;
+            gPrediction->determineShotResult(false, curAngle, curPower, sharedGameManager.getShotSpin());
+        }
+    }
 }
 };
