@@ -19,7 +19,7 @@
 ImGuiIO& io = ImGui::GetIO();
 
 // Load font dari folder jni/fonts/
-ImFont* fontShotFound = io.Fonts->AddFontFromFileTTF("1.ttf", 15.0f);
+ImFont* fontShotFound = io.Fonts->AddFontFromFileTTF("font/1.ttf", 15.0f);
 if (!fontShotFound) {
     LOGI("Gagal load font Montserrat!");
 }
