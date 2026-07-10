@@ -29,6 +29,7 @@ using namespace std;
 
 #include "ButtonClicker.h"
 #include "8bp/inc/AutoPlay.h"
+#include "8bp/inc/AutoAim.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
@@ -597,92 +598,6 @@ INLINE void DrawAutoQueue() {
     }
 }
 
-
-/*static void DrawLiveStatusOverlay(ImGuiIO& io) {
-    if (!persistent_bool[O("bAutoPlay")]) return;
-
-    const char* stateStr = "Idle";
-    switch (AutoPlay::state) {
-        case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
-        case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
-        default:                   stateStr = "Idle";       break;
-    }
-    bool isPlaying = AutoPlay::bAutoPlaying;
-
-    const float padH  = 24.0f;  // jarak dari tepi KANAN layar
-    const float padV  = 24.0f;  // jarak dari tepi BAWAH layar
-
-    // ANCHOR DIUBAH: dari kiri-bawah (0.0f, 1.0f) jadi kanan-bawah (1.0f, 1.0f)
-    SetNextWindowPos(
-        ImVec2(io.DisplaySize.x - padH, io.DisplaySize.y - padV),
-        ImGuiCond_Always,
-        ImVec2(1.0f, 1.0f)   // anchor: kanan-bawah
-    );
-
-    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
-    PushStyleColor(ImGuiCol_Border,   IM_COL32(60, 60, 80, 120));
-    PushStyleVar(ImGuiStyleVar_WindowRounding,  12.0f);
-    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    PushStyleVar(ImGuiStyleVar_WindowPadding,   ImVec2(14.0f, 10.0f));
-
-    if (Begin(O("##LiveStatus"), nullptr,
-              ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
-              ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
-              ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
-              ImGuiWindowFlags_AlwaysAutoResize)) {
-
-        ImDrawList* dl = GetWindowDrawList();
-        ImVec2 wp = GetWindowPos();
-        ImVec2 ws = GetWindowSize();
-        ImU32 accentCol = isPlaying
-            ? IM_COL32(0, 210, 130, 255)
-            : IM_COL32(200, 40, 40, 255);
-        
-        // Accent bar di KIRI window (tetap, karena window sekarang di kanan)
-        dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
-
-        SetWindowFontScale(0.95f);
-
-    //    ImU32 playCol = isPlaying ? IM_COL32(0, 210, 130, 255);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Auto Play "));
-        SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 210, 130, 255)), O("ON"));
-
-        ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
-            ? IM_COL32(0, 200, 255, 255)
-            : IM_COL32(130, 130, 145, 255);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("State     "));
-        SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
-    if (g_CurrentCandidate.pocketIndex >= 0) {
-    TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Pocket    "));
-    SameLine(0, 0);
-    
-    // Warna pocket beda beda biar lebih jelas
-    ImU32 pocketColor;
-    switch (g_CurrentCandidate.pocketIndex) {
-        case 0: pocketColor = IM_COL32(255, 100, 100, 255); break; // Merah (kiri atas)
-        case 1: pocketColor = IM_COL32(100, 255, 100, 255); break; // Hijau (tengah atas)
-        case 2: pocketColor = IM_COL32(100, 100, 255, 255); break; // Biru (kanan atas)
-        case 3: pocketColor = IM_COL32(255, 200, 100, 255); break; // Kuning (kanan bawah)
-        case 4: pocketColor = IM_COL32(200, 100, 255, 255); break; // Ungu (tengah bawah)
-        case 5: pocketColor = IM_COL32(100, 255, 200, 255); break; // Toska (kiri bawah)
-        default: pocketColor = IM_COL32(150, 150, 150, 255);
-    }
-    
-    char pocketText[32];
-    snprintf(pocketText, sizeof(pocketText), " %d", g_CurrentCandidate.pocketIndex);
-    TextColored(ImGui::ColorConvertU32ToFloat4(pocketColor), pocketText);
-    }
-
-        SetWindowFontScale(1.0f);
-    }
-    End();
-    PopStyleVar(3);
-    PopStyleColor(2);
-}*/
-
 static void DrawOrnateFrame(ImDrawList* dl, ImVec2 a, ImVec2 b);
 
 INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
@@ -813,29 +728,6 @@ static void DrawToggleButton(); // forward declaration — defined after DrawFlo
 
 INLINE void DrawESP(ImDrawList* draw) {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
-        ImDrawList* fg = ImGui::GetForegroundDrawList();
-if (fg) {
-    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-
-    // ─── 1. Watermark di tengah ──────────────────────────────────────────
-    const char* centerText = "@CM_ENGINE_MOD_v1.8";
-    ImGui::PushFont(fontShotFound); // ← Pakai font yang sama (Montserrat 15px)
-    ImVec2 centerTextSize = ImGui::CalcTextSize(centerText);
-    ImVec2 center = ImVec2(
-        (screenSize.x - centerTextSize.x) * 0.5f,
-        (screenSize.y - centerTextSize.y) * 0.5f
-    );
-
-    // Shadow samar
-    fg->AddText(ImVec2(center.x + 1, center.y + 1), IM_COL32(0, 0, 0, 80), centerText);
-    fg->AddText(ImVec2(center.x - 1, center.y - 1), IM_COL32(0, 0, 0, 80), centerText);
-
-    // Teks utama: hijau terang, opacity 60
-    fg->AddText(center, IM_COL32(0, 255, 0, 60), centerText);
-    ImGui::PopFont();
-}
-        
-        
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
@@ -869,26 +761,15 @@ if (fg) {
         auto stateId = gameStateManager.getCurrentStateId();
 
 // ========== BACA MODE HANYA SAAT IDLE (JANGAN OVERWRITE SCAN STATE) ==========
-// FIX: Previously this block overwrote AutoPlay::scan every frame, meaning
-// that when ScanFast failed and set scan=SLOW, the very next frame here
-// would reset it back to FAST/PRECISION, so ScanSlow was never reached and
-// the mode change also never took effect mid-game.
-// Only apply the mode setting when AutoPlay is idle (between shots), so the
-// scan state machine can actually progress through FAST -> SLOW as intended.
-/*if (AutoPlay::state == AutoPlay::IDLE) {
-    int currentMode = persistent_int["iAutoPlayMode"];
-    if (currentMode == 2) {
-        AutoPlay::scan = AutoPlay::PRECISION;
-    } else {
-        AutoPlay::scan = AutoPlay::FAST;
-    }
-}*/
-// ==========================================================================
 
         // Cek 2 kondisi: Status ON, DAN user sudah sengaja menekan tombol (GameReady)
         if (persistent_bool[O("bAutoPlay")]) {
             DrawToggleButton();
             AutoPlay::Update(); // FIX: was never called — toggle button had no effect
+        }
+
+        if (persistent_bool[O("bAutoAim")]) {
+            AutoAim::Draw(); // FIX: was never called — toggle button had no effect
         }
 
     //    AutoPlay::UpdateScanMode();
@@ -1213,303 +1094,14 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
             
             need_save |= GoldSliderFloat("Line Thickness", "", &persistent_float["fLineThick"], 0.5f, 8.0f, "%.1f px");
             Dummy(ImVec2(0,8));
-         //   need_save |= GoldSliderFloat("Line Opacity", "", &persistent_float["fPredAlpha"], 0.05f, 1.0f, "%.2f");
-           // Dummy(ImVec2(0,8));
-            
-           /*TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), "Line Thickness");
-            Dummy(ImVec2(0, 8));
-
-            // Inisialisasi default kalo belum ada
-            // ========== LINE THICKNESS SLIDER (GoldSliderFloat) ==========
-            if (persistent_float["fLineThick"] < 0.5f) {
-                persistent_float["fLineThick"] = 2.0f;
-            }
-
-            float thickness = persistent_float["fLineThick"];
-            if (GoldSliderFloat("Line Thickness", "Adjust prediction line width", &thickness, 0.5f, 10.0f, "%.1f px")) {
-                persistent_float["fLineThick"] = thickness;
-                need_save = true;
-            }
-            
-            Dummy(ImVec2(0, 10));
-
-
-            const char* items = "SOLID\0DOTTED\0";
-            need_save |= GoldCombo(L("Line Style","ﻁﻮﻄﺨﻟﺍ ﻂﻤﻧ"),
-                                   L("",""),
-                                   &persistent_int["iLineStyle"], items)*/
             break;
         }
         case 1: {
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
-
-            // ===== SCAN MODE =====
-/*TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Scan Mode", "ﺢﺴﻤﻟﺍ ﻊﻀﻭ"));
-Dummy(ImVec2(0, 8));
-
-int curScan = persistent_int.count("iScanMode") ? persistent_int["iScanMode"] : 0;
-const char* scanNames[3] = { "Fast", "Slow", "Human" };
-float bw = (GetContentRegionAvail().x - 16) / 3.0f;
-
-PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-for (int i = 0; i < 3; i++) {
-    if (i) SameLine();
-    bool sel = (curScan == i);
-    PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
-    PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
-    
-    if (Button(scanNames[i], ImVec2(bw, 44))) {
-        persistent_int["iScanMode"] = i;
-        
-        // Terapkan ke AutoPlay
-        if (i == 0) { // Fast
-            AutoPlay::scan = AutoPlay::FAST;
-            AutoPlay::automationSpeed = AutoPlay::SPEED_FAST;
-        } else if (i == 1) { // Slow
-            AutoPlay::scan = AutoPlay::SLOW;
-            AutoPlay::automationSpeed = AutoPlay::SPEED_FAST;
-        } else { // Human
-            AutoPlay::scan = AutoPlay::FAST;
-            AutoPlay::automationSpeed = AutoPlay::SPEED_HUMAN;
-        }
-        
-        save_persistence();
-        LOGI("[AUTOPLAY] Scan Mode changed to: %s", scanNames[i]);
-    }
-    
-    PopStyleColor(3);
-}
-PopStyleVar();
-Dummy(ImVec2(0, 14));
-
-// ===== HUMAN MODE (hanya muncul jika Scan Mode = Human) =====
-if (curScan == 2) {
-    TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Human Mode", "ﻲﺋﺎﻘﻠﺘﻟﺍ ﻊﻀﻭ"));
-    Dummy(ImVec2(0, 8));
-    
-    int curHuman = persistent_int.count("iHumanMode") ? persistent_int["iHumanMode"] : 0;
-    const char* humanNames[2] = { "Slow", "Fast" };
-    float bwHuman = (GetContentRegionAvail().x - 8) / 2.0f;
-    
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-    for (int i = 0; i < 2; i++) {
-        if (i) SameLine();
-        bool sel = (curHuman == i);
-        PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
-        PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
-        PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
-        
-        if (Button(humanNames[i], ImVec2(bwHuman, 44))) {
-            persistent_int["iHumanMode"] = i;
-            
-            // Terapkan ke AutoPlay
-            AutoPlay::playStyle = (i == 0) ? AutoPlay::STYLE_NATURAL : AutoPlay::STYLE_INSTANT;
-
-            AutoPlay::automationSpeed = (i == 0) ? AutoPlay::SPEED_HUMAN : AutoPlay::SPEED_FAST;
-            
-            save_persistence();
-            LOGI("[AUTOPLAY] Human Mode changed to: %s", humanNames[i]);
-        }
-        
-        PopStyleColor(3);
-    }
-    PopStyleVar();
-    Dummy(ImVec2(0, 14));
-}
-
-            // ── Slider X ──
-float sliderX = persistent_float[O("fPowerBarXPercent")];
-if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.00f, 0.50f, "%.3f")) {
-    persistent_float[O("fPowerBarXPercent")] = sliderX;
-    need_save = true;
-}
-Dummy(ImVec2(0, 4));
-
-// ── Slider Top ──
-float sliderTop = persistent_float[O("fPowerBarYStartPercent")];
-if (GoldSliderFloat(O("Top Position"), O("Vertical start"), &sliderTop, 0.05f, 0.50f, "%.3f")) {
-    persistent_float[O("fPowerBarYStartPercent")] = sliderTop;
-    need_save = true;
-}
-Dummy(ImVec2(0, 4));
-
-// ── Slider Height ──
-float sliderH = persistent_float[O("fPowerBarYEndPercent")];
-if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.90f, "%.3f")) {
-    persistent_float[O("fPowerBarYEndPercent")] = sliderH;
-    need_save = true;
-}
-Dummy(ImVec2(0, 10));
-
-// ── GoldToggle Preview ──
-need_save |= GoldToggle(O("Preview Power Slider"), O("Show guide line on screen"), &persistent_bool["bPSliderPreview"]);
-Dummy(ImVec2(0, 10));
-
-// ── PREVIEW GAMBAR ──
-if (persistent_bool["bPSliderPreview"]) {
-    ImDrawList* fgdl = GetForegroundDrawList();
-    if (fgdl) {
-        ImGuiIO& io = GetIO();
-        float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
-        float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
-        float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
-
-        // ── Garis slider ──
-        fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
-        
-        // ── Titik atas & bawah ──
-        fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
-        fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
-
-        // ── Label nilai ──
-        char buf[64];
-        snprintf(buf, sizeof(buf), "X: %.2f%%", persistent_float[O("fPowerBarXPercent")] * 100.f);
-        fgdl->AddText(ImVec2(px + 12, pt - 10), IM_COL32(255, 255, 255, 255), buf);
-
-        snprintf(buf, sizeof(buf), "Top: %.2f%%", persistent_float[O("fPowerBarYStartPercent")] * 100.f);
-        fgdl->AddText(ImVec2(px + 12, pt + 10), IM_COL32(255, 255, 255, 255), buf);
-
-        snprintf(buf, sizeof(buf), "H: %.2f%%", (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]) * 100.f);
-        fgdl->AddText(ImVec2(px + 12, pt + 30), IM_COL32(255, 255, 255, 255), buf);
-    }
-}
-
-            /*need_save |= GoldToggle(O("Human Autoplay"), O("Drag aim & power like a human"), &persistent_bool["bHumanAutoplay"]);
-            Dummy(ImVec2(0, 8));
-
-            float sens = persistent_float["fAngleDragSensitivity"];
-if (sens < 1.0f) sens = 350.0f;
-if (GoldSliderFloat("Drag Sensitivity", "Higher = shorter drag", &sens, 100.0f, 600.0f, "%.0f")) {
-    persistent_float["fAngleDragSensitivity"] = sens;
-    need_save = true;
-}
-            Dummy(ImVec2(0, 8));
-
-
-            /*need_save |= GoldToggle(L("Approval before launch","ﻕﻼﻃﻹﺍ ﻞﺒﻗ ﺔﻘﻓﺍﻮﻤﻟﺍ"),
-                                    L("Confirm each shot before it fires","ﺎﻬﺑﺮﺿ ﻞﺒﻗ ﺔﺑﺮﺿ ﻞﻛ ﺪﻴﻛﺄﺗ"),
-                                    &persistent_bool[O("bAutoApproval")]);
-            Dummy(ImVec2(0,12));
-
-
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Auto Play Speed","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﺔﻋﺮﺳ"));
+            need_save |= GoldToggle("Enable Auto Aim", "", &persistent_bool[O("bAutoAim")]);
             Dummy(ImVec2(0,8));
-
-            int curSpeed = persistent_int["iAutoPlaySpeed"];
-            const char* names[3] = { "Fast", "Normal", "Slow" };
-            float bw = (GetContentRegionAvail().x - 16) / 3.0f;
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            for (int i = 0; i < 3; i++) {
-                if (i) SameLine();
-                bool sel = (curSpeed == i);
-                PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-                PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f,0.26f,0.36f,1.0f));
-                PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1,1,1,1) : ImVec4(0.75f,0.80f,0.90f,1));
-                if (Button(names[i], ImVec2(bw, 44))) { persistent_int["iAutoPlaySpeed"] = i; need_save = true; }
-                PopStyleColor(3);
-            }
-            PopStyleVar();
-            Dummy(ImVec2(0,14));
-            
-            // ========== AUTO PLAY MODE ==========
-            /*TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "%s", L("Auto Play Style","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
-Dummy(ImVec2(0, 8));
-
-// ========== FIX: BACA ULANG SETIAP FRAME ==========
-int curMode = persistent_int["iAutoPlayMode"];
-const char* modeNames[3] = {
-    L("Fast", "ﻊﻳﺮﺳ"),
-    L("Normal", "ﻲﻌﻴﺒﻃ"),
-    L("Precision", "ﺔﻗﺩﺎﺑ")
-};
-float bwMode = (GetContentRegionAvail().x - 16) / 3.0f;
-
-PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-for (int i = 0; i < 3; i++) {
-    if (i) SameLine();
-    bool sel = (curMode == i);
-    PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
-    PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
-    
-    if (Button(modeNames[i], ImVec2(bwMode, 44))) {
-        persistent_int["iAutoPlayMode"] = i;
-        curMode = i; // ← UPDATE LANGSUNG
-        need_save = true;
-    }
-    
-    PopStyleColor(3);
-}
-PopStyleVar();
-            
-            Dummy(ImVec2(0, 12));
-
-            float power = persistent_float["fShotPower"];
-            if (power < 0.1f) power = 0.75f;
-            if (GoldSliderFloat(L("Auto Shot Power","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻳﻮﺼﺘﻟﺍ ﺓﻮﻗ"),
-                                L("",""),
-                                &power, 0.10f, 1.0f, "%.0f%%")) {
-                persistent_float["fShotPower"] = power;
-                need_save = true;
-            }
-            Dummy(ImVec2(0,8));
-            float delay = persistent_float["fShotDelay"];
-            if (delay < 0.0f) delay = 1.5f;
-            if (GoldSliderFloat(L("Delay between shots","ﺕﺎﻄﻘﻠﻟﺍ ﻦﻴﺑ ﺮﻴﺧﺄﺗ"),
-                                L("",""),
-                                &delay, 0.0f, 5.0f, "%.1fs")) {
-                persistent_float["fShotDelay"] = delay;
-                need_save = true;
-            }
-            Dummy(ImVec2(0,8));
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Power Slider Position"));
-    Dummy(ImVec2(0, 8));
-
-    // ── Slider X ──
-   /* float sliderX = persistent_float["fPSliderX"];
-    if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.00f, 0.50f, "%.3f")) {
-    persistent_float["fPSliderX"] = sliderX;
-    need_save = true;
-    }
-    Dummy(ImVec2(0, 4));
-
-    // ── Slider Top ──
-    float sliderTop = persistent_float["fPSliderTop"];
-    if (GoldSliderFloat(O("Top Position"), O("Vertical start"), &sliderTop, 0.05f, 0.50f, "%.3f")) {
-        persistent_float["fPSliderTop"] = sliderTop;
-        need_save = true;
-    }
-    Dummy(ImVec2(0, 4));
-
-    // ── Slider Height ──
-    float sliderH = persistent_float["fPSliderH"];
-    if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.90f, "%.3f")) {
-        persistent_float["fPSliderH"] = sliderH;
-        need_save = true;
-    }
-    Dummy(ImVec2(0, 10));
-
-    // ── GoldToggle Preview ──
-    need_save |= GoldToggle(O("Preview Power Slider"), O("Show guide line on screen"), &persistent_bool["bPSliderPreview"]);
-    Dummy(ImVec2(0, 10));
-
-    // ── PREVIEW GAMBAR ──
-    if (persistent_bool["bPSliderPreview"]) {
-        ImDrawList* fgdl = GetForegroundDrawList();
-        if (fgdl) {
-            ImGuiIO& io = GetIO();
-            float px = io.DisplaySize.x * persistent_float["fPSliderX"];
-            float pt = io.DisplaySize.y * persistent_float["fPSliderTop"];
-            float ph = io.DisplaySize.y * persistent_float["fPSliderH"];
-
-            fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
-            fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
-            fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
-        }
-    }*/
             break;
         }
         case 2: { 
@@ -1806,19 +1398,6 @@ INLINE void DrawLogin(ImGuiIO& io) {
 
     SetCursorPosY(110);
 
-
-   /* int curL = persistent_int["iLang"];
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-    SetCursorPosX(20);
-    PushStyleColor(ImGuiCol_Button, curL==0 ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-    if (Button("English", ImVec2(120, 32))) { persistent_int["iLang"] = 0; save_persistence(); }
-    PopStyleColor();
-    SameLine();
-    PushStyleColor(ImGuiCol_Button, curL==1 ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f,0.14f,0.22f,1.0f));
-    if (Button("ﺔﻴﺑﺮﻌﻟﺍ", ImVec2(120, 32))) { persistent_int["iLang"] = 1; save_persistence(); }
-    PopStyleColor();
-    PopStyleVar();*/
-
     Dummy(ImVec2(0, 20));
 
     if (!ERROR_MESSAGE.empty()) {
@@ -1983,6 +1562,14 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
         //DrawLiveStatusOverlay(io);
+        SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+                Begin(O("##PoweredBy"), nullptr,
+                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
+                      ImGuiWindowFlags_NoInputs);
+                TextColored(ImColor(0, 255, 0, 255), O("tg : @Cmengine"));
+                End();
 
 
 
