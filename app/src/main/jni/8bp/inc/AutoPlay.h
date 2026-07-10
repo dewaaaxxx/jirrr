@@ -204,17 +204,6 @@ bool IsShotValid() {
     if (nominatedPocket < 6 && cand.pocketIndex != nominatedPocket) return false;
 
     if (!gPrediction->guiData.balls[0].onTable) return false;
-
-    // Safety margin: tolak kalau cue ball akhir terlalu dekat pocket
-    {
-        auto& cbf = gPrediction->guiData.balls[0];
-        auto pockets = getPockets();
-        for (auto& p : pockets) {
-            double dx = cbf.predictedPosition.x - p.x;
-            double dy = cbf.predictedPosition.y - p.y;
-            if (dx*dx + dy*dy < 200.0) return false;
-        }
-    }
     if (!gPrediction->guiData.balls[cand.idx].originalOnTable) return false;
     if (gPrediction->guiData.balls[cand.idx].onTable) return false;
     if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) return false;
@@ -574,19 +563,6 @@ namespace AutoPlay {
                 
                 // Cek scratch PERTAMA sebelum cek lain apapun
                 if (!gPrediction->guiData.balls[0].onTable) continue;
-
-                // SAFETY MARGIN: tolak kalau cue ball akhir terlalu dekat pocket
-                {
-                    bool tooClose = false;
-                    auto& cbf = gPrediction->guiData.balls[0];
-                    auto pockets = getPockets();
-                    for (int pi = 0; pi < (int)pockets.size(); pi++) {
-                        double dx = cbf.predictedPosition.x - pockets[pi].x;
-                        double dy = cbf.predictedPosition.y - pockets[pi].y;
-                        if (dx*dx + dy*dy < 200.0) { tooClose = true; break; }
-                    }
-                    if (tooClose) continue;
-                }
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -675,17 +651,6 @@ namespace AutoPlay {
     }
     
     void ScanFast(double angleStep = 0.1f) {
-        static int scanFrame = 0;
-        if (++scanFrame % 2 != 0) return;
-        
-        static double scanStartTime = 0.0;
-        if (scanStartTime == 0.0) scanStartTime = nowSec();
-        if (nowSec() - scanStartTime > 3.0) {
-            scan = SLOW;
-            scanStartTime = 0.0;
-            return;
-        }
-    
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
 
@@ -797,7 +762,6 @@ namespace AutoPlay {
         // over simpler direct shots.
         std::sort(candidates.begin(), candidates.end());
         
-        
         // FIX AKURASI (foto 1): Ghost ball formula tidak 100% akurat karena friction,
         // BALL_RADIUS offset, dan spin engine. Untuk tiap kandidat:
         // 1. Coba ±1° dan ±2° di sekitar angle teoritis (angle refinement)
@@ -809,11 +773,7 @@ namespace AutoPlay {
         // Urutan: base dulu, lalu naik (shot jauh/pantulan), lalu turun (shot dekat/kontrol).
         // Range 0.5–1.6 supaya cover semua kondisi tanpa overshoot shot dekat.
         static const double kPowerFactors[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
-       
-       // 🔥 GANTI INI
-     //   static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175}; // 0°, ±1°
- //       static const double kPowerFactors[] = {1.0, 0.8, 1.2}; // 3 variasi
-    
+
         bool foundShot = false;
         for (const auto& cand : candidates) {
             double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
@@ -825,7 +785,6 @@ namespace AutoPlay {
             // Tanpa ini, determineShotResult early-return saat firstHit bukan target →
             // simulasi berhenti di tengah → cue ball belum selesai bergerak →
             // balls[0].onTable masih true walau sebenarnya scratch → scratch lolos.
-            gPrediction->forceFullSimulation = true;
             for (double dA : kAngleOffsets) {
                 if (simOk) break;
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
@@ -863,7 +822,6 @@ namespace AutoPlay {
                     }
                 }
             }
-            gPrediction->forceFullSimulation = false;
             if (!simOk) continue;
 
             double angle = confirmedAngle;
@@ -960,62 +918,11 @@ namespace AutoPlay {
             // Kalau human state machine sedang jalan, jangan interrupt
             if (humanState != HUM_IDLE) return;
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
-            g_CurrentCandidate.idx = -1;
             if (state == EXECUTING) return;
             NativeTouchesEnd(5, 0, 0);
             state = IDLE;
             return;
         }
-
-         // ─── SHOT FOUND INDICATOR ──────────────────────────────────────────────
-// ─── SHOT FOUND INDICATOR ──────────────────────────────────────────────
-static float shotFoundTimer = 0.0f;
-if (g_CurrentCandidate.idx != -1) {
-    shotFoundTimer = 0.1f;
-}
-
-if (shotFoundTimer > 0.0f) {
-    shotFoundTimer -= ImGui::GetIO().DeltaTime;
-
-    ImDrawList* fg = ImGui::GetForegroundDrawList();
-    if (fg) {
-        ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-        const char* text = "Shot Found!";
-        ImVec2 textSize = ImGui::CalcTextSize(text);
-        float padding = 4.0f;
-        ImVec2 pos = ImVec2(
-            screenSize.x - textSize.x - padding * 2 - 10,
-            screenSize.y - textSize.y - padding * 2 - 10
-        );
-
-        // 🔥 Background hitam SOLID (opacity 255)
-        fg->AddRectFilled(
-            ImVec2(pos.x - padding, pos.y - padding),
-            ImVec2(pos.x + textSize.x + padding, pos.y + textSize.y + padding),
-            IM_COL32(0, 0, 0, 255),
-            3.0f
-        );
-
-        // Outline hijau terang
-        fg->AddRect(
-            ImVec2(pos.x - padding, pos.y - padding),
-            ImVec2(pos.x + textSize.x + padding, pos.y + textSize.y + padding),
-            IM_COL32(0, 255, 0, 180),
-            3.0f,
-            0,
-            1.0f
-        );
-
-        // Teks putih dengan Montserrat
-        if (fontShotFound) {
-            ImGui::PushFont(fontShotFound);
-            fg->AddText(pos, IM_COL32(255, 255, 255, 255), text);
-            ImGui::PopFont();
-        } else {
-            fg->AddText(pos, IM_COL32(255, 255, 255, 255), text);
-        }
-    }
-}
         
         buttonClicker.Update();
        // powerSlider.Update();
@@ -1048,11 +955,9 @@ if (shotFoundTimer > 0.0f) {
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
                 uint nominatedPocket = sharedGameManager.getNominatedPocket();
                 if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
-                    // Nominasi confirmed — re-validasi shot dengan full simulation
-                    gPrediction->forceFullSimulation = true;
+                    // Nominasi confirmed — re-validasi shot
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
                                                      lockedShotSpin, g_CurrentCandidate);
-                    gPrediction->forceFullSimulation = false;
 
                     // Scratch check setelah nominasi
                     if (!gPrediction->guiData.balls[0].onTable) {
