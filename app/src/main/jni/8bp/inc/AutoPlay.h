@@ -330,6 +330,37 @@ namespace AutoPlay {
         auto duration = now.time_since_epoch();
         return std::chrono::duration<double>(duration).count();
     }
+    
+    // ── Scene Snapshot: capture ball positions once per turn, reuse for all
+    // simulation calls in ScanFast/ScanSlow. Eliminates repeated game-memory
+    // reads that are the primary cause of FPS stutter during scanning.
+    void TakeSnapshot() {
+        g_useSnapshot = false;
+        g_sceneSnapshot.valid = false;
+        Table table = sharedGameManager.mTable;
+        if (!table) return;
+        auto& balls = table.mBalls();
+        if (!balls) return;
+        g_sceneSnapshot.tableBounds = table.mTableCollisionBounds();
+        g_sceneSnapshot.ballsCount  = balls.Count;
+        for (int i = 0; i < g_sceneSnapshot.ballsCount && i < MAX_BALLS_COUNT; i++) {
+            auto& dst         = g_sceneSnapshot.balls[i];
+            dst.index         = i;
+            dst.state         = balls[i].state();
+            dst.originalOnTable = balls[i].isOnTable();
+            dst.classification  = balls[i].classification();
+            dst.position      = balls[i].position();
+        }
+        auto tableProperties = table.mTableProperties();
+        if (tableProperties) {
+            auto& pockets = tableProperties.mPockets();
+            for (int i = 0; i < TABLE_POCKETS_COUNT; i++)
+                g_sceneSnapshot.pockets[i] = pockets[i];
+            g_sceneSnapshot.hasPockets = true;
+        }
+        g_sceneSnapshot.valid = true;
+        g_useSnapshot         = true;
+    }
 
     void applyAutoSpin() {
     if (!bAutoSpin) return;
@@ -949,6 +980,9 @@ namespace AutoPlay {
             // Kalau human state machine sedang jalan, jangan interrupt
             if (humanState != HUM_IDLE) return;
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
+            // Release snapshot — turn is over, game memory is stale
+            g_useSnapshot        = false;
+            g_sceneSnapshot.valid = false;
             g_CurrentCandidate.idx = -1;
             if (state == EXECUTING) return;
             NativeTouchesEnd(5, 0, 0);
@@ -1021,7 +1055,9 @@ if (shotFoundTimer > 0.0f) {
             // sedang jalan (aim, pull, dll). Jangan langsung SCANNING lagi —
             // biarkan human machine selesai dulu. Tanpa guard ini, IDLE langsung
             // jadi SCANNING → ScanFast lagi → Shoot lagi → loop selamanya.
+            TakeSnapshot();
             if (humanState == HUM_IDLE) {
+                TakeSnapshot();
                 state = SCANNING;
                 scan = FAST;
             }
@@ -1092,6 +1128,7 @@ if (shotFoundTimer > 0.0f) {
             // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
         // ─── HIDE PREDICTION LINES DURING HUMAN STATE ──────────────────────────
         if (humanState != HUM_IDLE) {
+        TakeSnapshot();
         double now = nowSec();
 
         auto UpdateJoystickVisuals = [&](double angle) {

@@ -16,6 +16,26 @@
 static Vec4d table_bounds;
 static bool fastCalc = true;
 
+// ── Scene Snapshot: bola di-capture sekali, dipakai ulang semua simulasi scan ──
+struct SceneSnapshot {
+    int ballsCount = 0;
+    struct BallData {
+        int index;
+        ::Ball::Classification classification;
+        ::Ball::State state;
+        bool originalOnTable;
+        Point2D position;
+    } balls[MAX_BALLS_COUNT];
+    Vec4d tableBounds;
+    // FIX-4: Capture real pocket positions from game memory instead of hardcoded values.
+    // Different table types (VIP, Premium) have different pocket positions.
+    Point2D pockets[TABLE_POCKETS_COUNT];
+    bool hasPockets = false;
+    bool valid = false;
+};
+static SceneSnapshot g_sceneSnapshot;
+static thread_local bool g_useSnapshot = false;
+
 struct Prediction {
     static bool pocketStatus[TABLE_POCKETS_COUNT];
 
@@ -172,6 +192,27 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
 /* PREDICTION PRIVATE METHODS =================================================================== */
 
 void Prediction::initBalls() {
+    // ── FAST PATH: gunakan snapshot (tidak perlu baca game memory sama sekali) ──
+    if (g_useSnapshot && g_sceneSnapshot.valid) {
+        table_bounds = g_sceneSnapshot.tableBounds;
+        this->guiData.ballsCount = g_sceneSnapshot.ballsCount;
+        for (int i = 0; i < this->guiData.ballsCount; i++) {
+            Ball &ball = this->guiData.balls[i];
+            const auto &src = g_sceneSnapshot.balls[i];
+            ball.index       = src.index;
+            ball.state       = src.state;
+            ball.originalOnTable = src.originalOnTable;
+            ball.onTable     = src.originalOnTable;
+            ball.classification = src.classification;
+            ball.initialPosition  = src.position;
+            ball.predictedPosition = src.position;
+            ball.velocity.nullify();
+            ball.spin.nullify();
+            ball.positions.clear();
+        }
+        return;
+    }
+
     Table table = sharedGameManager.mTable;
     if (!table) return;
     
@@ -379,6 +420,10 @@ const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
             Point2D(0, 72),
             Point2D(-130.8, 67.3)
     };
+    if (g_useSnapshot && g_sceneSnapshot.hasPockets) {
+        for (int i = 0; i < TABLE_POCKETS_COUNT; i++)
+            POCKET_POSITIONS[i] = g_sceneSnapshot.pockets[i];
+    }
     return POCKET_POSITIONS;
 }
 
