@@ -1,14 +1,6 @@
 name: Build ARM64 Native Library
 
 on:
-  push:
-    branches: [ main, master ]
-    paths:
-      - 'app/src/main/jni/**'
-      - 'tools/**'
-      - '.github/workflows/build.yml'
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
