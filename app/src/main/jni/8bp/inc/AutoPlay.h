@@ -365,7 +365,7 @@ namespace AutoPlay {
     void Shoot(double angle, double power = 0.f) {
         applyAutoSpin();
         setAimAngle(angle);
-        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+      //  gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
