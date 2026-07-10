@@ -204,6 +204,17 @@ bool IsShotValid() {
     if (nominatedPocket < 6 && cand.pocketIndex != nominatedPocket) return false;
 
     if (!gPrediction->guiData.balls[0].onTable) return false;
+
+    // Safety margin: tolak kalau cue ball akhir terlalu dekat pocket
+    {
+        auto& cbf = gPrediction->guiData.balls[0];
+        auto pockets = getPockets();
+        for (auto& p : pockets) {
+            double dx = cbf.predictedPosition.x - p.x;
+            double dy = cbf.predictedPosition.y - p.y;
+            if (dx*dx + dy*dy < 200.0) return false;
+        }
+    }
     if (!gPrediction->guiData.balls[cand.idx].originalOnTable) return false;
     if (gPrediction->guiData.balls[cand.idx].onTable) return false;
     if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) return false;
@@ -381,7 +392,7 @@ namespace AutoPlay {
         // → simulasi scan (dengan spin lama) berbeda dengan simulasi display (dengan spin baru)
         // → prediction line kelihatan masuk tapi setelah tembak meleset.
         setAimAngle(angle);
-        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
+      //  gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -572,7 +583,7 @@ namespace AutoPlay {
                     for (int pi = 0; pi < (int)pockets.size(); pi++) {
                         double dx = cbf.predictedPosition.x - pockets[pi].x;
                         double dy = cbf.predictedPosition.y - pockets[pi].y;
-                        if (dx*dx + dy*dy < 73.0) { tooClose = true; break; }
+                        if (dx*dx + dy*dy < 200.0) { tooClose = true; break; }
                     }
                     if (tooClose) continue;
                 }
@@ -813,7 +824,6 @@ namespace AutoPlay {
             double confirmedAngle = baseAngle;
             double confirmedPower = cand.power;
 
-            // WAJIB forceFullSimulation=true:
             // Tanpa ini, determineShotResult early-return saat firstHit bukan target →
             // simulasi berhenti di tengah → cue ball belum selesai bergerak →
             // balls[0].onTable masih true walau sebenarnya scratch → scratch lolos.
@@ -843,7 +853,7 @@ namespace AutoPlay {
                         // Safety threshold: ~3x ball radius squared
                         // BALL_RADIUS ≈ 2.85 (dari spinFactor = shotPower/BALL_RADIUS dan nilai umum)
                         // 3x radius = 8.55, squared ≈ 73
-                        if (distSq < 73.0) { cueBallTooClose = true; break; }
+                        if (distSq < 200.0) { cueBallTooClose = true; break; }
                     }
                     if (cueBallTooClose) continue;
 
@@ -952,7 +962,7 @@ namespace AutoPlay {
             // Kalau human state machine sedang jalan, jangan interrupt
             if (humanState != HUM_IDLE) return;
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
-            g_CurrentCandidate.idx = -1;
+            g_CurrentCandidate.idx = -1
             if (state == EXECUTING) return;
             NativeTouchesEnd(5, 0, 0);
             state = IDLE;
@@ -990,9 +1000,11 @@ namespace AutoPlay {
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
                 uint nominatedPocket = sharedGameManager.getNominatedPocket();
                 if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
-                    // Nominasi confirmed — re-validasi shot
+                    // Nominasi confirmed — re-validasi shot dengan full simulation
+                    gPrediction->forceFullSimulation = true;
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
                                                      lockedShotSpin, g_CurrentCandidate);
+                    gPrediction->forceFullSimulation = false;
 
                     // Scratch check setelah nominasi
                     if (!gPrediction->guiData.balls[0].onTable) {
