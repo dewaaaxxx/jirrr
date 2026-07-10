@@ -1148,8 +1148,8 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
             
             need_save |= GoldSliderFloat("Line Thickness", "", &persistent_float["fLineThick"], 0.5f, 8.0f, "%.1f px");
             Dummy(ImVec2(0,8));
-            need_save |= GoldSliderFloat("Line Opacity", "", &persistent_float["fPredAlpha"], 0.05f, 1.0f, "%.2f");
-            Dummy(ImVec2(0,8));
+         //   need_save |= GoldSliderFloat("Line Opacity", "", &persistent_float["fPredAlpha"], 0.05f, 1.0f, "%.2f");
+           // Dummy(ImVec2(0,8));
             
            /*TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), "Line Thickness");
             Dummy(ImVec2(0, 8));
@@ -1253,7 +1253,7 @@ if (curScan == 2) {
     }
     PopStyleVar();
     Dummy(ImVec2(0, 14));
-}*/
+}
 
             // ── Slider X ──
 float sliderX = persistent_float[O("fPowerBarXPercent")];
