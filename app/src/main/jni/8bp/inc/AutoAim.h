@@ -1,18 +1,9 @@
 #pragma once
 
-#include "Prediction.h"
+#include "Prediction.fast.h"
 #include <imgui/imgui.h>
 
 using namespace ImGui;
-
-constexpr double maxAngle = 360.0 / (180.0 / M_PI);
-
-double normalizeAngle(double angle) {
-    double newAngle = angle;
-    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
-    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
-    return newAngle;
-}
 
 bool ix = true;
 namespace AutoAim {
@@ -40,7 +31,13 @@ namespace AutoAim {
         
         auto myclass = ix ? Ball::Classification::SOLID : Ball::Classification::STRIPE;
         
-        for (double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(startingAngle + angleStep)); angle != startingAngle; angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(angle + angleStep))) {
+        double currentAngle = startingAngle;
+        int maxSteps = (int)(6.283185307179586 / fabs(angleStep)) + 2;
+        
+        for (int step = 0; step < maxSteps; step++) {
+            currentAngle = normalizeAngle(currentAngle + angleStep);
+            double angle = NumberUtils::normalizeDoublePrecision(currentAngle);
+            
             gPrediction->determineShotResult(true, angle);
             
             bool only8BPleft = true;
