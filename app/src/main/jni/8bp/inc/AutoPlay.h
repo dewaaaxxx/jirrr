@@ -291,7 +291,7 @@ namespace AutoPlay {
     static inline bool humanNeedsNomination = false;
     static inline int humanNominationPocket = -1;
     static inline SpinPreset spinPreset = SPIN_CENTER;
-    static inline bool bAutoSpin = true;
+    static inline bool bAutoSpin = false;
     static bool g_postShotLock = false;
     static double g_postShotAngle = 0.0;
     static double g_postShotPower = 0.0;
