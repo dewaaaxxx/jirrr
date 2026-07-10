@@ -292,6 +292,18 @@ namespace AutoPlay {
     static inline int humanNominationPocket = -1;
     static inline SpinPreset spinPreset = SPIN_CENTER;
     static inline bool bAutoSpin = false;
+    // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
+    // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
+    // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
+    // Solusi: lock spin pada saat scan dimulai, gunakan spin yang sama untuk semua
+    // determineShotResult call (scan, display, tembak) sampai shot selesai.
+    static inline Vec2d lockedShotSpin = {0.0, 0.0};
+    static inline bool spinIsLocked = false;
+    // FIX POWER: Power yang dipakai scan harus sama persis dengan yang ditembak.
+    // confirmedPower dari scan disimpan di g_CurrentCandidate.power dan di targetPower.
+    // Konversi ke mPower() via ShotPowerToPower() sudah benar — tidak perlu diubah.
+    // Yang penting: power sweep di scan harus cover range yang realistis
+    // berdasarkan getShotPower() (skala simulasi), bukan mPower() (skala 0-1).
     static bool g_postShotLock = false;
     static double g_postShotAngle = 0.0;
     static double g_postShotPower = 0.0;
@@ -360,10 +372,14 @@ namespace AutoPlay {
         lastFailedCuePos = { -1000.0, -1000.0 };
         state = IDLE;
         humanState = HUM_IDLE;
+        spinIsLocked = false; // Unlock spin supaya scan berikutnya lock spin fresh
     }
     
     void Shoot(double angle, double power = 0.f) {
-        applyAutoSpin();
+        // Spin sudah di-apply dan di-lock sebelum scan dimulai (di ScanFast/ScanSlow).
+        // JANGAN apply spin lagi di sini — ini yang bikin spin berubah antara scan dan tembak
+        // → simulasi scan (dengan spin lama) berbeda dengan simulasi display (dengan spin baru)
+        // → prediction line kelihatan masuk tapi setelah tembak meleset.
         setAimAngle(angle);
       //  gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin(), g_CurrentCandidate);
 
@@ -432,7 +448,7 @@ namespace AutoPlay {
 
         std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
         for (double power : powers) {
-            gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+            gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
 
             if (!gPrediction->guiData.balls[0].onTable) continue;
 
@@ -517,6 +533,12 @@ namespace AutoPlay {
             currentScanAngle = 0.0;
             isScanning = true;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
+            // Lock spin saat mulai scan baru
+            if (!spinIsLocked) {
+                if (bAutoSpin) applyAutoSpin();
+                lockedShotSpin = sharedGameManager.getShotSpin();
+                spinIsLocked = true;
+            }
         }
 
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
@@ -537,7 +559,7 @@ namespace AutoPlay {
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
                 // dan scratch (cue ball masuk pocket) terdeteksi dengan benar.
-                gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
                 
                 // Cek scratch PERTAMA sebelum cek lain apapun
                 if (!gPrediction->guiData.balls[0].onTable) continue;
@@ -632,6 +654,15 @@ namespace AutoPlay {
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
 
+        // FIX: Lock spin di awal scan. Semua simulasi dalam scan ini
+        // pakai spin yang sama, dan spin ini juga yang akan dipakai saat tembak.
+        // Tanpa ini: scan pakai spin A, display pakai spin B → lines berbeda.
+        if (!spinIsLocked) {
+            if (bAutoSpin) applyAutoSpin();
+            lockedShotSpin = sharedGameManager.getShotSpin();
+            spinIsLocked = true;
+        }
+
         double startingAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
@@ -701,7 +732,16 @@ namespace AutoPlay {
                 // Untuk shot langsung faktor ini sedikit terlalu besar tapi aman —
                 // ScanFast tetap verifikasi via simulasi (kPowerFactors sweep ke bawah juga).
                 double totalDist = distCueToTarget + distTargetToPocket;
-                double power = sqrt(totalDist * 2.0 * 196.0) * 1.35;
+
+                // FIX POWER FORMULA: Factor adaptif berdasarkan jarak.
+                // Shot dekat (totalDist < 5): factor 1.2 sudah cukup, lebih besar overshoot.
+                // Shot jauh (totalDist > 15): butuh factor 1.5+ untuk cover energy loss.
+                // Rumus: power = sqrt(totalDist * 2 * 196) * factor
+                // Factor 196 = deceleration constant engine (dari Prediction_fast initCueBall).
+                // Power sweep di verifikasi simulasi akan fine-tune dari base ini.
+                double distFactor = 1.2 + (totalDist / 30.0) * 0.5; // 1.2 (dekat) → 1.7 (jauh)
+                if (distFactor > 1.7) distFactor = 1.7;
+                double power = sqrt(totalDist * 2.0 * 196.0) * distFactor;
                 if (power < 150.0) power = 150.0;
                 if (power > 666.0) power = 666.0;
                 double compositeScore = totalDist;
@@ -729,10 +769,10 @@ namespace AutoPlay {
         //    benar-benar diverifikasi masuk oleh engine via determineShotResult().
         // Ini yang bikin autoplay akurat — verifikasi via simulasi, bukan hanya geometri.
         static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
-        // Power sweep: mulai dari base, coba lebih tinggi dulu (untuk shot jauh/pantulan),
-        // lalu lebih rendah (untuk shot dekat yang butuh kontrol).
-        // Range 0.65–1.5 supaya cover semua jarak tanpa undershoot/overshoot.
-        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.5, 0.65};
+        // Power sweep adaptif: coba dari base, naik untuk shot jauh, turun untuk shot dekat.
+        // Urutan: base dulu, lalu naik (shot jauh/pantulan), lalu turun (shot dekat/kontrol).
+        // Range 0.5–1.6 supaya cover semua kondisi tanpa overshoot shot dekat.
+        static const double kPowerFactors[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
 
         bool foundShot = false;
         for (const auto& cand : candidates) {
@@ -750,7 +790,7 @@ namespace AutoPlay {
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
                 for (double pf : kPowerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
-                    gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+                    gPrediction->determineShotResult(true, tryAngle, tryPower, lockedShotSpin, cand);
                     // Cek scratch dulu: kalau cue ball masuk pocket, skip tanpa syarat
                     if (!gPrediction->guiData.balls[0].onTable) continue;
                     if (gPrediction->firstHitIsTarget) {
@@ -896,7 +936,7 @@ namespace AutoPlay {
                 if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
                     // Nominasi confirmed — re-validasi shot
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
-                                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
+                                                     lockedShotSpin, g_CurrentCandidate);
 
                     // Scratch check setelah nominasi
                     if (!gPrediction->guiData.balls[0].onTable) {
@@ -1084,14 +1124,22 @@ namespace AutoPlay {
     // - Saat humanState aktif (lagi aiming/pulling): panggil isAuto=true → lines hilang
     // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
     if (humanState != HUM_IDLE) {
-        // Lines hilang selama human state machine jalan
-        gPrediction->determineShotResult(true, targetAngle, targetPower, sharedGameManager.getShotSpin());
+        // Lines hilang selama human state machine jalan.
+        // Pakai lockedShotSpin supaya simulasi konsisten dengan yang dipilih saat scan.
+        gPrediction->determineShotResult(true, targetAngle, targetPower, lockedShotSpin);
     } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
-        // Lines tampil lagi setelah shot, ikuti aim angle real-time
+        // Setelah shot selesai: unlock spin supaya scan berikutnya bisa lock fresh.
+        spinIsLocked = false;
+        // Lines tampil lagi, ikuti aim angle real-time.
         if (gPrediction && sharedGameManager) {
             double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-            double curPower = sharedGameManager.mVisualCue().mPower();
-            if (curPower < 80.0) curPower = 400.0;
+            // FIX POWER: mPower() return skala game (0.0–1.0), sedangkan
+            // determineShotResult expect skala simulasi (0–666 = langsung velocity).
+            // getShotPower() sudah return skala simulasi yang benar.
+            // mPower() mentah menyebabkan display lines pakai power jauh lebih kecil
+            // dari yang dipakai saat scan → trajectory berbeda → lines meleset.
+            double curPower = sharedGameManager.mVisualCue().getShotPower();
+            if (curPower < 10.0) curPower = 400.0; // fallback kalau belum ada power
             gPrediction->determineShotResult(false, curAngle, curPower, sharedGameManager.getShotSpin());
         }
     }
