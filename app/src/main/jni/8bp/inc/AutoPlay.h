@@ -563,6 +563,19 @@ namespace AutoPlay {
                 
                 // Cek scratch PERTAMA sebelum cek lain apapun
                 if (!gPrediction->guiData.balls[0].onTable) continue;
+
+                // SAFETY MARGIN: tolak kalau cue ball akhir terlalu dekat pocket
+                {
+                    bool tooClose = false;
+                    auto& cbf = gPrediction->guiData.balls[0];
+                    auto pockets = getPockets();
+                    for (int pi = 0; pi < (int)pockets.size(); pi++) {
+                        double dx = cbf.predictedPosition.x - pockets[pi].x;
+                        double dy = cbf.predictedPosition.y - pockets[pi].y;
+                        if (dx*dx + dy*dy < 73.0) { tooClose = true; break; }
+                    }
+                    if (tooClose) continue;
+                }
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -782,17 +795,40 @@ namespace AutoPlay {
             double confirmedAngle = baseAngle;
             double confirmedPower = cand.power;
 
+            // WAJIB forceFullSimulation=true:
             // Tanpa ini, determineShotResult early-return saat firstHit bukan target →
             // simulasi berhenti di tengah → cue ball belum selesai bergerak →
             // balls[0].onTable masih true walau sebenarnya scratch → scratch lolos.
+            gPrediction->forceFullSimulation = true;
             for (double dA : kAngleOffsets) {
                 if (simOk) break;
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
                 for (double pf : kPowerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
                     gPrediction->determineShotResult(true, tryAngle, tryPower, lockedShotSpin, cand);
-                    // Cek scratch dulu: kalau cue ball masuk pocket, skip tanpa syarat
+                    // Cek scratch PERTAMA: kalau cue ball masuk pocket, skip tanpa syarat
                     if (!gPrediction->guiData.balls[0].onTable) continue;
+
+                    // SAFETY MARGIN SCRATCH CHECK:
+                    // Simulasi memakai BALL_RADIUS_SQUARE sebagai threshold masuk pocket.
+                    // Di game nyata ada "suction zone" lebih besar — bola yang hampir masuk
+                    // bisa tersedot masuk. Tolak shot kalau cue ball akhir terlalu dekat pocket.
+                    // Safety radius = 3x BALL_RADIUS (estimasi suction zone game).
+                    // Ini mencegah scratch yang lolos simulasi tapi terjadi di game nyata.
+                    bool cueBallTooClose = false;
+                    auto& cueBallFinal = gPrediction->guiData.balls[0];
+                    auto pockets = getPockets();
+                    for (int pi = 0; pi < (int)pockets.size(); pi++) {
+                        double dx = cueBallFinal.predictedPosition.x - pockets[pi].x;
+                        double dy = cueBallFinal.predictedPosition.y - pockets[pi].y;
+                        double distSq = dx*dx + dy*dy;
+                        // Safety threshold: ~3x ball radius squared
+                        // BALL_RADIUS ≈ 2.85 (dari spinFactor = shotPower/BALL_RADIUS dan nilai umum)
+                        // 3x radius = 8.55, squared ≈ 73
+                        if (distSq < 73.0) { cueBallTooClose = true; break; }
+                    }
+                    if (cueBallTooClose) continue;
+
                     if (gPrediction->firstHitIsTarget) {
                         confirmedAngle = tryAngle;
                         confirmedPower = tryPower;
@@ -801,6 +837,7 @@ namespace AutoPlay {
                     }
                 }
             }
+            gPrediction->forceFullSimulation = false;
             if (!simOk) continue;
 
             double angle = confirmedAngle;
