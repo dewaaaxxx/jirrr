@@ -3,6 +3,13 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 
+ImFont* fontShotFound = nullptr; // ← Deklarasi global
+
+void InitImGui() {
+    ImGuiIO& io = ImGui::GetIO();
+    fontShotFound = io.Fonts->AddFontFromFileTTF("font/1.ttf", 15.0f);
+}
+
 #include "resources.h"
 
 using namespace ImGui;
@@ -25,13 +32,6 @@ using namespace std;
 #include "logo.h"
 #include "on.h"
 #include "off.h"
-
-ImFont* fontShotFound = nullptr; // ← Deklarasi global
-
-void InitImGui() {
-    ImGuiIO& io = ImGui::GetIO();
-    fontShotFound = io.Fonts->AddFontFromFileTTF("font/1.ttf", 15.0f);
-}
 
 static float g_sideBtnsY      = 0.0f;
 static bool g_GameReady = false; // Penanda game sudah siap
