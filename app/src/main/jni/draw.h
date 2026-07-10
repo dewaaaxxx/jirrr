@@ -806,6 +806,53 @@ static void DrawToggleButton(); // forward declaration — defined after DrawFlo
 
 INLINE void DrawESP(ImDrawList* draw) {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+        ImDrawList* fg = ImGui::GetForegroundDrawList();
+if (fg) {
+    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+
+    // ─── 1. Watermark di tengah ──────────────────────────────────────────
+    const char* centerText = "@CM_ENGINE_MOD_v1.8";
+    ImVec2 centerTextSize = ImGui::CalcTextSize(centerText);
+    ImVec2 center = ImVec2(
+        (screenSize.x - centerTextSize.x) * 0.5f,
+        (screenSize.y - centerTextSize.y) * 0.5f
+    );
+
+    // Shadow samar
+    fg->AddText(ImVec2(center.x + 1, center.y + 1), IM_COL32(0, 0, 0, 80), centerText);
+    fg->AddText(ImVec2(center.x - 1, center.y - 1), IM_COL32(0, 0, 0, 80), centerText);
+
+    // 🔥 Teks utama: hijau terang, opacity rendah
+    fg->AddText(center, IM_COL32(0, 255, 0, 60), centerText); // ← Hijau terang, opacity 100
+
+    const char* bottomText = "tg: @Cmengine";
+    ImVec2 bottomTextSize = ImGui::CalcTextSize(bottomText);
+    float padding = 8.0f;
+    ImVec2 bottomPos = ImVec2(10, screenSize.y - bottomTextSize.y - padding - 10);
+
+    // 🔥 Background hitam transparan
+    fg->AddRectFilled(
+        ImVec2(bottomPos.x - padding, bottomPos.y - padding),
+        ImVec2(bottomPos.x + bottomTextSize.x + padding, bottomPos.y + bottomTextSize.y + padding),
+        IM_COL32(0, 0, 0, 180),
+        4.0f
+    );
+
+    // Outline hijau tipis
+    fg->AddRect(
+        ImVec2(bottomPos.x - padding, bottomPos.y - padding),
+        ImVec2(bottomPos.x + bottomTextSize.x + padding, bottomPos.y + bottomTextSize.y + padding),
+        IM_COL32(0, 255, 0, 150),
+        4.0f,
+        0,
+        1.0f
+    );
+
+    // Teks putih
+    fg->AddText(bottomPos, IM_COL32(255, 255, 255, 255), bottomText);
+}
+        
+        
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
@@ -1101,7 +1148,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     ImDrawList* dl = GetWindowDrawList();
 
     // ─── Watermark ──────────────────────────────────────────────────────────
-    ImDrawList* fg = ImGui::GetForegroundDrawList();
+ /*   ImDrawList* fg = ImGui::GetForegroundDrawList();
 if (fg) {
     ImVec2 screenSize = ImGui::GetIO().DisplaySize;
 
@@ -1133,7 +1180,7 @@ if (fg) {
 
     // Teks utama (putih solid)
     fg->AddText(bottomPos, IM_COL32(255, 255, 255, 255), bottomText);
-}
+}*/
 
     ImVec2 a = ImVec2(winPos.x + sidebarW + 32, winPos.y + 80);
     ImVec2 b = ImVec2(winPos.x + winW - 16,     winPos.y + winH - 20);
