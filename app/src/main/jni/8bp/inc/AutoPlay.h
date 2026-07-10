@@ -962,7 +962,7 @@ namespace AutoPlay {
             // Kalau human state machine sedang jalan, jangan interrupt
             if (humanState != HUM_IDLE) return;
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
-            g_CurrentCandidate.idx = -1
+            g_CurrentCandidate.idx = -1;
             if (state == EXECUTING) return;
             NativeTouchesEnd(5, 0, 0);
             state = IDLE;
