@@ -675,18 +675,6 @@ namespace AutoPlay {
     }
     
     void ScanFast(double angleStep = 0.1f) {
-        static double scanStartTime = 0.0;
-        if (scanStartTime == 0.0) scanStartTime = nowSec();
-        if (nowSec() - scanStartTime > 3.0) {
-            scan = SLOW;
-            scanStartTime = 0.0;
-            return;
-        }
-       
-        // 🔥 TAMBAHKAN DI SINI (setelah timeout)
-        static int scanFrame = 0;
-        if (++scanFrame % 2 != 0) return;
-    
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
 
@@ -798,7 +786,6 @@ namespace AutoPlay {
         // over simpler direct shots.
         std::sort(candidates.begin(), candidates.end());
         
-        if (candidates.size() > 20) candidates.resize(20);
         
         // FIX AKURASI (foto 1): Ghost ball formula tidak 100% akurat karena friction,
         // BALL_RADIUS offset, dan spin engine. Untuk tiap kandidat:
@@ -806,15 +793,15 @@ namespace AutoPlay {
         // 2. Coba beberapa power levels (power sweep) supaya ketemu kombinasi yang
         //    benar-benar diverifikasi masuk oleh engine via determineShotResult().
         // Ini yang bikin autoplay akurat — verifikasi via simulasi, bukan hanya geometri.
-        //static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
+        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
         // Power sweep adaptif: coba dari base, naik untuk shot jauh, turun untuk shot dekat.
         // Urutan: base dulu, lalu naik (shot jauh/pantulan), lalu turun (shot dekat/kontrol).
         // Range 0.5–1.6 supaya cover semua kondisi tanpa overshoot shot dekat.
-       // static const double kPowerFactors[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
+        static const double kPowerFactors[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
        
        // 🔥 GANTI INI
-        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175}; // 0°, ±1°
-        static const double kPowerFactors[] = {1.0, 0.8, 1.2}; // 3 variasi
+     //   static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175}; // 0°, ±1°
+ //       static const double kPowerFactors[] = {1.0, 0.8, 1.2}; // 3 variasi
     
         bool foundShot = false;
         for (const auto& cand : candidates) {
