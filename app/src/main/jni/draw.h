@@ -21,7 +21,7 @@ using namespace std;
 #include <GLES3/gl3.h>
 
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoPlay_fix.h"
+#include "8bp/inc/AutoPlay.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
