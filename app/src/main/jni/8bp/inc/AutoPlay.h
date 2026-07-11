@@ -30,6 +30,13 @@ const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
 
 constexpr double maxAngle = 2.0 * PI; // Full 360° scan
 
+double normalizeAngle(double angle) {
+    double newAngle = angle;
+    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
+    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    return newAngle;
+}
+
 // Ball type classifications
 enum BallType {
     CUE_BALL = 0,
