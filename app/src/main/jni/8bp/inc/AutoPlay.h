@@ -542,7 +542,6 @@ namespace AutoPlay {
 static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
 static const double kPowerFactors[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
 
-bool foundShot = false;
 for (const auto& cand : candidates) {
     double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
 
