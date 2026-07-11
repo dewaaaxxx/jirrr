@@ -474,7 +474,7 @@ namespace AutoPlay {
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
             if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType)) continue;
+            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
             if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
             
             // Verify target ball is in correct pocket
@@ -535,7 +535,10 @@ namespace AutoPlay {
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType)) continue;
+                // ScanSlow has no specific target yet — the first ball hit
+                // must belong to OUR own group (myBallType), otherwise it's
+                // a foul (hitting the opponent's balls first).
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
                 
                 // Find what was potted
                 int targetIdx = -1;
