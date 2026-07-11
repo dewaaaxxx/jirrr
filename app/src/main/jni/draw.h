@@ -785,7 +785,7 @@ INLINE void DrawESP(ImDrawList* draw) {
             for (int i = 0; i < 6; i++) {
                 if (Prediction::pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
-                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 18, GREEN, 0, 5.f);
+                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
                 }
             }
         }
