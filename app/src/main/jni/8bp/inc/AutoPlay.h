@@ -230,12 +230,7 @@ struct PhysicsEngine {
     // Validate cue ball won't scratch (won't be potted)
     // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        auto& cueBall = pred.guiData.balls[0];
-        
-        if (!cueBall.onTable) return false;
-        
-        if (cueBall.pocketIndex >= 0) return false;
-        return true;  // Cue ball still on table
+        return pred.guiData.balls[0].onTable;  // Cue ball still on table
     }
     
     // ========================================================================
@@ -244,32 +239,9 @@ struct PhysicsEngine {
     static bool validateEightBallSafety(const Prediction& pred, BallType myBallType) {
         auto& ball8 = pred.guiData.balls[8];
         
-        // CEK 1: Kalo 8-ball UDAH KEPOTONG (udah di meja)
+        // 8-ball must stay on table until it's your turn (you've cleared all yours)
         if (ball8.originalOnTable && !ball8.onTable && myBallType != EIGHT_BALL) {
             return false;  // 8-ball was knocked in prematurely!
-        }
-        
-        // CEK 2: JAGA-JAGA — kalo 8-ball KEPOTONG BERSAMAAN dengan bola sendiri
-        // Cuma ngecek kalo 8-ball onTable (false) dan masih ada bola sendiri di meja
-        if (myBallType == SOLIDS || myBallType == STRIPES) {
-            // Cek apakah MASIH ADA bola sendiri di meja
-            bool hasOwnBallLeft = false;
-            for (int i = 1; i < 16; i++) {
-                if (i == 8) continue;
-                BallType ballType = getBallType(i);
-                if (ballType != myBallType) continue;
-                
-                auto& ball = pred.guiData.balls[i];
-                if (ball.originalOnTable && ball.onTable) {
-                    hasOwnBallLeft = true;
-                    break;
-                }
-            }
-            
-            // Kalo MASIH ADA bola sendiri, TAPI 8-ball UDAH GAK DI MEJA → TOLAK!
-            if (hasOwnBallLeft && !ball8.onTable) {
-                return false;
-            }
         }
         
         return true;
@@ -435,7 +407,18 @@ namespace AutoPlay {
         Ball::Classification playerClass = sharedGameManager.getPlayerClassification();
         BallType myBallType = getPlayerBallType(playerClass);
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
+        bool isNineBall = (playerClass == Ball::Classification::NINE_BALL_RULE);
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
+
+        // Nine ball: harus kena bola bernomor paling kecil yang masih ada
+        int nineBallLowest = -1;
+        if (isNineBall) {
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                if (gPrediction->guiData.balls[i].originalOnTable) {
+                    nineBallLowest = i; break;
+                }
+            }
+        }
         
         std::vector<Candidate> candidates;
         auto pockets = getPockets();
@@ -450,11 +433,14 @@ namespace AutoPlay {
             
             BallType ballType = getBallType(i);
             bool isMyBall = false;
-            if (isOpenTable) {
-                // OPEN TABLE: semua bola (kecuali 8-ball & cue) dianggap "milik sendiri"
+
+            if (isNineBall) {
+                // Nine ball: HANYA boleh target bola paling rendah
+                if (i != nineBallLowest) continue;
+                isMyBall = true;
+            } else if (isOpenTable) {
                 isMyBall = (ballType != EIGHT_BALL && ballType != CUE_BALL);
             } else {
-                // UDAH TAHU JENIS BOLA: cuma bola dengan jenis yang sama yang dianggap milik sendiri
                 isMyBall = (ballType == myBallType);
             }
             
@@ -529,26 +515,65 @@ namespace AutoPlay {
         
         bool foundShot = false;
         
-        // ====================================================================
-        // VALIDATE: Each candidate
-        // ====================================================================
+        // Angle refinement offsets (±1°, ±2°) untuk kompensasi ghost ball inaccuracy
+        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
+        // Power sweep factors untuk kompensasi jarak berbeda
+        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7};
+
         for (const auto& cand : candidates) {
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-            gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
-                     
-            // Safety checks
-            if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
-            if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
-            if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
-            
-            // Verify target ball is in correct pocket
-            if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
-            
-            LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, angle, cand.power);
+            double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+
+            bool simOk = false;
+            double confirmedAngle = baseAngle;
+            double confirmedPower = cand.power;
+
+            // WAJIB forceFullSimulation=true supaya simulasi berjalan penuh
+            // dan scratch/8-ball masuk terdeteksi benar (tanpa ini early-return
+            // saat firstHit ditemukan → cue ball belum selesai disimulasikan).
+            gPrediction->forceFullSimulation = true;
+            for (double dA : kAngleOffsets) {
+                if (simOk) break;
+                double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
+                for (double pf : kPowerFactors) {
+                    double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
+                    gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+
+                    // Cek scratch PERTAMA
+                    if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+
+                    // Safety margin: tolak kalau cue ball akhir terlalu dekat pocket
+                    {
+                        bool tooClose = false;
+                        auto& cbf = gPrediction->guiData.balls[0];
+                        auto pockets = getPockets();
+                        for (int pi = 0; pi < (int)pockets.size(); pi++) {
+                            double dx = cbf.predictedPosition.x - pockets[pi].x;
+                            double dy = cbf.predictedPosition.y - pockets[pi].y;
+                            if (dx*dx + dy*dy < 73.0) { tooClose = true; break; }
+                        }
+                        if (tooClose) continue;
+                    }
+
+                    if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+                    if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
+                    if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+
+                    confirmedAngle = tryAngle;
+                    confirmedPower = tryPower;
+                    simOk = true;
+                    break;
+                }
+            }
+            gPrediction->forceFullSimulation = false;
+            if (!simOk) continue;
+
+            LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, confirmedAngle, confirmedPower);
             g_CurrentCandidate = cand;
+            g_CurrentCandidate.angle = confirmedAngle;
+            g_CurrentCandidate.power = confirmedPower;
             foundShot = true;
-            Shoot(angle, cand.power);
+            Shoot(confirmedAngle, confirmedPower);
             break;
         }
 
@@ -566,6 +591,7 @@ namespace AutoPlay {
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
+        constexpr double maxAngle = 2.0 * PI; // Full 360° scan
 
         // Safety fallback: first angle/power found during this scan that
         // legally hits OUR ball first (doesn't scratch, doesn't pot the
@@ -587,7 +613,13 @@ namespace AutoPlay {
         auto& cueBall = gPrediction->guiData.balls[0];
         
         int steps = 0;
-        int stepsPerFrame = (int)(20 * GameSpeed::getAnimationMultiplier());
+        // FIX FRAME DROP: stepsPerFrame dari GameSpeed dikali 20 (NORMAL=20, FAST=30, VERY_FAST=40).
+        // Tapi dengan 8 power level per angle, tiap frame bisa panggil determineShotResult
+        // hingga 40 × 8 = 320 kali → CPU spike → frame drop parah di awal turn.
+        // Solusi: kurangi power list ke 4 level yang paling representatif,
+        // dan naikkan stepsPerFrame agar scan lebih cepat tanpa heavy per frame.
+        // Total per frame: 60 × 4 = 240 max, tapi early-break saat ketemu → rata-rata jauh lebih sedikit.
+        int stepsPerFrame = 60; // Fixed 60 steps/frame, cukup cepat tanpa spike
         
         // ====================================================================
         // ITERATE: All angles
@@ -597,34 +629,65 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            // Strategic power levels for testing
-           // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
-          //  std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
-            std::vector<double> powers = {666.0, 550.0, 450.0, 350.0, 250.0, 150.0, 100.0, 80.0};
+            // FIX FRAME DROP: 8 power levels = 8x determineShotResult per angle = spike CPU.
+            // 4 level representatif sudah cukup untuk ScanSlow.
+            std::vector<double> powers = {666.0, 450.0, 250.0, 100.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+
+                // Safety margin: tolak kalau cue ball akhir terlalu dekat pocket
+                {
+                    bool tooClose = false;
+                    auto& cbf = gPrediction->guiData.balls[0];
+                    auto pockets = getPockets();
+                    for (int pi = 0; pi < (int)pockets.size(); pi++) {
+                        double dx = cbf.predictedPosition.x - pockets[pi].x;
+                        double dy = cbf.predictedPosition.y - pockets[pi].y;
+                        if (dx*dx + dy*dy < 73.0) { tooClose = true; break; }
+                    }
+                    if (tooClose) continue;
+                }
+
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                 if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
-               // if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
                 
-                // This angle/power legally hits our own ball first without
-                // fouling — remember it as a fallback "safety" shot (use the
                 // Find what was potted
                 int targetIdx = -1;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.originalOnTable || ball.onTable) continue;
+                bool isNineBall = (playerClass == Ball::Classification::NINE_BALL_RULE);
 
-                    BallType ballType = getBallType(i);
-bool isMyBall = (ballType == myBallType);
+                if (isNineBall) {
+                    // Nine ball: harus kena bola bernomor paling kecil yang masih ada
+                    int lowestBall = -1;
+                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                        if (gPrediction->guiData.balls[i].originalOnTable) {
+                            lowestBall = i; break;
+                        }
+                    }
+                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                    if (!firstHit || firstHit->index != lowestBall) continue;
+                    // Cek ada bola yang masuk
+                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                        auto& ball = gPrediction->guiData.balls[i];
+                        if (ball.originalOnTable && !ball.onTable) {
+                            if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                            targetIdx = i; break;
+                        }
+                    }
+                } else {
+                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                        auto& ball = gPrediction->guiData.balls[i];
+                        if (!ball.originalOnTable || ball.onTable) continue;
 
-bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                    
-                    if (isValid) { targetIdx = i; break; }
+                        BallType ballType = getBallType(i);
+                        bool isMyBall = (ballType == myBallType);
+                        bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+
+                        if (isValid) { targetIdx = i; break; }
+                    }
                 }
 
                 if (targetIdx == -1) continue;
@@ -723,6 +786,10 @@ if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
         return activeAction != 0;
     }
     
+    // Track waktu giliran mulai untuk deteksi isAnimationActive() yang stuck
+    static inline double turnStartTime = 0.0;
+    static inline bool turnTimerStarted = false;
+
     // ========================================================================
     // MAIN: Update loop
     // ========================================================================
@@ -730,9 +797,24 @@ if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
         buttonClicker.Update();
         DrawToggleButton();
 
-        if (isAnimationActive()) return;
+        // FIX: isAnimationActive() kadang stuck true di awal turn (power bar
+        // dari giliran sebelumnya belum clear) → scan tidak mulai → waktu habis.
+        // Paksa lanjut setelah 1.5 detik.
+        if (!turnTimerStarted) {
+            turnStartTime = ImGui::GetTime();
+            turnTimerStarted = true;
+        }
+        bool animStuck = (ImGui::GetTime() - turnStartTime > 1.5);
+        if (isAnimationActive() && !animStuck) return;
+
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+            // FIX STALE STATE: Reset semua saat giliran berakhir supaya giliran
+            // berikutnya tidak warisi kandidat / scan angle dari turn sebelumnya.
+            g_CurrentCandidate.idx = -1;
+            lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
+            scan = FAST;
+            turnTimerStarted = false;
             return;
         }
 
