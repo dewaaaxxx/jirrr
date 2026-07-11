@@ -240,7 +240,11 @@ struct PhysicsEngine {
     // Validate cue ball won't scratch (won't be potted)
     // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        return pred.guiData.balls[0].onTable;  // Cue ball still on table
+        auto& cueBall = pred.guiData.balls[0];
+
+        if (!cueBall.onTable) return false;
+
+        if (cueBall.pocketIndex >= 0) return false;
     }
     
     // ========================================================================
@@ -651,6 +655,8 @@ if (!foundShot) {
         bool isOpenTable = (playerClass == Ball::Classification::ANY);
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
+        //Ball::Classification myclass = sharedGameManager.getPlayerClassification();
+        bool foundShot = false;
         
         int steps = 0;
         int stepsPerFrame = (int)(20 * GameSpeed::getAnimationMultiplier());
@@ -670,7 +676,7 @@ if (!foundShot) {
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
 
-                if (!gPrediction->guiData.balls[0].onTable) continue;
+                //if (!gPrediction->guiData.balls[0].onTable) continue;
                 
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
@@ -698,12 +704,12 @@ if (!foundShot) {
 
                 if (targetIdx != -1) {
                     // balls[0].onTable sudah di-cek di atas (awal loop power)
-                    if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
+                    if (!gPrediction->guiData.balls[8].onTable && playerClass != Ball::Classification::EIGHT_BALL) continue;
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
-                    if (myclass == Ball::Classification::ANY) {
+                    if (playerClass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
-                    } else if (firstHit->classification != myclass) continue;
+                    } else if (firstHit->classification != playerClass) continue;
 
                     isPotentiallyValid = true;
                     g_CurrentCandidate.idx = targetIdx;
