@@ -504,7 +504,7 @@ namespace AutoPlay {
                     isMyBall
                 );
                 
-                /*if (isMyBall) {
+                 if (isMyBall) {
                     // ================================================================
                     // BONUS LEBIH AGRESIF BUAT SHOT LURUS
                     // ================================================================
@@ -519,7 +519,7 @@ namespace AutoPlay {
                     } else if (accuracy > 0.80 && ballToPocketDist < 100.0) {
                         score *= 0.6;  // 🟡 PRIORITAS SEDANG
                     }
-                }*/
+                }
                             
                 // CORRECTED: Calculate power needed for TARGET BALL to reach pocket
                 double power = PhysicsEngine::calculatePowerForTargetToPocket(
