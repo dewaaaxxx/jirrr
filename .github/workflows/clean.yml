@@ -1,0 +1,16 @@
+name: Delete old workflow runs
+on:
+  workflow_dispatch: # Biar bisa dijalanin manual kapan aja
+jobs:
+  delete-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete workflow runs
+        uses: dongchengjie/workflow-runs-cleaner@v1
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Hapus semua run yang statusnya success atau failure
+          status-filter: 'success,failure'
+          # retain 5 run terbaru aja (opsional)
+          maintain-span: '' 
