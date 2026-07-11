@@ -103,7 +103,7 @@ struct PhysicsEngine {
         // KONVERSI KE POWER SCALE GAME (0-666)
         // ================================================================
         // BASE: power = velocity * 4.0 (dari observasi game)
-        double power = cueVelocity * 4.0;
+        double power = cueVelocity * 4.5;
         
         // ================================================================
         // ADAPTIF BERDASARKAN JARAK
