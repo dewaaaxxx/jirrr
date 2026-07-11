@@ -751,12 +751,12 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!tableProperties) return;
         auto& pockets = tableProperties.mPockets();
 
-        if (persistent_bool[O("bESP_DrawPockets")]) {
+       /* if (persistent_bool[O("bESP_DrawPockets")]) {
             for (int i = 0; i < 6; i++) {
                 auto sp = WorldToScreen(pockets[i]);
                 draw->AddCircle(ImVec2(sp.x, sp.y), 40, WHITE, 0, 3.f);
             }
-        }
+        }*/
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
         auto stateId = gameStateManager.getCurrentStateId();
@@ -784,15 +784,43 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
                 if (Prediction::pocketStatus[i]) {
-                    auto sp = WorldToScreen(pockets[i]);
-                    draw->AddCircle(ImVec2(sp.x, sp.y), 40, GREEN, 0, 5.f);
+                    auto screenPos = WorldToScreen(pockets[i]);
+                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 14, GREEN, 0, 5.f);
                 }
             }
         }
 
-        int lineStyle = persistent_int["iLineStyle"];
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
 
-         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+                if (ball.initialPosition != ball.predictedPosition) {
+                    ImVec2 lastPos{};
+                    float lineThick = (float)persistent_int[O("fLineThick")];
+                    if (lineThick < 1.f) lineThick = 1.f;
+                    for (int j = 1; j < ball.positions.size(); j++) {
+                        auto point = WorldToScreen(ball.positions[j]);
+                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
+                        lastPos = point;
+                    }
+                }
+            }
+        }
+
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+
+                if (ball.initialPosition != ball.predictedPosition) {
+                    float circleR = (float)persistent_int[O("fLineThick")] + 1.f;
+                    if (circleR < 2.f) circleR = 2.f;
+                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
+                }
+            }
+        }
+
+        /*if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
             if (predA < 0.01f) predA = 1.0f;
             auto getCol = [&](int idx) -> ImU32 {
@@ -874,7 +902,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     }
                 }
             }
-        }
+        }*/
     }
 }
 
@@ -1050,10 +1078,10 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
                                     L("",""),
                                     &persistent_bool[O("bESP_DrawPredictionLine")]);
             Dummy(ImVec2(0,8));
-            need_save |= GoldToggle(L("Draw Pockets","ﺏﻮﻴﺠﻟﺍ ﻢﺳﺭ"),
-                                    L("",""),
-                                    &persistent_bool[O("bESP_DrawPockets")]);
-            Dummy(ImVec2(0,8));
+          //  need_save |= GoldToggle(L("Draw Pockets","ﺏﻮﻴﺠﻟﺍ ﻢﺳﺭ"),
+                            //        L("",""),
+                                //    &persistent_bool[O("bESP_DrawPockets")]);
+         //   Dummy(ImVec2(0,8));
             need_save |= GoldToggle(L("Draw Shot State","ﺐﻳﻮﺼﺘﻟﺍ ﺔﻟﺎﺣ ﻢﺳﺭ"),
                                     L("",""),
                                     &persistent_bool[O("bESP_DrawPocketsShotState")]);
