@@ -29,8 +29,8 @@ using namespace std;
 
 #include "8bp/FrictionProperties.h"
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoAim.h"
 #include "8bp/inc/AutoPlay.h"
+#include "8bp/inc/AutoAim.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
@@ -731,7 +731,6 @@ INLINE void DrawESP(ImDrawList* draw) {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
-        GameSpeed::Draw();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
         F(bool, sharedUserInfo + 0x340) = true;
@@ -1018,7 +1017,8 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     dl->AddRectFilled(a, b, IM_COL32(14, 22, 38, 255), 14.0f);
     dl->AddRect(a, b, IM_COL32(50, 65, 90, 200), 14.0f, 0, 1.0f);
 
-
+    GameSpeed::Draw();
+    
     const char* titlesEn[] = { "General","Auto Play","Table","Account","Notifications","About" };
     const char* titlesAr[] = { "ﺕﺍﺩﺍﺪﻋﻻﺍ","ﻲﺋﺎﻘﻠﺘﻟﺍ","ﺔﻟﻭﺎﻄﻟﺍ","ﺏﺎﺴﺤﻟﺍ","ﺕﺍﺭﺎﻌﺷﻹﺍ","ﻝﻮﺣ" };
     int idx = g_menu.currentTab;
