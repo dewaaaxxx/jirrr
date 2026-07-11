@@ -504,15 +504,20 @@ namespace AutoPlay {
                     isMyBall
                 );
                 
-                if (isMyBall) {  // Syarat 3: BOLA SENDIRI
-                    if (accuracy > 0.95 && ballToPocketDist < 120.0) {  // Syarat 1+2: LURUS + DEKET
-                        score *= 0.3;  // 🔴 PRIORITAS TERTINGGI
-                    } else if (accuracy > 0.90 && ballToPocketDist < 180.0) {
-                        score *= 0.5;  // 🟡 PRIORITAS SEDANG
-                    } else if (ballToPocketDist < 60.0) {
-                        score *= 0.6;  // 🟡 PRIORITAS SEDANG (deket walau gak lurus)
-                    } else if (accuracy > 0.95) {
-                        score *= 0.7;  // 🟢 PRIORITAS RENDAH (lurus tapi jauh)
+                if (isMyBall) {
+                    // ================================================================
+                    // BONUS LEBIH AGRESIF BUAT SHOT LURUS
+                    // ================================================================
+                    if (accuracy > 0.90) {  // Turunin threshold dari 0.95 ke 0.90
+                        if (ballToPocketDist < 150.0) {  // Naikin batas jarak
+                            score *= 0.2;  // 🔴 PRIORITAS TERTINGGI
+                        } else {
+                            score *= 0.5;  // 🟡 PRIORITAS SEDANG (lurus tapi jauh)
+                        }
+                    } else if (ballToPocketDist < 50.0) {
+                        score *= 0.4;  // 🟡 PRIORITAS TINGGI (deket)
+                    } else if (accuracy > 0.80 && ballToPocketDist < 100.0) {
+                        score *= 0.6;  // 🟡 PRIORITAS SEDANG
                     }
                 }
                             
@@ -523,24 +528,6 @@ namespace AutoPlay {
                     cachedFriction
                 );
                 
-                // ================================================================
-                // SKIP SHOT YANG GAK REALISTIS SECARA FISIKA
-                // ================================================================
-                // 1. Terlalu jauh (diagonal meja max ~280 unit)
-                if (ballToPocketDist > 280.0) {
-                    continue;
-                }
-                
-                // 2. Terlalu deket (bola di dalem pocket)
-                if (ballToPocketDist < BALL_RADIUS * 0.5) {
-                    continue;
-                }
-                
-                // 3. Sudut terlalu ekstrim & jauh
-                if (accuracy < 0.3 && ballToPocketDist > 150.0) {
-                    continue;
-                }
-                
                 candidates.push_back({i, angle, score, pocketIdx, power});
             }
         }
@@ -548,33 +535,56 @@ namespace AutoPlay {
         
         bool foundShot = false;
         
-        // ====================================================================
-        // VALIDATE: Each candidate
-        // ====================================================================
-        for (const auto& cand : candidates) {
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-            gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
-                     
-            // Safety checks
-            if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
-            if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-            if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
-            if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
-            
-            // Verify target ball is in correct pocket
-            if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
-            
-            LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, angle, cand.power);
-            g_CurrentCandidate = cand;
-            foundShot = true;
-            Shoot(angle, cand.power);
-            break;
+    // ====================================================================
+    // VALIDATE: Each candidate (DENGAN POWER SWEEP + ANGLE REFINEMENT)
+    // ====================================================================
+    for (const auto& cand : candidates) {
+        double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+        
+        // ================================================================
+        // ANGLE OFFSETS: 0°, ±1°, ±2°, ±3°
+        // ================================================================
+        std::vector<double> angleOffsets = {0.0, -0.0175, 0.0175, -0.035, 0.035, -0.052, 0.052};
+        
+        // ================================================================
+        // POWER FACTORS: 70% - 130%
+        // ================================================================
+        std::vector<double> powerFactors = {1.0, 0.85, 0.70, 1.15, 1.30};
+        
+        bool found = false;
+        
+        for (double dA : angleOffsets) {
+            if (found) break;
+            for (double pf : powerFactors) {
+                double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
+                double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
+                
+                gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+                
+                // ================================================================
+                // SAFETY CHECKS
+                // ================================================================
+                if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+                if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+                if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
+                if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+                
+                // ================================================================
+                // LULUS → TEMBAK
+                // ================================================================
+                LOGI("AutoPlay: FAST - Ball %d angle %f power %f (sweep)", cand.idx, tryAngle, tryPower);
+                g_CurrentCandidate = cand;
+                g_CurrentCandidate.power = tryPower;
+                g_CurrentCandidate.angle = tryAngle;
+                found = true;
+                Shoot(tryAngle, tryPower);
+                break;
+            }
         }
-
-        if (!foundShot) {
-            lastFailedCuePos = cueBall.initialPosition;
-            LOGI("AutoPlay: ScanFast failed, switching to ScanSlow");
-            scan = SLOW;
+        if (found) {
+            foundShot = true;
+            break;
         }
     }
 
@@ -626,8 +636,8 @@ namespace AutoPlay {
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
-               // if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+                BallType targetType = isOpenTable ? ANY : myBallType;
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
                 
                 // This angle/power legally hits our own ball first without
                 // fouling — remember it as a fallback "safety" shot (use the
