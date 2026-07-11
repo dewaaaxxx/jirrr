@@ -34,6 +34,7 @@ enum BallType {
     SOLIDS = 1,      // 1-7
     STRIPES = 2,     // 9-15
     EIGHT_BALL = 3,
+    ANY = 4,        // ← TAMBAHKAN!
     INVALID = -1
 };
 
@@ -53,7 +54,7 @@ ImVec2 GetPocketScreenPos(int pocketIdx) {
 // PHYSICS ENGINE - CORRECTED FOR PROPER BALL COLLISION
 // ============================================================================
 struct PhysicsEngine {
-    static constexpr double BALL_DIAMETER = 2.0 * Physics::BALL_RADIUS;
+    static constexpr double BALL_DIAMETER = 2.0 * 3.800475;
     static constexpr double GRAVITY = 9.81;
     
     // ========================================================================
@@ -70,7 +71,9 @@ struct PhysicsEngine {
     ) {
         // The target ball needs to travel from its position to the pocket
         // This is the ACTUAL distance the ball must cover
-        if (ballToPocketDist < 1.0) return 100.0;
+        if (ballToPocketDist < 1.0) return 80.0;
+
+        constexpr double POWER_SCALING = 35.0;
         
         // Friction deceleration: a = -mu * g
         double friction_coeff = friction._velocityReductionRollingFactor;
@@ -79,13 +82,19 @@ struct PhysicsEngine {
         // CORRECTED: Power needed for TARGET BALL to reach pocket
         // v^2 = 2 * a * s  =>  v = sqrt(2 * a * s)
         double requiredVelocity = std::sqrt(2.0 * deceleration * ballToPocketDist);
+
+        double cueVelocity = requiredVelocity / 0.9;
         
         // Add extra power to overcome collision loss (elastic collision efficiency ~90%)
         double powerWithCollisionLoss = requiredVelocity / 0.9;  // Account for energy loss
         
         // Map to power scale (0-666)
-        double power = powerWithCollisionLoss / 1.0;
-        return std::min(std::max(power, 100.0), 666.0);
+        double power = cueVelocity * POWER_SCALING;
+
+        if (ballToPocketDist > 150.0) power *= 1.1;
+        if (ballToPocketDist > 250.0) power *= 1.15;
+        
+        return std::min(std::max(power, 80.0), 666.0);
     }
     
     // ========================================================================
@@ -237,31 +246,24 @@ struct PhysicsEngine {
         auto firstHit = pred.guiData.collision.firstHitBall;
         if (!firstHit) return false;
         
-        // Determine first hit ball type
-        BallType hitType = INVALID;
-        if (firstHit->index == 8) {
-            hitType = EIGHT_BALL;
-        } else if (firstHit->classification == Ball::Classification::EIGHT_BALL) {
-            hitType = EIGHT_BALL;
-        } else if (firstHit->index >= 1 && firstHit->index <= 7) {
-            hitType = SOLIDS;
-        } else if (firstHit->index >= 9 && firstHit->index <= 15) {
-            hitType = STRIPES;
-        }
-
-        // SEKARANG
-       if (hitType == EIGHT_BALL) {
-            return myBallType == EIGHT_BALL; // boleh kalau memang giliran nembak bola 8
-        }
-        return hitType == targetBallType; // bola pertama yang ketabrak HARUS sesuai target
+        BallType hitType = getBallType(firstHit->index);
         
-        // For Solids/Stripes: can hit any ball except 8-ball
-     /*   if (myBallType == SOLIDS || myBallType == STRIPES) {
-            if (hitType == EIGHT_BALL) return false;  // Can't hit 8-ball first
-            return true;
-        }*/
+        // Kalau open table (belum tahu jenis bola)
+        if (myBallType == ANY) {
+            return hitType != EIGHT_BALL && hitType != CUE_BALL;
+        }
         
-        return true;
+        // Kalau lagi giliran 8-ball
+        if (myBallType == EIGHT_BALL) {
+            return hitType == EIGHT_BALL;
+        }
+        
+        // Kalau udah tahu jenis bola → first hit HARUS bola sendiri!
+        if (myBallType == SOLIDS || myBallType == STRIPES) {
+            return hitType == myBallType;
+        }
+        
+        return false;
     }
     
     // ========================================================================
@@ -289,11 +291,19 @@ BallType getBallType(int ballIndex) {
     return INVALID;
 }
 
-BallType getPlayerBallType(Ball::Classification classification) {
+/*BallType getPlayerBallType(Ball::Classification classification) {
     if (classification == Ball::Classification::STRIPE) return STRIPES;
     if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
     // SOLID atau ANY (open table) → default ke SOLIDS
     return SOLIDS;
+}*/
+
+BallType getPlayerBallType(Ball::Classification classification) {
+    if (classification == Ball::Classification::ANY) return ANY;
+    if (classification == Ball::Classification::SOLID) return SOLIDS;
+    if (classification == Ball::Classification::STRIPE) return STRIPES;
+    if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
+    return INVALID;
 }
 
 // ============================================================================
@@ -411,13 +421,20 @@ namespace AutoPlay {
             if (!ball.originalOnTable) continue;
             
             BallType ballType = getBallType(i);
-            bool isMyBall = (ballType == myBallType);  // hapus "&& ballType != EIGHT_BALL"
+            bool isMyBall = false;
+            if (isOpenTable) {
+                // OPEN TABLE: semua bola (kecuali 8-ball & cue) dianggap "milik sendiri"
+                isMyBall = (ballType != EIGHT_BALL && ballType != CUE_BALL);
+            } else {
+                // UDAH TAHU JENIS BOLA: cuma bola dengan jenis yang sama yang dianggap milik sendiri
+                isMyBall = (ballType == myBallType);
+            }
             
             bool isCandidate = false;
             if (isMyBall) {
-                isCandidate = true;
-            } else if (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
-                isCandidate = true;
+                isCandidate = true;  // Bola sendiri → PRIORITAS
+            } else if (!isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+                isCandidate = true;  // Bola lawan → FALLBACK (cuma kalau udah tahu jenis bola)
             }
             
             if (!isCandidate) continue;
@@ -554,7 +571,8 @@ namespace AutoPlay {
 
             // Strategic power levels for testing
            // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
-            std::vector<double> powers = {666.0, 350.0};
+          //  std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
+            std::vector<double> powers = {666.0, 550.0, 450.0, 350.0, 250.0, 150.0, 100.0, 80.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
@@ -562,6 +580,7 @@ namespace AutoPlay {
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                 if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+               // if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
                 
                 // This angle/power legally hits our own ball first without
                 // fouling — remember it as a fallback "safety" shot (use the
