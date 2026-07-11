@@ -29,8 +29,8 @@ using namespace std;
 
 #include "8bp/FrictionProperties.h"
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoPlay.h"
 #include "8bp/inc/AutoAim.h"
+#include "8bp/inc/AutoPlay.h"
 #include "logo.h"
 #include "on.h"
 #include "off.h"
