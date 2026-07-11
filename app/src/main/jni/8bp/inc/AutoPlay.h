@@ -243,10 +243,10 @@ struct PhysicsEngine {
         }
         
         // For Solids/Stripes: can hit any ball except 8-ball
-        if (myBallType == SOLIDS || myBallType == STRIPES) {
-            if (hitType == EIGHT_BALL) return false;  // Can't hit 8-ball first
-            return true;
+        if (hitType == EIGHT_BALL) {
+            return myBallType == EIGHT_BALL; // boleh kalau memang giliran nembak bola 8
         }
+        return hitType == targetBallType; // bola pertama yang ketabrak HARUS sesuai target
         
         return true;
     }
