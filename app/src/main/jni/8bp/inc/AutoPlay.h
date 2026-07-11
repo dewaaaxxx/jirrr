@@ -277,9 +277,10 @@ BallType getBallType(int ballIndex) {
 }
 
 BallType getPlayerBallType(Ball::Classification classification) {
-    if (classification == Ball::Classification::ANY) return SOLIDS;
+    if (classification == Ball::Classification::STRIPE) return STRIPES;
     if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
-    return STRIPES;
+    // SOLID atau ANY (open table) → default ke SOLIDS
+    return SOLIDS;
 }
 
 // ============================================================================
