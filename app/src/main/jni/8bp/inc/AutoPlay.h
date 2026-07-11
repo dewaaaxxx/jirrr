@@ -28,6 +28,8 @@ const double MIN_POCKET_DIST = 5.0;       // Minimum distance to pocket (was 40 
 const double MAX_POCKET_DIST = 300.0;     // Maximum distance to pocket (was 120 — table diagonal ~280+)
 const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
 
+constexpr double maxAngle = 2.0 * PI; // Full 360° scan
+
 // Ball type classifications
 enum BallType {
     CUE_BALL = 0,
@@ -591,8 +593,6 @@ namespace AutoPlay {
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
-        constexpr double maxAngle = 2.0 * PI; // Full 360° scan
-
         // Safety fallback: first angle/power found during this scan that
         // legally hits OUR ball first (doesn't scratch, doesn't pot the
         // 8-ball prematurely), even if nothing actually goes in a pocket.
