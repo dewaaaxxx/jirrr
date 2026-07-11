@@ -587,6 +587,7 @@ namespace AutoPlay {
             break;
         }
     }
+    }
 
     // ========================================================================
     // SCAN SLOW: Exhaustive angle search for any possible shot
