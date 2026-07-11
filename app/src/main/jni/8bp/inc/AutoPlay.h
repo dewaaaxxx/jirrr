@@ -457,7 +457,10 @@ namespace AutoPlay {
         // Pakai targetPower yang di-set oleh takeShot() dan di-hold sepanjang human state machine.
         g_postShotPower = targetPower;
         g_postShotFrames = 15;
-        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+        
+        gPrediction->determineShotResult(false, targetAngle, targetPower, lockedShotSpin);
+        
+        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0))
         
         state = EXECUTING;
         stateStartTime = nowSec();
@@ -481,7 +484,7 @@ namespace AutoPlay {
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
         setShotPower(power);
-        gPrediction->determineShotResult(false, angle, power);
+        gPrediction->determineShotResult(true, angle, power);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -636,8 +639,22 @@ namespace AutoPlay {
             gPrediction->determineShotResult(true, angle, cand.power, lockedShotSpin, cand);
             
             if (!gPrediction->guiData.balls[0].onTable) continue;
-            
-            if (!gPrediction->guiData.balls[8].onTable && myBallType != EIGHT_BALL) continue;
+            if (!gPrediction->guiData.balls[8].onTable && myBallType != EIGHT_BALL) {
+                // Cek apakah MASIH ADA bola sendiri di meja
+                bool hasOwnBallLeft = false;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    if (i == 8) continue;
+                    if (gPrediction->guiData.balls[i].classification == myBallType) {
+                        if (gPrediction->guiData.balls[i].originalOnTable && gPrediction->guiData.balls[i].onTable) {
+                            hasOwnBallLeft = true;
+                            break;
+                        }
+                    }
+                }
+                if (hasOwnBallLeft) {
+                    continue;  // ← 8-BALL GAK BOLEH MASUK!
+                }
+            }
                      
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
@@ -719,13 +736,15 @@ namespace AutoPlay {
                 
                 if (!gPrediction->guiData.balls[0].onTable) continue;
                 
-                if (!gPrediction->guiData.balls[8].onTable && myBallType != EIGHT_BALL) continue;
                 
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
-               // if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, myBallType)) continue;
+                BallType targetType = myBallType;
+                if (isOpenTable) {
+                    targetType = ANY;  // ← KALO OPEN TABLE, FIRST HIT BISA APA AJA (KECUALI 8)
+                }
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
                 
                 // This angle/power legally hits our own ball first without
                 // fouling — remember it as a fallback "safety" shot (use the
@@ -881,7 +900,9 @@ namespace AutoPlay {
             if (scan == FAST) {
                 ScanFast(ANGLE_STEP_FAST);
             } else {
-                DrawEightBallLoading(GetForegroundDrawList());
+                if (humanState == HUM_IDLE) {
+                    DrawEightBallLoading(GetForegroundDrawList());
+                }
                 ScanSlow(ANGLE_STEP_SLOW);
             }
         } 
