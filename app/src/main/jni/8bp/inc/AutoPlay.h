@@ -331,7 +331,11 @@ namespace AutoPlay {
 
     enum State { IDLE, SCANNING, NOMINATING, EXECUTING } state = IDLE;
     enum ScanMode { FAST, SLOW } scan = FAST;
-
+    
+    double pendingShotPower = 0.f;
+    double pendingShotAngle = 0.f;
+    int nominationFrameCounter = 0;
+    
     enum HumanState {
         HUM_IDLE,
         HUM_THINKING,
@@ -342,10 +346,6 @@ namespace AutoPlay {
         HUM_PULLING,
         HUM_DELAY_BEFORE_SHOT,
     };
-    
-    double pendingShotPower = 0.f;
-    double pendingShotAngle = 0.f;
-    int nominationFrameCounter = 0;
     
     static inline HumanState humanState = HUM_IDLE;
     static inline double stateStartTime = 0;
@@ -358,7 +358,6 @@ namespace AutoPlay {
     static inline bool g_PredictionLocked = false;
     static inline bool humanNeedsNomination = false;
     static inline int humanNominationPocket = -1;
-    static inline SpinPreset spinPreset = SPIN_CENTER;
     // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
     // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
     // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
@@ -594,7 +593,7 @@ namespace AutoPlay {
         // ====================================================================
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-            gPrediction->determineShotResult(true, tryAngle, tryPower, lockedShotSpin, cand);
+            gPrediction->determineShotResult(true, angle, cand.power, lockedShotSpin, cand);
                      
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
@@ -640,7 +639,6 @@ namespace AutoPlay {
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
             // Lock spin saat mulai scan baru
             if (!spinIsLocked) {
-                if (bAutoSpin) applyAutoSpin();
                 lockedShotSpin = sharedGameManager.getShotSpin();
                 spinIsLocked = true;
             }
@@ -1001,6 +999,8 @@ namespace AutoPlay {
             }
             return;
         }
+        
+        bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
         
         if (humanState != HUM_IDLE) {
         // Lines hilang selama human state machine jalan.
