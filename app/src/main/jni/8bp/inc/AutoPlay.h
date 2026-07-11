@@ -676,53 +676,68 @@ if (!foundShot) {
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
 
-                //if (!gPrediction->guiData.balls[0].onTable) continue;
-                
-                // Safety checks FIRST
-                if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
-                if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                BallType targetType = isOpenTable ? ANY : myBallType;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
-                
-                // This angle/power legally hits our own ball first without
-                // fouling — remember it as a fallback "safety" shot (use the
-                // Find what was potted
-                bool isPotentiallyValid = false;
-                int targetIdx = -1;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.originalOnTable || ball.onTable) continue;
+// ================================================================
+// 1. CEK SCRATCH (CUE BALL) — PAKAI validateCueBallSafety
+// ================================================================
+if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
 
-                    BallType ballType = getBallType(i);
-                    bool isMyBall = (ballType == myBallType);
-                    
-                    bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
-                    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                                        
-                    if (isValid) { targetIdx = i; break; }
-                }
+// ================================================================
+// 2. CEK 8-BALL PREMATURE — PAKAI validateEightBallSafety
+// ================================================================
+if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
 
-                if (targetIdx != -1) {
-                    // balls[0].onTable sudah di-cek di atas (awal loop power)
-                    if (!gPrediction->guiData.balls[8].onTable && playerClass != Ball::Classification::EIGHT_BALL) continue;
-                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                    if (!firstHit) continue;
-                    if (playerClass == Ball::Classification::ANY) {
-                        if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
-                    } else if (firstHit->classification != playerClass) continue;
+// ================================================================
+// 3. CEK FIRST HIT
+// ================================================================
+BallType targetType = isOpenTable ? ANY : myBallType;
+if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
 
-                    isPotentiallyValid = true;
-                    g_CurrentCandidate.idx = targetIdx;
-                    g_CurrentCandidate.angle = angle;
-                    g_CurrentCandidate.power = power;
-                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
-                }
+// ================================================================
+// 4. CARI BOLA YANG KEPOTONG
+// ================================================================
+int targetIdx = -1;
+for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+    auto& ball = gPrediction->guiData.balls[i];
+    if (!ball.originalOnTable || ball.onTable) continue;
 
-                if (isPotentiallyValid) {
-                    foundShot = true;
-                    Shoot(angle, power);
-                    break;
-                }
+    BallType ballType = getBallType(i);
+    bool isValid = false;
+
+    if (isOpenTable) {
+        isValid = (ballType != EIGHT_BALL && ballType != CUE_BALL);
+    } else {
+        isValid = (ballType == myBallType);
+    }
+
+    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) {
+        isValid = false;
+    }
+
+    if (isValid) { targetIdx = i; break; }
+}
+
+if (targetIdx == -1) continue;
+
+// ================================================================
+// 5. SET CURRENT CANDIDATE
+// ================================================================
+g_CurrentCandidate.idx = targetIdx;
+g_CurrentCandidate.angle = angle;
+g_CurrentCandidate.power = power;
+g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
+
+// ================================================================
+// 6. VALIDASI TARGET BALL (PAKAI validateTargetBallPocketed)
+// ================================================================
+if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, targetIdx)) continue;
+
+// ================================================================
+// 7. LULUS → TEMBAK
+// ================================================================
+LOGI("AutoPlay: SLOW - Ball %d angle %f power %f", targetIdx, angle, power);
+foundShot = true;
+Shoot(angle, power);
+break;
             }
             if (foundShot) break;
         }
