@@ -302,6 +302,7 @@ struct PhysicsEngine {
 // GAME STATE & HELPER FUNCTIONS
 // ============================================================================
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
+static inline Point2D lastSetCuePos = {-1000, -1000};
 
 /*BallType getPlayerBallType(Ball::Classification classification) {
     if (classification == Ball::Classification::STRIPE) return STRIPES;
@@ -330,6 +331,17 @@ namespace AutoPlay {
 
     enum State { IDLE, SCANNING, NOMINATING, EXECUTING } state = IDLE;
     enum ScanMode { FAST, SLOW } scan = FAST;
+
+    enum HumanState {
+        HUM_IDLE,
+        HUM_THINKING,
+        HUM_OVERSHOOTING,
+        HUM_CORRECTING,
+        HUM_HOLDING,
+        HUM_STABILIZING,
+        HUM_PULLING,
+        HUM_DELAY_BEFORE_SHOT,
+    };
     
     double pendingShotPower = 0.f;
     double pendingShotAngle = 0.f;
