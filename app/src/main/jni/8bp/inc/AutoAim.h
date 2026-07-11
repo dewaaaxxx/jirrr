@@ -7,7 +7,6 @@
 
 using namespace ImGui;
 
-constexpr double maxAngle = 360.0 / (180.0 / M_PI);
 constexpr double ANGLE_PRECISION = 0.01;      // Fine-tuned angle step
 constexpr double POWER_PRECISION = 5.0;       // Power search granularity
 constexpr double MIN_POWER = 10.0;            // Minimum shot power
