@@ -785,10 +785,12 @@ INLINE void DrawESP(ImDrawList* draw) {
             for (int i = 0; i < 6; i++) {
                 if (Prediction::pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
-                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 14, GREEN, 0, 5.f);
+                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 18, GREEN, 0, 5.f);
                 }
             }
         }
+
+        float lineThick = persistent_float["fLineThick"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
@@ -796,7 +798,6 @@ INLINE void DrawESP(ImDrawList* draw) {
 
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
-                    float lineThick = (float)persistent_int[O("fLineThick")];
                     if (lineThick < 1.f) lineThick = 1.f;
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
@@ -812,10 +813,10 @@ INLINE void DrawESP(ImDrawList* draw) {
                 auto& ball = gPrediction->guiData.balls[i];
 
                 if (ball.initialPosition != ball.predictedPosition) {
-                    float circleR = (float)persistent_int[O("fLineThick")] + 1.f;
+                    float circleR = lineThick + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
                     draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 5, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
         }
