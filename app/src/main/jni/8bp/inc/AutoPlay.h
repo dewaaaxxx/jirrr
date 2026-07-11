@@ -230,7 +230,22 @@ struct PhysicsEngine {
     // Validate cue ball won't scratch (won't be potted)
     // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        return pred.guiData.balls[0].onTable;  // Cue ball still on table
+        auto& cueBall = pred.guiData.balls[0];
+        
+        // ================================================================
+        // 1. CUE BALL HARUS DI MEJA
+        // ================================================================
+        if (!cueBall.onTable) return false;
+        
+        // ================================================================
+        // 2. CUE BALL GAK BOLEH DI POCKET
+        // ================================================================
+        if (cueBall.pocketIndex >= 0) return false;
+        
+        // ================================================================
+        // END
+        // ================================================================       
+        return true;
     }
     
     // ========================================================================
@@ -239,9 +254,34 @@ struct PhysicsEngine {
     static bool validateEightBallSafety(const Prediction& pred, BallType myBallType) {
         auto& ball8 = pred.guiData.balls[8];
         
-        // 8-ball must stay on table until it's your turn (you've cleared all yours)
-        if (ball8.originalOnTable && !ball8.onTable && myBallType != EIGHT_BALL) {
-            return false;  // 8-ball was knocked in prematurely!
+        // ================================================================
+        // KALO 8-BALL UDAH GAK DI MEJA
+        // ================================================================
+        if (ball8.originalOnTable && !ball8.onTable) {
+            // Kalo giliran 8-ball → BOLEH (menang)
+            if (myBallType == EIGHT_BALL) return true;
+            // Kalo belum giliran → TIDAK BOLEH
+            return false;
+        }
+        
+        // ================================================================
+        // CEK: MASIH ADA BOLA SENDIRI DI MEJA?
+        // ================================================================
+        if (myBallType == SOLIDS || myBallType == STRIPES) {
+            for (int i = 1; i < 16; i++) {
+                if (i == 8) continue;  // skip 8-ball
+                BallType ballType = getBallType(i);
+                if (ballType != myBallType) continue;  // bukan bola sendiri
+                
+                auto& ball = pred.guiData.balls[i];
+                // Ada bola sendiri masih di meja
+                if (ball.originalOnTable && ball.onTable) {
+                    // Cek apakah 8-ball bakal kepotong di shot ini?
+                    if (ball8.originalOnTable && !ball8.onTable) {
+                        return false;  // 8-ball premature!
+                    }
+                }
+            }
         }
         
         return true;
