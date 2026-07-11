@@ -457,7 +457,7 @@ namespace AutoPlay {
         // Pakai targetPower yang di-set oleh takeShot() dan di-hold sepanjang human state machine.
         g_postShotPower = targetPower;
         g_postShotFrames = 15;
-        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0))
+        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
         
         state = EXECUTING;
         stateStartTime = nowSec();
