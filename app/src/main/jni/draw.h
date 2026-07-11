@@ -815,7 +815,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     float circleR = (float)persistent_int[O("fLineThick")] + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
                     draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 5, colors[i]);
                 }
             }
         }
