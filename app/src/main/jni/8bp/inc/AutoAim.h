@@ -13,13 +13,6 @@ constexpr double MIN_POWER = 10.0;            // Minimum shot power
 constexpr double MAX_POWER = 666.0;           // Maximum shot power
 constexpr double OPTIMAL_POWER_FACTOR = 1.2;  // Power boost for harder hits
 
-double normalizeAngle(double angle) {
-    double newAngle = angle;
-    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
-    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
-    return newAngle;
-}
-
 struct ShotCandidate {
     double angle = 0.0;
     double power = 0.0;
