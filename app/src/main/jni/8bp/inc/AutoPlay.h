@@ -594,6 +594,10 @@ namespace AutoPlay {
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, lockedShotSpin, cand);
+            
+            if (!gPrediction->guiData.balls[0].onTable) continue;
+            
+            if (!gPrediction->guiData.balls[8].onTable && myBallType != EIGHT_BALL) continue;
                      
             // Safety checks
             if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
@@ -668,6 +672,10 @@ namespace AutoPlay {
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
                 
+                if (!gPrediction->guiData.balls[0].onTable) continue;
+                
+                if (!gPrediction->guiData.balls[8].onTable && myBallType != EIGHT_BALL) continue;
+                
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
@@ -692,6 +700,8 @@ namespace AutoPlay {
                 }
 
                 if (targetIdx == -1) continue;
+                
+                if (!gPrediction->guiData.balls[8].onTable && myBallType != EIGHT_BALL) continue;
 
                 LOGI("AutoPlay: SLOW - Ball %d angle %f power %f", targetIdx, angle, power);
                 g_CurrentCandidate.idx = targetIdx;
@@ -1024,5 +1034,5 @@ namespace AutoPlay {
     }
     
     }
-    }
+  }
 };
