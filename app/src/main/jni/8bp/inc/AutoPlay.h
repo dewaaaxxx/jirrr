@@ -279,7 +279,7 @@ BallType getBallType(int ballIndex) {
 BallType getPlayerBallType(Ball::Classification classification) {
     if (classification == Ball::Classification::ANY) return SOLIDS;
     if (classification == Ball::Classification::EIGHT_BALL) return EIGHT_BALL;
-    return SOLIDS;
+    return STRIPES;
 }
 
 // ============================================================================
