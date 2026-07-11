@@ -7,11 +7,19 @@
 
 using namespace ImGui;
 
+constexpr double maxAngle = 360.0 / (180.0 / M_PI);
 constexpr double ANGLE_PRECISION = 0.01;      // Fine-tuned angle step
 constexpr double POWER_PRECISION = 5.0;       // Power search granularity
 constexpr double MIN_POWER = 10.0;            // Minimum shot power
 constexpr double MAX_POWER = 666.0;           // Maximum shot power
 constexpr double OPTIMAL_POWER_FACTOR = 1.2;  // Power boost for harder hits
+
+double normalizeAngle(double angle) {
+    double newAngle = angle;
+    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
+    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    return newAngle;
+}
 
 struct ShotCandidate {
     double angle = 0.0;
