@@ -17,13 +17,14 @@ using namespace ImGui;
 // ============================================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================================
-const double PI = 3.14159265358979323846;
-const double TWO_PI = 2.0 * PI;
+const double HPI = 3.14159265358979323846;
+const double TWO_PI = 2.0 * HPI;
 const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
 const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
 const double MIN_POCKET_DIST = 40.0;      // Minimum distance to pocket
 const double MAX_POCKET_DIST = 120.0;     // Maximum distance to pocket
 const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
+constexpr double maxAngle = 360.0 / (180.0 / M_PI);
 
 double normalizeAngle(double angle) {
     double newAngle = angle;
