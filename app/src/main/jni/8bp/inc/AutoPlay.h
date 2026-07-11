@@ -8,8 +8,8 @@
 #include "ScreenTable.h"
 #include "PhysicsModel.h"
 #include "GameSpeedControl.h"
-#include "FrictionProperties.h"
-#include "ButtonClicker.h"
+//#include "FrictionProperties.h"
+//#include "ButtonClicker.h"
 
 using namespace ImGui;
 
