@@ -1,5 +1,7 @@
 #pragma once
 
+#include "8bp/inc/Prediction.fast.h"
+
 #include <cmath>
 #include <algorithm>
 
@@ -106,9 +108,28 @@ namespace Physics {
         return angle;
     }
     
-    // Validate shot based on physics
-    inline bool isValidShot(double power, double maxPower = 666.0) {
+        // Validate shot based on physics
+    inline bool isValidShot(
+        const Point2D& cueBallPos,
+        const Point2D& targetBallPos,
+        const Point2D& pocketPos,
+        double power,
+        double maxPower = 666.0
+    ) {
         if (power > maxPower) return false;
+        
+        double distanceToPocket = std::sqrt(
+            std::pow(pocketPos.x - targetBallPos.x, 2) +
+            std::pow(pocketPos.y - targetBallPos.y, 2)
+        );
+        
+        // Too close to pocket = risky, too far = impossible
+        if (distanceToPocket < BALL_RADIUS * 0.5) return false;
+        if (distanceToPocket > 10.0) return false; // Beyond table
+        
         return true;
     }
-}
+
+    // الدالة الإضافية المكررة قمنا بدمجها بالمنطق أعلاه بشكل صحيح ونظيف
+
+} // هنا نقوم بإغلاق namespace Physics بشكل صحيح لمنع تداخل std::string
