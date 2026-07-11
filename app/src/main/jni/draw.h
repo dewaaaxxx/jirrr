@@ -731,6 +731,7 @@ INLINE void DrawESP(ImDrawList* draw) {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
+        GameSpeed::Draw();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));   if (!sharedUserInfo) return;
         F(bool, sharedUserInfo + 0x340) = true;
@@ -1528,7 +1529,6 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
         //DrawLiveStatusOverlay(io);
-        GameSpeed::Draw();
         SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
                 Begin(O("##PoweredBy"), nullptr,
                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
