@@ -536,57 +536,94 @@ namespace AutoPlay {
         bool foundShot = false;
         
     // ====================================================================
-    // VALIDATE: Each candidate (DENGAN POWER SWEEP + ANGLE REFINEMENT)
-    // ====================================================================
-    for (const auto& cand : candidates) {
-        double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-        
-        // ================================================================
-        // ANGLE OFFSETS: 0°, ±1°, ±2°, ±3°
-        // ================================================================
-        std::vector<double> angleOffsets = {0.0, -0.0175, 0.0175, -0.035, 0.035, -0.052, 0.052};
-        
-        // ================================================================
-        // POWER FACTORS: 70% - 130%
-        // ================================================================
-        std::vector<double> powerFactors = {1.0, 0.85, 0.70, 1.15, 1.30};
-        
-        bool found = false;
-        
-        for (double dA : angleOffsets) {
-            if (found) break;
-            for (double pf : powerFactors) {
-                double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
-                double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
-                
-                gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
-                
-                // ================================================================
-                // SAFETY CHECKS
-                // ================================================================
-                if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
-                if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
-                if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx)) continue;
-                if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
-                
-                // ================================================================
-                // LULUS → TEMBAK
-                // ================================================================
-                LOGI("AutoPlay: FAST - Ball %d angle %f power %f (sweep)", cand.idx, tryAngle, tryPower);
-                g_CurrentCandidate = cand;
-                g_CurrentCandidate.power = tryPower;
-                g_CurrentCandidate.angle = tryAngle;
-                found = true;
-                Shoot(tryAngle, tryPower);
+   // ====================================================================
+// VALIDATE: Each candidate (PAKE KODE LAMA YANG CEPET)
+// ====================================================================
+static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
+static const double kPowerFactors[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
+
+bool foundShot = false;
+for (const auto& cand : candidates) {
+    double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+
+    bool simOk = false;
+    double confirmedAngle = baseAngle;
+    double confirmedPower = cand.power;
+
+    for (double dA : kAngleOffsets) {
+        if (simOk) break;
+        double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
+        for (double pf : kPowerFactors) {
+            double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
+            gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+            
+            if (!gPrediction->guiData.balls[0].onTable) continue;
+            if (gPrediction->firstHitIsTarget) {
+                confirmedAngle = tryAngle;
+                confirmedPower = tryPower;
+                simOk = true;
                 break;
             }
         }
-        if (found) {
-            foundShot = true;
-            break;
-        }
     }
+    if (!simOk) continue;
+
+    // ================================================================
+    // CEK 8-BALL PREMATURE (MANUAL)
+    // ================================================================
+    bool only8Left = false;
+    if (myBallType == SOLIDS || myBallType == STRIPES) {
+        bool foundOwn = false;
+        for (int k = 1; k < gPrediction->guiData.ballsCount; k++) {
+            if (k == 8) continue;
+            if (gPrediction->guiData.balls[k].classification == myBallType) {
+                if (gPrediction->guiData.balls[k].originalOnTable && 
+                    gPrediction->guiData.balls[k].onTable) {
+                    foundOwn = true;
+                    break;
+                }
+            }
+        }
+        if (!foundOwn) only8Left = true;
+    }
+
+    // ================================================================
+    // VALIDASI TARGET
+    // ================================================================
+    if (gPrediction->guiData.balls[cand.idx].onTable) continue;
+    if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+
+    auto& targetBall = gPrediction->guiData.balls[cand.idx];
+    bool isAngleGood = (targetBall.originalOnTable && !targetBall.onTable);
+
+    if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
+        auto firstHit = gPrediction->guiData.collision.firstHitBall;
+        if (myBallType != ANY && firstHit->classification != myBallType) isAngleGood = false;
+        else if (myBallType == ANY && firstHit->classification == EIGHT_BALL) isAngleGood = false;
+    }
+
+    if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
+    
+    auto& eightBallRef = gPrediction->guiData.balls[8];
+    if (isAngleGood && eightBallRef.originalOnTable && !eightBallRef.onTable
+        && !only8Left && myBallType != EIGHT_BALL) {
+        isAngleGood = false;
+    }
+    
+    if (isAngleGood) {
+        g_CurrentCandidate = cand;
+        g_CurrentCandidate.angle = confirmedAngle;
+        g_CurrentCandidate.power = confirmedPower;
+        foundShot = true;
+        Shoot(confirmedAngle, confirmedPower);
+        break;
+    }
+}
+
+if (!foundShot) {
+    lastFailedCuePos = cueBall.initialPosition;
+    scan = SLOW;
+}
     }
 
     // ========================================================================
