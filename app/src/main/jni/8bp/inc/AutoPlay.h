@@ -669,6 +669,8 @@ if (!foundShot) {
             std::vector<double> powers = {666.0, 550.0, 450.0, 350.0, 250.0, 150.0, 100.0, 80.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+
+                if (!gPrediction->guiData.balls[0].onTable) continue;
                 
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
@@ -679,6 +681,7 @@ if (!foundShot) {
                 // This angle/power legally hits our own ball first without
                 // fouling — remember it as a fallback "safety" shot (use the
                 // Find what was potted
+                bool isPotentiallyValid = false;
                 int targetIdx = -1;
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
@@ -693,21 +696,32 @@ if (!foundShot) {
                     if (isValid) { targetIdx = i; break; }
                 }
 
-                if (targetIdx == -1) continue;
+                if (targetIdx != -1) {
+                    // balls[0].onTable sudah di-cek di atas (awal loop power)
+                    if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
+                    auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                    if (!firstHit) continue;
+                    if (myclass == Ball::Classification::ANY) {
+                        if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
+                    } else if (firstHit->classification != myclass) continue;
 
-                LOGI("AutoPlay: SLOW - Ball %d angle %f power %f", targetIdx, angle, power);
-                g_CurrentCandidate.idx = targetIdx;
-                g_CurrentCandidate.angle = angle;
-                g_CurrentCandidate.power = power;
-                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
-                isScanning = false;
-                currentScanAngle = 0.0;
-                Shoot(angle, power);
-                return;
+                    isPotentiallyValid = true;
+                    g_CurrentCandidate.idx = targetIdx;
+                    g_CurrentCandidate.angle = angle;
+                    g_CurrentCandidate.power = power;
+                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
+                }
+
+                if (isPotentiallyValid) {
+                    foundShot = true;
+                    Shoot(angle, power);
+                    break;
+                }
             }
+            if (foundShot) break;
         }
 
-        if (currentScanAngle >= maxAngle) {
+        if (!foundShot && currentScanAngle >= maxAngle) {
             LOGI("AutoPlaySlow: Exhaustive scan complete, no potting shot found");
             isScanning = false;
             currentScanAngle = 0.0;
