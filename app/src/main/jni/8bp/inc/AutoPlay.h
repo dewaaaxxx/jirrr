@@ -240,11 +240,7 @@ struct PhysicsEngine {
     // Validate cue ball won't scratch (won't be potted)
     // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        auto& cueBall = pred.guiData.balls[0];
-
-        if (!cueBall.onTable) return false;
-
-        if (cueBall.pocketIndex >= 0) return false;
+        return pred.guiData.balls[0].onTable;  // Cue ball still on table
     }
     
     // ========================================================================
