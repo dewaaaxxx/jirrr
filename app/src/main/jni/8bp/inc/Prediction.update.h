@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cmath>
-#include "Types.h"
-#include "FrictionProperties.h"
+//#include "Types.h"
+//#include "FrictionProperties.h"
 
 // 🎱 Robust Physics-Based Trajectory Correction
 namespace RobustPhysics {
