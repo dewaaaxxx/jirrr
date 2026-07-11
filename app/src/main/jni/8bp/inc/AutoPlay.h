@@ -508,7 +508,7 @@ namespace AutoPlay {
                     isMyBall
                 );
                 
-                if (isMyBall) {
+                /*if (isMyBall) {
                     // ================================================================
                     // BONUS LEBIH AGRESIF BUAT SHOT LURUS
                     // ================================================================
@@ -523,7 +523,7 @@ namespace AutoPlay {
                     } else if (accuracy > 0.80 && ballToPocketDist < 100.0) {
                         score *= 0.6;  // 🟡 PRIORITAS SEDANG
                     }
-                }
+                }*/
                             
                 // CORRECTED: Calculate power needed for TARGET BALL to reach pocket
                 double power = PhysicsEngine::calculatePowerForTargetToPocket(
@@ -656,7 +656,7 @@ if (!foundShot) {
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
         //Ball::Classification myclass = sharedGameManager.getPlayerClassification();
-        bool foundShot = false;
+        //bool foundShot = false;
         
         int steps = 0;
         int stepsPerFrame = (int)(20 * GameSpeed::getAnimationMultiplier());
@@ -675,74 +675,45 @@ if (!foundShot) {
             std::vector<double> powers = {666.0, 550.0, 450.0, 350.0, 250.0, 150.0, 100.0, 80.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                
+                // Safety checks FIRST
+                if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+                if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+                BallType targetType = isOpenTable ? ANY : myBallType;
+                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
+                
+                // This angle/power legally hits our own ball first without
+                // fouling — remember it as a fallback "safety" shot (use the
+                // Find what was potted
+                int targetIdx = -1;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (!ball.originalOnTable || ball.onTable) continue;
 
-// ================================================================
-// 1. CEK SCRATCH (CUE BALL) — PAKAI validateCueBallSafety
-// ================================================================
-if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+                    BallType ballType = getBallType(i);
+                    bool isMyBall = (ballType == myBallType);
+                    
+                    bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
+                    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
+                                        
+                    if (isValid) { targetIdx = i; break; }
+                }
 
-// ================================================================
-// 2. CEK 8-BALL PREMATURE — PAKAI validateEightBallSafety
-// ================================================================
-if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+                if (targetIdx == -1) continue;
 
-// ================================================================
-// 3. CEK FIRST HIT
-// ================================================================
-BallType targetType = isOpenTable ? ANY : myBallType;
-if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
-
-// ================================================================
-// 4. CARI BOLA YANG KEPOTONG
-// ================================================================
-int targetIdx = -1;
-for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-    auto& ball = gPrediction->guiData.balls[i];
-    if (!ball.originalOnTable || ball.onTable) continue;
-
-    BallType ballType = getBallType(i);
-    bool isValid = false;
-
-    if (isOpenTable) {
-        isValid = (ballType != EIGHT_BALL && ballType != CUE_BALL);
-    } else {
-        isValid = (ballType == myBallType);
-    }
-
-    if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) {
-        isValid = false;
-    }
-
-    if (isValid) { targetIdx = i; break; }
-}
-
-if (targetIdx == -1) continue;
-
-// ================================================================
-// 5. SET CURRENT CANDIDATE
-// ================================================================
-g_CurrentCandidate.idx = targetIdx;
-g_CurrentCandidate.angle = angle;
-g_CurrentCandidate.power = power;
-g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
-
-// ================================================================
-// 6. VALIDASI TARGET BALL (PAKAI validateTargetBallPocketed)
-// ================================================================
-if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, targetIdx)) continue;
-
-// ================================================================
-// 7. LULUS → TEMBAK
-// ================================================================
-LOGI("AutoPlay: SLOW - Ball %d angle %f power %f", targetIdx, angle, power);
-foundShot = true;
-Shoot(angle, power);
-break;
+                LOGI("AutoPlay: SLOW - Ball %d angle %f power %f", targetIdx, angle, power);
+                g_CurrentCandidate.idx = targetIdx;
+                g_CurrentCandidate.angle = angle;
+                g_CurrentCandidate.power = power;
+                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
+                isScanning = false;
+                currentScanAngle = 0.0;
+                Shoot(angle, power);
+                return;
             }
-            if (foundShot) break;
         }
 
-        if (!foundShot && currentScanAngle >= maxAngle) {
+        if (currentScanAngle >= maxAngle) {
             LOGI("AutoPlaySlow: Exhaustive scan complete, no potting shot found");
             isScanning = false;
             currentScanAngle = 0.0;
