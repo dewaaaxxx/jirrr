@@ -765,7 +765,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         // Cek 2 kondisi: Status ON, DAN user sudah sengaja menekan tombol (GameReady)
         if (persistent_bool[O("bAutoPlay")]) {
-            DrawToggleButton();
+         //   DrawToggleButton();
             AutoPlay::Update(); // FIX: was never called — toggle button had no effect
         }
 
@@ -1011,41 +1011,6 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
 static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPos){
     bool need_save = false;
     ImDrawList* dl = GetWindowDrawList();
-
-    // ─── Watermark ──────────────────────────────────────────────────────────
- /*   ImDrawList* fg = ImGui::GetForegroundDrawList();
-if (fg) {
-    ImVec2 screenSize = ImGui::GetIO().DisplaySize;
-
-    // ─── 1. Watermark di tengah ──────────────────────────────────────────
-    const char* centerText = "@CM_ENGINE_MOD_v1.8";
-    ImVec2 centerTextSize = ImGui::CalcTextSize(centerText);
-    ImVec2 center = ImVec2(
-        (screenSize.x - centerTextSize.x) * 0.5f,
-        (screenSize.y - centerTextSize.y) * 0.5f
-    );
-
-    // Shadow/outline
-    fg->AddText(ImVec2(center.x + 1, center.y + 1), IM_COL32(0, 0, 0, 120), centerText);
-    fg->AddText(ImVec2(center.x - 1, center.y - 1), IM_COL32(0, 0, 0, 120), centerText);
-    fg->AddText(ImVec2(center.x + 1, center.y - 1), IM_COL32(0, 0, 0, 120), centerText);
-    fg->AddText(ImVec2(center.x - 1, center.y + 1), IM_COL32(0, 0, 0, 120), centerText);
-
-    // Teks utama
-    fg->AddText(center, IM_COL32(0, 100, 0, 200), centerText);
-
-    // ─── 2. Teks di pojok kiri bawah ──────────────────────────────────────
-    const char* bottomText = "tg: @Cmengine"; // ← Ganti dengan teks lu
-    ImVec2 bottomTextSize = ImGui::CalcTextSize(bottomText);
-    ImVec2 bottomPos = ImVec2(10, screenSize.y - bottomTextSize.y - 10);
-
-    // Outline putih tipis
-    fg->AddText(ImVec2(bottomPos.x + 1, bottomPos.y + 1), IM_COL32(255, 255, 255, 120), bottomText);
-    fg->AddText(ImVec2(bottomPos.x - 1, bottomPos.y - 1), IM_COL32(255, 255, 255, 120), bottomText);
-
-    // Teks utama (putih solid)
-    fg->AddText(bottomPos, IM_COL32(255, 255, 255, 255), bottomText);
-}*/
 
     ImVec2 a = ImVec2(winPos.x + sidebarW + 32, winPos.y + 80);
     ImVec2 b = ImVec2(winPos.x + winW - 16,     winPos.y + winH - 20);
