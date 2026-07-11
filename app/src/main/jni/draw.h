@@ -1528,6 +1528,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
         //DrawLiveStatusOverlay(io);
+        GameSpeed::Draw();
         SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
                 Begin(O("##PoweredBy"), nullptr,
                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
