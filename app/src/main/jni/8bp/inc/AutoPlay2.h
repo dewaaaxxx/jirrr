@@ -335,6 +335,8 @@ namespace AutoPlay {
             }
             if (!foundOwnBall) only8BallLeft = true;
         }
+
+        std::vector<Candidate> candidates;
         
         auto pockets = getPockets();
         auto& cueBall = gPrediction->guiData.balls[0];
