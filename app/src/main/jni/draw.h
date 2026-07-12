@@ -765,12 +765,12 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         // Cek 2 kondisi: Status ON, DAN user sudah sengaja menekan tombol (GameReady)
         if (persistent_bool[O("bAutoPlay")]) {
-         //   DrawToggleButton();
+            DrawToggleButton();
             AutoPlay::Update(); // FIX: was never called — toggle button had no effect
         }
 
         if (persistent_bool[O("bAutoAim")]) {
-            AutoAim::Draw(); // FIX: was never called — toggle button had no effect
+         //    AutoAim::Draw(); // FIX: was never called — toggle button had no effect
         }
 
     //    AutoPlay::UpdateScanMode();
