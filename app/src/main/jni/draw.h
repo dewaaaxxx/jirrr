@@ -751,17 +751,6 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!tableProperties) return;
         auto& pockets = tableProperties.mPockets();
 
-       // Load scan mode dari config (biar ingat pilihan user)
-        static bool scanModeLoaded = false;
-        if (!scanModeLoaded) {
-           int savedMode = persistent_int.count("iScanMode") ? persistent_int["iScanMode"] : 0;
-            switch (savedMode) {
-                case 0: AutoPlay::scan = AutoPlay::FAST; break;
-                case 1: AutoPlay::scan = AutoPlay::SLOW; break;
-                case 2: AutoPlay::scan = AutoPlay::PRECISION; break;
-            }
-            scanModeLoaded = true;
-        }
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
         auto stateId = gameStateManager.getCurrentStateId();
@@ -1121,64 +1110,6 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
-            need_save |= GoldToggle("Enable Auto Aim", "", &persistent_bool[O("bAutoAim")]);
-            Dummy(ImVec2(0,8));
-        
-            // ================================================================
-            // TAMBAH: ROW UNTUK SCAN MODE
-            // ================================================================
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), "Scan Mode");
-            Dummy(ImVec2(0, 6));
-        
-            // Variable untuk menyimpan mode scan (0=FAST, 1=SLOW, 2=PRECISION)
-            // Bisa pake persistent_int atau static variable
-            static int scanMode = 0; // 0=FAST, 1=SLOW, 2=PRECISION
-        
-            // Tampilkan 3 tombol pilihan
-            const char* modeNames[] = { "FAST", "SLOW", "PRECISION" };
-            for (int i = 0; i < 3; i++) {
-                if (i > 0) SameLine(0, 8);
-                bool isSelected = (scanMode == i);
-                
-                // Style tombol: hijau jika dipilih
-                if (isSelected) {
-                    PushStyleColor(ImGuiCol_Button,        (ImVec4)ImColor(COL_GOLD_DEEP));
-                    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.88f, 0.44f, 1.0f));
-                    PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.18f, 0.70f, 0.34f, 1.0f));
-                    PushStyleColor(ImGuiCol_Text,          ImVec4(1, 1, 1, 1));
-                } else {
-                    PushStyleColor(ImGuiCol_Button,        ImVec4(0.18f, 0.22f, 0.30f, 1.0f));
-                    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.32f, 0.42f, 1.0f));
-                    PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.12f, 0.16f, 0.22f, 1.0f));
-                    PushStyleColor(ImGuiCol_Text,          ImVec4(0.75f, 0.8f, 0.9f, 1.0f));
-                }
-                
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-                if (Button(modeNames[i], ImVec2(90, 34))) {
-                    scanMode = i;
-                    // Set mode di AutoPlay
-                    switch (i) {
-                        case 0: AutoPlay::scan = AutoPlay::FAST; break;
-                        case 1: AutoPlay::scan = AutoPlay::SLOW; break;
-                        case 2: AutoPlay::scan = AutoPlay::PRECISION; break;
-                    }
-                    persistent_int["iScanMode"] = i; // Simpan ke config
-                    save_persistence();
-                }
-                PopStyleVar();
-                PopStyleColor(4);
-            }
-        
-            // Info singkat
-            Dummy(ImVec2(0, 4));
-            const char* scanDesc[] = {
-                "Fast scan, good for normal shots",
-                "Detailed scan, accurate for tough shots",
-                "Ultra-precision scan, for extreme shots"
-            };
-            TextColored(ImVec4(0.5f, 0.55f, 0.65f, 1.0f), "%s", scanDesc[scanMode]);
-        
-            Dummy(ImVec2(0, 8));
             break;
         }
         case 2: { 
