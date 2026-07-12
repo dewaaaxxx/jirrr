@@ -150,7 +150,7 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        while (steps < 40 && currentScanAngle < maxAngle) {
+        while (steps < 40 && currentScanAngle < maxAngle) {6
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
@@ -612,26 +612,26 @@ namespace AutoPlay {
 
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
-        if (!visualCue) return false; // null = belum init, bukan animasi aktif
-
+        if (!visualCue) return true;
+        
         auto _powerBarView = F(ptr, visualCue + 0x510);
-        if (!_powerBarView) return false; // null = power bar belum ada, bukan stuck
+        if (!_powerBarView) return true;
 
-        auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView);
-        return (activeAction != 0); // uintptr_t, bukan pointer — pakai != 0
+        auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView); // CCAction getActiveAction
+        if (activeAction) {
+            // auto tag = F(uint, activeAction + 0x18); // 668 hiding 667 showing
+            // LOGI("tag %u %d %p", tag, tag, tag);
+            return true;
+        }
+
+        return false;
     }
-
-    static double g_turnStartTime = 0.0;
-    static bool g_turnTimerStarted = false;
 
     void Update() {
         buttonClicker.Update();
-      //  DrawToggleButton();
+        //DrawToggleButton();
 
-        // Timeout 1.5 detik untuk handle kasus animasi stuck di awal/break
-        if (!g_turnTimerStarted) { g_turnStartTime = ImGui::GetTime(); g_turnTimerStarted = true; }
-        bool animTimeout = (ImGui::GetTime() - g_turnStartTime > 1.5);
-        if (isAnimationActive() && !animTimeout) return;
+        if (isAnimationActive()) return;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             // Reset semua state saat giliran berakhir
@@ -639,7 +639,6 @@ namespace AutoPlay {
             lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
             scan = FAST;
-            g_turnTimerStarted = false;
             return;
         }
 
@@ -663,14 +662,5 @@ namespace AutoPlay {
                 state = IDLE;
             }
         }
-
-        /* if (bAutoPlaying && sharedGameManager.mStateManager().isPlayerTurn()) {
-            if (powerSlider.Active) {
-                UpdateTouchSimulation();
-                powerSlider.Update();
-            } else Start();
-        } */
-
-        // if (!bAutoPlaying && powerSlider.Active) powerSlider.Update(); // for TestAutoPlay
     }
 };
