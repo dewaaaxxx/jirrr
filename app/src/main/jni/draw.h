@@ -1061,7 +1061,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     dl->AddRectFilled(a, b, IM_COL32(14, 22, 38, 255), 14.0f);
     dl->AddRect(a, b, IM_COL32(50, 65, 90, 200), 14.0f, 0, 1.0f);
 
-    GameSpeed::Draw();
+  //  GameSpeed::Draw();
     
     const char* titlesEn[] = { "General","Auto Play","Table","Account","Notifications","About" };
     const char* titlesAr[] = { "ﺕﺍﺩﺍﺪﻋﻻﺍ","ﻲﺋﺎﻘﻠﺘﻟﺍ","ﺔﻟﻭﺎﻄﻟﺍ","ﺏﺎﺴﺤﻟﺍ","ﺕﺍﺭﺎﻌﺷﻹﺍ","ﻝﻮﺣ" };
