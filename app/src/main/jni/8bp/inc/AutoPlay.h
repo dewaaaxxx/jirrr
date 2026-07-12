@@ -170,77 +170,76 @@ struct PhysicsEngine {
     }
     
     // ========================================================================
+    // ========================================================================
     // EQUATION 4: Calculate shot accuracy (how direct is the path?)
-    // Physics: Accuracy = alignment between target->pocket and cue->target
-    // Direct path = 1.0, off-angle = 0.0
+    // Direct shot = cue ball, ghost ball, dan pocket hampir collinear
+    // 1.0 = sempurna lurus, 0.0 = sudut besar
     // ========================================================================
     static double calculateShotAccuracy(
         const Point2D& cueBallPos,
         const Point2D& targetBallPos,
         const Point2D& pocketPos
     ) {
-        // Vector from cue to target
-        Point2D cueToTarget = targetBallPos - cueBallPos;
-        // Vector from target to pocket
-        Point2D targetToPocket = pocketPos - targetBallPos;
-        
-        double cueToTargetLen = std::sqrt(cueToTarget.square());
-        double targetToPocketLen = std::sqrt(targetToPocket.square());
-        
-        if (cueToTargetLen < 0.1 || targetToPocketLen < 0.1) return 0.0;
-        
-        // Dot product: measures alignment
-        double dotProduct = (cueToTarget.x * targetToPocket.x) + 
-                           (cueToTarget.y * targetToPocket.y);
-        
-        // Normalize to [0, 1]
-        double accuracy = dotProduct / (cueToTargetLen * targetToPocketLen);
-        
-        return std::max(0.0, std::min(1.0, accuracy));
+        // Ghost ball position: posisi di mana cue ball akan berada saat menyentuh target
+        Point2D toPocket   = pocketPos - targetBallPos;
+        double  toPocketLen = std::sqrt(toPocket.square());
+        if (toPocketLen < 0.1) return 0.0;
+
+        Point2D direction  = toPocket * (1.0 / toPocketLen);
+        Point2D ghostBall  = targetBallPos - direction * (2.0 * BALL_RADIUS);
+
+        // Vector dari cue ke ghost ball
+        Point2D cueToGhost = ghostBall - cueBallPos;
+        double  cueToGhostLen = std::sqrt(cueToGhost.square());
+        if (cueToGhostLen < 0.1) return 0.0;
+
+        // "Lurus" = ghost ball dan pocket hampir satu garis dengan cue ball
+        // Ukur dengan alignment antara cueToGhost dan targetToPocket
+        double dot = (cueToGhost.x * toPocket.x + cueToGhost.y * toPocket.y)
+                   / (cueToGhostLen * toPocketLen);
+
+        return std::max(0.0, std::min(1.0, dot));
     }
     
     // ========================================================================
     // EQUATION 5: Calculate shot score (lower = better)
-    // Score: (distance_to_pocket) * (1 - accuracy) * ball_priority
     // ========================================================================
     static double calculateShotScore(
-        double cueToBallDist,          // Jarak cue → target
-        double targetBallToPocketDist, // Jarak target → pocket
+        double cueToBallDist,
+        double targetBallToPocketDist,
         double accuracy,
         BallType ballType,
         BallType myBallType,
         bool isMyBall
     ) {
-        // ================================================================
-        // 1. BASE SCORE = JARAK TOTAL (CUE → TARGET → POCKET)
-        //    Bank shot otomatis punya jarak total lebih panjang → skor lebih gede
-        // ================================================================
+        // Base = total jarak
         double baseScore = cueToBallDist + targetBallToPocketDist;
-    
-        // ================================================================
-        // 2. BONUS SHOT LURUS (TAPI GA TERLALU AGRESIF)
-        // ================================================================
-        if (isMyBall && accuracy > 0.90) {
-            if (targetBallToPocketDist < 150.0) {
-                baseScore *= 0.25;   // 🔴 PRIORITAS TINGGI (tapi ga terlalu)
-            } else {
-                baseScore *= 0.5;   // 🟡 PRIORITAS SEDANG
-            }
-        } else if (isMyBall && targetBallToPocketDist < 50.0) {
-            baseScore *= 0.4;       // 🟡 PRIORITAS TINGGI (deket)
-        } else if (isMyBall && accuracy > 0.80 && targetBallToPocketDist < 100.0) {
-            baseScore *= 0.6;      // 🟡 PRIORITAS SEDANG
+
+        // Direct shot bonus — SEBELUM prioritas bola sendiri
+        // accuracy > 0.85 = hampir lurus, < 0.6 = butuh pantulan besar
+        if (accuracy > 0.85) {
+            // Shot sangat lurus — kurangi skor drastis biar selalu diprioritaskan
+            baseScore *= 0.15;
+        } else if (accuracy > 0.70) {
+            // Lumayan lurus
+            baseScore *= 0.40;
+        } else if (accuracy > 0.50) {
+            // Agak miring
+            baseScore *= 0.75;
         }
-    
-        // ================================================================
-        // 3. PRIORITAS BOLA SENDIRI vs BOLA LAWAN
-        // ================================================================
+        // accuracy < 0.50 = tidak ada bonus, skor tetap tinggi → deprioritasi
+
+        // Jarak dekat = bonus tambahan (bola dekat pocket lebih mudah masuk)
+        if (targetBallToPocketDist < 40.0)       baseScore *= 0.5;
+        else if (targetBallToPocketDist < 80.0)  baseScore *= 0.7;
+
+        // Prioritas bola sendiri
         if (isMyBall) {
             baseScore *= 0.2;
         } else if (ballType != EIGHT_BALL) {
-            baseScore *= 3.0;
+            baseScore *= 5.0; // penalti bola lawan lebih besar
         }
-    
+
         return baseScore;
     }
     
