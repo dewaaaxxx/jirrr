@@ -779,7 +779,11 @@ INLINE void DrawESP(ImDrawList* draw) {
     //gPrediction->forceFullSimulation = true;
     gPrediction->determineShotResult(false);
         }
-        if (stateId == 6 || stateId == 7 || stateId == 8) return;
+        if (stateId == 6 || stateId == 8) return;
+        if (stateId == 7) {
+            if (!persistent_bool["bEnemyLine"]) return;
+            gPrediction->determineShotResult(false);
+        }
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
@@ -798,7 +802,6 @@ INLINE void DrawESP(ImDrawList* draw) {
         
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
-                    float lineThick = (float)persistent_int[O("iLineThickness")];
                     if (lineThick < 1.f) lineThick = 1.f;
                     
                     bool isStripe = (i >= 9 && i <= 15);
@@ -807,8 +810,8 @@ INLINE void DrawESP(ImDrawList* draw) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) {
                             draw->AddLine(lastPos, point, colors[i], lineThick);
-                            if (isStripe) {
-                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 150), lineThick * 0.3f);
+                            if (isStripe && j % 2 == 0) {  // ← PUTUS-PUTUS
+                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 180), lineThick * 0.4f);
                             }
                         }
                         lastPos = point;
@@ -1098,6 +1101,11 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
             need_save |= GoldToggle(L("Draw Shot State","ﺐﻳﻮﺼﺘﻟﺍ ﺔﻟﺎﺣ ﻢﺳﺭ"),
                                     L("",""),
                                     &persistent_bool[O("bESP_DrawPocketsShotState")]);
+            Dummy(ImVec2(0,8));
+
+            need_save |= GoldToggle(L("Show Enemy Lines","ﻁﻮﻄﺧ ﻢﺳﺭ"),
+                                    L("",""),
+                                    &persistent_bool[O("bEnemyLine")]);
             Dummy(ImVec2(0,8));
             
             need_save |= GoldSliderFloat("Line Thickness", "", &persistent_float["fLineThick"], 0.5f, 8.0f, "%.1f px");
