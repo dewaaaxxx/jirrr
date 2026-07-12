@@ -1,14 +1,10 @@
 #pragma once
 
 #include "include/input.h"
-
-extern struct Candidate;
-extern Candidate g_CurrentCandidate;
+#include "AutoPlayy.h"
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
-
-extern Point2D lastFailedCuePos;
 
 extern bool IsShotValid();
 
@@ -55,7 +51,7 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        g_CurrentCandidate.idx = -1;
+        AutoPlay::g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
@@ -69,8 +65,8 @@ struct PowerSlider {
         this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
 
-        g_CurrentCandidate.idx = -1;
-        lastFailedCuePos = { -1000.0, -1000.0 };
+        AutoPlay::g_CurrentCandidate.idx = -1;
+        AutoPlay::lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
     
@@ -78,7 +74,7 @@ struct PowerSlider {
     void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
         if (this->Active) return;
         
-       // ShotPower = 666.f;
+        ShotPower = 666.f;
         this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
         float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
         
@@ -121,41 +117,31 @@ struct PowerSlider {
 
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
-               // return Cancel();
+                return Cancel();
                 // Ensure we hit the target exactly
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
                 this->state = ENDING;
             }
 
-            ImDrawList* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
-                fg->AddCircle(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline*/
-
-           /* if (dynamic_bool["DebugTouch"]) {
+            if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
                 fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
                 fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline
-            }*/
+            }
         }
 
         if (this->state == ENDING) {
-    this->HoldTime += dt;
-    if (this->HoldTime >= this->HoldDuration) {
-        // Refresh simulasi dengan angle+power yang aktif sekarang
-        gPrediction->determineShotResult(true,
-            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(),
-            sharedGameManager.mVisualCue().getShotPower(false),
-            sharedGameManager.getShotSpin());
-
-        if (IsShotValid()) {
-            this->End();
-        } else {
-            LOGI("Shot invalid, canceling.");
-            this->Cancel();
+            this->HoldTime += dt;
+            if (this->HoldTime >= this->HoldDuration) {
+                if (IsShotValid()) {
+                    this->End();
+                } else {
+                    LOGI("Shot invalid before release. Canceling.");
+                    this->Cancel();
+                }
+            }
         }
-    }
-}
 
         if (this->state == RETURNING) {
             this->ElapsedTime += dt;
@@ -175,14 +161,15 @@ struct PowerSlider {
                 End();
             }
 
-           // if (dynamic_bool["DebugTouch"]) {
+            if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 100));
-                fg->AddCircle(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
-         //   }
+                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100));
+                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+            }
         }
 
     }
 };
 
 PowerSlider powerSlider;
+
