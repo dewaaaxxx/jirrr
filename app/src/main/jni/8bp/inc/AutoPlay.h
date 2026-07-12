@@ -510,6 +510,23 @@ namespace AutoPlay {
                     ball.initialPosition,
                     pocket
                 );
+
+                Point2D toPocket = pocket - ball.initialPosition;
+                double distTargetToPocket = sqrt(toPocket.square());
+                Point2D direction = toPocket * (1.0 / distTargetToPocket);
+                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
+                Point2D shotLine = ghostBallPos - cueBall.initialPosition;
+                double distCueToTarget = sqrt(shotLine.square());
+                
+                // Calculate score
+                double score = PhysicsEngine::calculateShotScore(
+                    distCueToTarget,               // ← TAMBAHIN!
+                    ballToPocketDist,
+                    accuracy,
+                    ballType,
+                    myBallType,
+                    isMyBall
+                );
                 
                 // Calculate score
                 double score = PhysicsEngine::calculateShotScore(
