@@ -635,7 +635,6 @@ for (const auto& cand : candidates) {
     Shoot(confirmedAngle, confirmedPower);
     break;
 }
-}
 
 if (!foundShot) {
     lastFailedCuePos = cueBall.initialPosition;
