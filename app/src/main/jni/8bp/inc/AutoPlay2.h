@@ -146,6 +146,17 @@ namespace AutoPlay {
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
+
+        // FIX: deteksi kapan giliran tembak 8-ball
+        bool only8BallLeft = false;
+        if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+            bool foundOwnBall = false;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& b = gPrediction->guiData.balls[i];
+                if (b.originalOnTable && b.classification == myclass) { foundOwnBall = true; break; }
+            }
+            if (!foundOwnBall) only8BallLeft = true;
+        }
         
         int steps = 0;
         bool foundShot = false;
@@ -168,7 +179,10 @@ namespace AutoPlay {
                 300.0
             };
             for (double power : powers) {
+                // FIX: forceFullSimulation wajib untuk deteksi scratch dan safety
+                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->forceFullSimulation = false;
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -225,38 +239,43 @@ namespace AutoPlay {
                 // Check if ANY valid ball is potted
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
-                    if (ball.originalOnTable && !ball.onTable) { // Ball was potted
+                    if (ball.originalOnTable && !ball.onTable) {
                         bool isValidTarget = false;
-                        // Logic for valid target (Simplified)
-                        // If table is open (ANY), any ball except 8-ball and Cue-ball is valid.
-                        // If class is assigned, only that class is valid.
-                        // Note: If on 8-ball, usually class logic might differ, but assuming standard flow:
-                        
-                        if (myclass == Ball::Classification::ANY) {
-                            if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                        if (only8BallLeft) {
+                            // Giliran tembak 8-ball saja
+                            if (ball.classification == Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                        } else if (myclass == Ball::Classification::ANY) {
+                            if (ball.classification != Ball::Classification::CUE_BALL &&
+                                ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
                         }
-                        
                         if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValidTarget = false;
-
-                        if (isValidTarget) {
-                            targetIdx = i;
-                            break; // Found at least one valid potted ball
-                        }
+                        if (isValidTarget) { targetIdx = i; break; }
                     }
                 }
 
                 if (targetIdx != -1) {
+                    // FIX: cue ball tidak boleh masuk
                     if (!gPrediction->guiData.balls[0].onTable) continue;
-                    if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
+
+                    // FIX: 8-ball premature = foul (kecuali memang giliran 8-ball)
+                    if (!only8BallLeft && myclass != Ball::Classification::EIGHT_BALL) {
+                        auto& ball8 = gPrediction->guiData.balls[8];
+                        if (ball8.originalOnTable && !ball8.onTable) continue;
+                    }
 
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
-                    
-                    if (myclass == Ball::Classification::ANY) {
+
+                    // FIX: firstHit harus bola yang benar sesuai kondisi
+                    if (only8BallLeft) {
+                        if (firstHit->classification != Ball::Classification::EIGHT_BALL) continue;
+                    } else if (myclass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
-                    } else if (firstHit->classification != myclass) continue;
+                    } else {
+                        if (firstHit->classification != myclass) continue;
+                    }
 
                     isPotentiallyValid = true;
                     // Store candidate info
@@ -306,11 +325,68 @@ namespace AutoPlay {
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
-        std::vector<Candidate> candidates;
+        // FIX: deteksi kapan giliran tembak 8-ball
+        bool only8BallLeft = false;
+        if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+            bool foundOwnBall = false;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                auto& b = gPrediction->guiData.balls[i];
+                if (b.originalOnTable && b.classification == myclass) { foundOwnBall = true; break; }
+            }
+            if (!foundOwnBall) only8BallLeft = true;
+        }
         
         auto pockets = getPockets();
         auto& cueBall = gPrediction->guiData.balls[0];
-        
+
+        // ── BREAK SHOT DETECTION ─────────────────────────────────────────────
+        // Break = myclass==ANY (table belum dibuka) DAN hampir semua bola on table.
+        // Saat break tidak ada bola yang masuk pocket → scan normal tidak ketemu → MACET.
+        // Fix: deteksi break → langsung tembak head ball dengan power max, skip scan.
+        bool isBreak = (myclass == Ball::Classification::ANY);
+        if (isBreak) {
+            int ballsOnTable = 0;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                if (gPrediction->guiData.balls[i].originalOnTable) ballsOnTable++;
+            }
+            isBreak = (ballsOnTable >= 14); // ≥14 dari 15 bola → masih break formation
+        }
+
+        if (isBreak) {
+                // Cari bola terdekat dari cueball = head ball formasi
+                int headBallIdx = -1;
+                double minDist = 1e9;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (!ball.originalOnTable) continue;
+                    double d = (ball.initialPosition - cueBall.initialPosition).square();
+                    if (d < minDist) { minDist = d; headBallIdx = i; }
+                }
+
+                if (headBallIdx != -1) {
+                    Point2D headBallPos = gPrediction->guiData.balls[headBallIdx].initialPosition;
+                    Point2D toHead = headBallPos - cueBall.initialPosition;
+                    double dist = sqrt(toHead.square());
+                    if (dist > 0.01) {
+                        Point2D dir = toHead * (1.0 / dist);
+                        Point2D ghostBall = headBallPos - dir * (2.0 * BALL_RADIUS);
+                        Point2D shotLine = ghostBall - cueBall.initialPosition;
+                        double breakAngle = atan2(shotLine.y, shotLine.x);
+                        if (breakAngle < 0) breakAngle += 2.0 * M_PI;
+                        breakAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(breakAngle));
+
+                        LOGI("AutoPlay: BREAK SHOT → ball[%d] angle=%.4f power=666", headBallIdx, breakAngle);
+                        g_CurrentCandidate.idx = headBallIdx;
+                        g_CurrentCandidate.angle = breakAngle;
+                        g_CurrentCandidate.power = 666.0;
+                        g_CurrentCandidate.pocketIndex = -1;
+                        Shoot(breakAngle, 666.0);
+                        return;
+                    }
+                }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         // Identify candidate shots
         bool bFoundLowestNumberedBall = false;
         int iFoundLowestNumberedBall = -1;
@@ -329,7 +405,14 @@ namespace AutoPlay {
             }
 
             if (!isNineBallGame) {
-                bool isACandidate = myclass == Ball::Classification::ANY ? ball.classification != Ball::Classification::EIGHT_BALL : ball.classification == myclass;
+                bool isACandidate;
+                if (only8BallLeft) {
+                    isACandidate = (ball.classification == Ball::Classification::EIGHT_BALL);
+                } else {
+                    isACandidate = (myclass == Ball::Classification::ANY)
+                        ? (ball.classification != Ball::Classification::EIGHT_BALL)
+                        : (ball.classification == myclass);
+                }
                 if (!isACandidate) continue;
             }
 
@@ -367,11 +450,9 @@ namespace AutoPlay {
         }
 
         // ── BANK SHOT CANDIDATES (1 cushion) ──────────────────────────────
-        // Generate kandidat via refleksi ke 4 sisi cushion.
-        // Score = totalDist * 0.85 supaya bank shot sedikit diprioritaskan
-        // vs direct shot yang jaraknya sama — tapi direct yang jauh lebih
-        // pendek tetap menang.
-        // Cushion bounds (world coords):
+        // SKIP bank shots saat break (isBreak) — tidak ada yang akan masuk,
+        // dan 336 bank candidates × 35 sim = ~12,000 simulasi tambahan → macet.
+        if (!isBreak) {
         constexpr double CL = TABLE_BOUND_LEFT;
         constexpr double CR = TABLE_BOUND_RIGHT;
         constexpr double CT = TABLE_BOUND_TOP;
@@ -384,9 +465,14 @@ namespace AutoPlay {
             if (!ball.originalOnTable) continue;
 
             if (!isNineBallGame) {
-                bool isACandidate = myclass == Ball::Classification::ANY
-                    ? ball.classification != Ball::Classification::EIGHT_BALL
-                    : ball.classification == myclass;
+                bool isACandidate;
+                if (only8BallLeft) {
+                    isACandidate = (ball.classification == Ball::Classification::EIGHT_BALL);
+                } else {
+                    isACandidate = (myclass == Ball::Classification::ANY)
+                        ? (ball.classification != Ball::Classification::EIGHT_BALL)
+                        : (ball.classification == myclass);
+                }
                 if (!isACandidate) continue;
             }
 
@@ -451,6 +537,7 @@ namespace AutoPlay {
                 }
             }
         }
+        } // end if (!isBreak)
         // ─────────────────────────────────────────────────────────────────
 
         // Angle refinement: ghost ball formula bisa meleset karena BALL_RADIUS
@@ -459,8 +546,31 @@ namespace AutoPlay {
         // Power sweep: base power dari formula, lalu naik/turun kompensasi jarak
         static const double kPowers[] = {1.0, 1.1, 0.9, 1.2, 0.8};
 
+        // ── PER-FRAME CANDIDATE LIMIT ────────────────────────────────────
+        // Tanpa limit: 420 candidates × 35 sim = 14,700 simulasi per frame → MACET.
+        // Fix: proses MAX_PER_FRAME candidates per frame, lanjut di frame berikutnya.
+        static size_t candidateOffset = 0;
+        static std::vector<Candidate> cachedCandidates;
+        static Point2D lastCuePosForCache = {-9999, -9999};
+
+        // Reset cache kalau cueball pindah (giliran baru)
+        if (gPrediction->guiData.balls[0].initialPosition != lastCuePosForCache) {
+            candidateOffset = 0;
+            cachedCandidates = std::move(candidates);
+            // Sort by score ascending (shot pendek dulu)
+            std::sort(cachedCandidates.begin(), cachedCandidates.end(),
+                [](const Candidate& a, const Candidate& b){ return a.score < b.score; });
+            lastCuePosForCache = gPrediction->guiData.balls[0].initialPosition;
+            LOGI("AutoPlay: ScanFast %zu candidates, processing %d/frame",
+                 cachedCandidates.size(), 8);
+        }
+
+        constexpr size_t MAX_PER_FRAME = 8; // 8 × 35 sim = 280 per frame → ringan
+        size_t end = std::min(candidateOffset + MAX_PER_FRAME, cachedCandidates.size());
+
         bool foundShot = false;
-        for (const auto& cand : candidates) {
+        for (size_t ci = candidateOffset; ci < end; ci++) {
+            const auto& cand = cachedCandidates[ci];
             double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             bool simOk = false;
             double usedAngle = baseAngle;
@@ -471,9 +581,12 @@ namespace AutoPlay {
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
                 for (double pf : kPowers) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
+                    // FIX: forceFullSimulation untuk scratch + safety detection akurat
+                    gPrediction->forceFullSimulation = true;
                     gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+                    gPrediction->forceFullSimulation = false;
                     if (!gPrediction->firstHitIsTarget) continue;
-                    if (!gPrediction->guiData.balls[0].onTable) continue;
+                    if (!gPrediction->guiData.balls[0].onTable) continue; // scratch check
 
                     if (myclass == Ball::Classification::NINE_BALL_RULE) {
                         auto firstHit = gPrediction->guiData.collision.firstHitBall;
@@ -508,19 +621,32 @@ namespace AutoPlay {
                         bool isAngleGood = false;
                         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                             Prediction::Ball& ball = gPrediction->guiData.balls[i];
-                            bool match = (myclass == Ball::Classification::ANY)
-                                ? (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL)
-                                : (ball.classification == myclass);
+                            bool match;
+                            if (only8BallLeft) {
+                                match = (ball.classification == Ball::Classification::EIGHT_BALL);
+                            } else {
+                                match = (myclass == Ball::Classification::ANY)
+                                    ? (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL)
+                                    : (ball.classification == myclass);
+                            }
                             if (match && ball.originalOnTable && !ball.onTable) { isAngleGood = true; break; }
                         }
                         if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
                             auto fh = gPrediction->guiData.collision.firstHitBall;
-                            if (myclass != Ball::Classification::ANY && fh->classification != myclass) isAngleGood = false;
-                            else if (myclass == Ball::Classification::ANY && fh->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
+                            if (only8BallLeft) {
+                                // Harus hit 8-ball dulu
+                                if (fh->classification != Ball::Classification::EIGHT_BALL) isAngleGood = false;
+                            } else if (myclass != Ball::Classification::ANY && fh->classification != myclass) {
+                                isAngleGood = false;
+                            } else if (myclass == Ball::Classification::ANY && fh->classification == Ball::Classification::EIGHT_BALL) {
+                                isAngleGood = false;
+                            }
                         }
-                        if (isAngleGood && gPrediction->guiData.balls[0].originalOnTable && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
-                        auto& ball8 = gPrediction->guiData.balls[8];
-                        if (isAngleGood && ball8.originalOnTable && !ball8.onTable && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
+                        // 8-ball premature masuk = foul
+                        if (isAngleGood && !only8BallLeft && myclass != Ball::Classification::EIGHT_BALL) {
+                            auto& ball8 = gPrediction->guiData.balls[8];
+                            if (ball8.originalOnTable && !ball8.onTable) isAngleGood = false;
+                        }
                         if (!isAngleGood) continue;
                     }
 
@@ -537,14 +663,22 @@ namespace AutoPlay {
             g_CurrentCandidate.angle = usedAngle;
             g_CurrentCandidate.power = usedPower;
             foundShot = true;
+            candidateOffset = 0; // reset untuk giliran berikutnya
+            cachedCandidates.clear();
             Shoot(usedAngle, usedPower);
             break;
         }
 
         if (!foundShot) {
-            lastFailedCuePos = cueBall.initialPosition;
-            LOGI("AutoPlay: No good angle found after smart scan.");
-            scan = SLOW;
+            candidateOffset = end; // lanjut dari sini di frame berikutnya
+            if (end >= cachedCandidates.size()) {
+                // Semua candidates habis, tidak ketemu
+                LOGI("AutoPlay: ScanFast exhausted all %zu candidates", cachedCandidates.size());
+                candidateOffset = 0;
+                cachedCandidates.clear();
+                lastFailedCuePos = cueBall.initialPosition;
+                scan = SLOW;
+            }
         }
     }
 
