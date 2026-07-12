@@ -95,6 +95,10 @@ struct Prediction {
 
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
+    // forceFullSimulation: paksa simulasi jalan penuh tanpa early-return.
+    // WAJIB=true saat validasi shot (scratch detection, 8ball safety).
+    // false untuk display biasa (lebih cepat).
+    bool forceFullSimulation = false;
 
     void calculateShotResultSize();
     void initBalls();
@@ -123,11 +127,15 @@ static Point2D prevSpin = {0.0, 0.0};
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    // Skip cache saat forceFullSimulation — butuh hasil fresh setiap call
+    if (!forceFullSimulation) {
+        if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    }
     prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
     this->m_candidate = cand;
-    fastCalc = isAuto;
+    // forceFullSimulation=true → fastCalc=false → tidak early-return
+    fastCalc = forceFullSimulation ? false : isAuto;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -221,7 +229,10 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                    if (!this->firstHitIsTarget) return;
+                    // Tanpa forceFullSimulation: early-return kalau bukan target (mode cepat).
+                    // Dengan forceFullSimulation: terus simulasikan sampai semua bola berhenti
+                    // supaya scratch dan 8ball masuk terdeteksi dengan benar.
+                    if (!this->firstHitIsTarget && !this->forceFullSimulation) return;
                 }
             }
             time -= time2;
