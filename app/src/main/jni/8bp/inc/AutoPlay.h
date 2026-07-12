@@ -527,16 +527,6 @@ namespace AutoPlay {
                     myBallType,
                     isMyBall
                 );
-                
-                // Calculate score
-                double score = PhysicsEngine::calculateShotScore(
-                    distCueToTarget,               // ← TAMBAHIN!
-                    ballToPocketDist,
-                    accuracy,
-                    ballType,
-                    myBallType,
-                    isMyBall
-                );
                             
                 // CORRECTED: Calculate power needed for TARGET BALL to reach pocket
                 double power = PhysicsEngine::calculatePowerForTargetToPocket(
