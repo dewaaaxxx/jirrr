@@ -1,11 +1,11 @@
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction.fast2.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
 #include "ScreenTable.h"
-#include "mod/ButtonClicker.h"
+//#include "mod/ButtonClicker.h"
 
 using namespace ImGui;
 
