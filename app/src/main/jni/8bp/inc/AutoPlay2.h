@@ -352,39 +352,6 @@ namespace AutoPlay {
             isBreak = (ballsOnTable >= 14); // ≥14 dari 15 bola → masih break formation
         }
 
-        if (isBreak) {
-                // Cari bola terdekat dari cueball = head ball formasi
-                int headBallIdx = -1;
-                double minDist = 1e9;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.originalOnTable) continue;
-                    double d = (ball.initialPosition - cueBall.initialPosition).square();
-                    if (d < minDist) { minDist = d; headBallIdx = i; }
-                }
-
-                if (headBallIdx != -1) {
-                    Point2D headBallPos = gPrediction->guiData.balls[headBallIdx].initialPosition;
-                    Point2D toHead = headBallPos - cueBall.initialPosition;
-                    double dist = sqrt(toHead.square());
-                    if (dist > 0.01) {
-                        Point2D dir = toHead * (1.0 / dist);
-                        Point2D ghostBall = headBallPos - dir * (2.0 * BALL_RADIUS);
-                        Point2D shotLine = ghostBall - cueBall.initialPosition;
-                        double breakAngle = atan2(shotLine.y, shotLine.x);
-                        if (breakAngle < 0) breakAngle += 2.0 * M_PI;
-                        breakAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(breakAngle));
-
-                        LOGI("AutoPlay: BREAK SHOT → ball[%d] angle=%.4f power=666", headBallIdx, breakAngle);
-                        g_CurrentCandidate.idx = headBallIdx;
-                        g_CurrentCandidate.angle = breakAngle;
-                        g_CurrentCandidate.power = 666.0;
-                        g_CurrentCandidate.pocketIndex = -1;
-                        Shoot(breakAngle, 666.0);
-                        return;
-                    }
-                }
-        }
         // ─────────────────────────────────────────────────────────────────────
 
         // Identify candidate shots
