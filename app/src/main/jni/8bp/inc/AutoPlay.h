@@ -204,27 +204,43 @@ struct PhysicsEngine {
     // Score: (distance_to_pocket) * (1 - accuracy) * ball_priority
     // ========================================================================
     static double calculateShotScore(
-        double targetBallToPocketDist,  // ACTUAL distance ball travels
+        double cueToBallDist,          // Jarak cue → target
+        double targetBallToPocketDist, // Jarak target → pocket
         double accuracy,
         BallType ballType,
         BallType myBallType,
         bool isMyBall
     ) {
-        // Base: favor close pockets
-        double baseScore = targetBallToPocketDist;
-        
-        // Reward accuracy (direct shots are better)
-        baseScore *= (1.0 - (accuracy * 0.5));  // High accuracy = lower score
-        
-        // Ball type priority
+        // ================================================================
+        // 1. BASE SCORE = JARAK TOTAL (CUE → TARGET → POCKET)
+        //    Bank shot otomatis punya jarak total lebih panjang → skor lebih gede
+        // ================================================================
+        double baseScore = cueToBallDist + targetBallToPocketDist;
+    
+        // ================================================================
+        // 2. BONUS SHOT LURUS (TAPI GA TERLALU AGRESIF)
+        // ================================================================
+        if (isMyBall && accuracy > 0.90) {
+            if (targetBallToPocketDist < 150.0) {
+                baseScore *= 0.6;   // 🔴 PRIORITAS TINGGI (tapi ga terlalu)
+            } else {
+                baseScore *= 0.8;   // 🟡 PRIORITAS SEDANG
+            }
+        } else if (isMyBall && targetBallToPocketDist < 50.0) {
+            baseScore *= 0.7;       // 🟡 PRIORITAS TINGGI (deket)
+        } else if (isMyBall && accuracy > 0.80 && targetBallToPocketDist < 100.0) {
+            baseScore *= 0.85;      // 🟡 PRIORITAS SEDANG
+        }
+    
+        // ================================================================
+        // 3. PRIORITAS BOLA SENDIRI vs BOLA LAWAN
+        // ================================================================
         if (isMyBall) {
-            // MY BALLS: 0.2x multiplier (STRONG PRIORITY - chosen first)
             baseScore *= 0.2;
         } else if (ballType != EIGHT_BALL) {
-            // OPPONENT BALLS: 3.0x multiplier (LOW PRIORITY - fallback only)
             baseScore *= 3.0;
         }
-        
+    
         return baseScore;
     }
     
@@ -497,29 +513,13 @@ namespace AutoPlay {
                 
                 // Calculate score
                 double score = PhysicsEngine::calculateShotScore(
+                    distCueToTarget,               // ← TAMBAHIN!
                     ballToPocketDist,
                     accuracy,
                     ballType,
                     myBallType,
                     isMyBall
                 );
-                
-                 if (isMyBall) {
-                    // ================================================================
-                    // BONUS LEBIH AGRESIF BUAT SHOT LURUS
-                    // ================================================================
-                    if (accuracy > 0.90) {  // Turunin threshold dari 0.95 ke 0.90
-                        if (ballToPocketDist < 150.0) {  // Naikin batas jarak
-                            score *= 0.2;  // 🔴 PRIORITAS TERTINGGI
-                        } else {
-                            score *= 0.5;  // 🟡 PRIORITAS SEDANG (lurus tapi jauh)
-                        }
-                    } else if (ballToPocketDist < 50.0) {
-                        score *= 0.4;  // 🟡 PRIORITAS TINGGI (deket)
-                    } else if (accuracy > 0.80 && ballToPocketDist < 100.0) {
-                        score *= 0.6;  // 🟡 PRIORITAS SEDANG
-                    }
-                }
                             
                 // CORRECTED: Calculate power needed for TARGET BALL to reach pocket
                 double power = PhysicsEngine::calculatePowerForTargetToPocket(
