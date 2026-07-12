@@ -222,14 +222,14 @@ struct PhysicsEngine {
         // ================================================================
         if (isMyBall && accuracy > 0.90) {
             if (targetBallToPocketDist < 150.0) {
-                baseScore *= 0.6;   // 🔴 PRIORITAS TINGGI (tapi ga terlalu)
+                baseScore *= 0.25;   // 🔴 PRIORITAS TINGGI (tapi ga terlalu)
             } else {
-                baseScore *= 0.8;   // 🟡 PRIORITAS SEDANG
+                baseScore *= 0.5;   // 🟡 PRIORITAS SEDANG
             }
         } else if (isMyBall && targetBallToPocketDist < 50.0) {
-            baseScore *= 0.7;       // 🟡 PRIORITAS TINGGI (deket)
+            baseScore *= 0.4;       // 🟡 PRIORITAS TINGGI (deket)
         } else if (isMyBall && accuracy > 0.80 && targetBallToPocketDist < 100.0) {
-            baseScore *= 0.85;      // 🟡 PRIORITAS SEDANG
+            baseScore *= 0.6;      // 🟡 PRIORITAS SEDANG
         }
     
         // ================================================================
