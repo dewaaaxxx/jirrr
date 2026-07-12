@@ -795,23 +795,35 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
+        
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
+                    float lineThick = (float)persistent_int[O("iLineThickness")];
                     if (lineThick < 1.f) lineThick = 1.f;
+                    
+                    bool isStripe = (i >= 9 && i <= 15);
+                    
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
+                        if (lastPos.x || lastPos.y) {
+                            draw->AddLine(lastPos, point, colors[i], lineThick);
+                            if (isStripe) {
+                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 150), lineThick * 0.3f);
+                            }
+                        }
                         lastPos = point;
                     }
                 }
             }
         }
-
+        
+        // ================================================================
+        // GAMBAR LINGKARAN PREDICTION (TETAP SAMA)
+        // ================================================================
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
+        
                 if (ball.initialPosition != ball.predictedPosition) {
                     float circleR = lineThick + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
@@ -819,7 +831,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
-        }
+}
 
         /*if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             float predA = persistent_float["fPredAlpha"];
