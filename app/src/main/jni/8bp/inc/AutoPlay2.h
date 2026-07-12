@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction.fast2.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 
@@ -626,7 +626,7 @@ namespace AutoPlay {
 
     void Update() {
         buttonClicker.Update();
-        DrawToggleButton();
+      //  DrawToggleButton();
 
         // Timeout 1.5 detik untuk handle kasus animasi stuck di awal/break
         if (!g_turnTimerStarted) { g_turnStartTime = ImGui::GetTime(); g_turnTimerStarted = true; }
