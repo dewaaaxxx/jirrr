@@ -247,26 +247,19 @@ void Prediction::determineBallsPositions() {
     bool isAnyBallMovingOrSpinning;
     double time;
     double time2;
-    constexpr int MAX_OUTER_ITERATIONS = 2000; // batas loop luar
-    constexpr int MAX_INNER_ITERATIONS = 500;  // batas loop dalam
-    int outerIter = 0;
-
     do {
-        if (outerIter++ >= MAX_OUTER_ITERATIONS) break;
-        
         time = TIME_PER_TICK;
-        int innerIter = 0;
         do {
-            if (innerIter++ >= MAX_INNER_ITERATIONS) break;
-            
             time2 = time;
             this->guiData.collision.valid = false;
+            // find the next collision for each ball
             for (i = 0; i < this->guiData.ballsCount; i++) {
                 Ball &ball = this->guiData.balls[i];
                 if (ball.onTable) {
                     ball.findNextCollision(&this->guiData, &time2);
                 }
             }
+            // move all balls to their collision positions
             for (i = 0; i < this->guiData.ballsCount; i++) {
                 Ball &ball = this->guiData.balls[i];
                 if (ball.onTable && ball.isMovingOrSpinning()) {
@@ -277,11 +270,11 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
+                    // if (!this->firstHitIsTarget) return; // Removed to enable full combination shots calculations
                 }
             }
             time -= time2;
         } while (time > MIN_TIME);
-
         isAnyBallMovingOrSpinning = false;
         for (i = 0; i < this->guiData.ballsCount; i++) {
             Ball &ball = this->guiData.balls[i];
@@ -325,30 +318,42 @@ void Prediction::handleCollision() {
 void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-
+    
+    // Physics-based elastic collision with proper momentum transfer
+    // Calculate relative position and normalized collision normal
     Point2D relativePosition = ballB.predictedPosition - ballA.predictedPosition;
     double distanceSquared = relativePosition.square();
+    
+    // Prevent division by zero
     if (distanceSquared < 1e-10) return;
-
-    double invDistance = 1.0 / sqrt(distanceSquared);
+    
+    double distance = sqrt(distanceSquared);
+    double invDistance = 1.0 / distance;
+    
+    // Collision normal (from ballA to ballB)
     Point2D normal = relativePosition * invDistance;
-
+    
+    // Relative velocity of ballA with respect to ballB
     Point2D relativeVelocity = ballA.velocity - ballB.velocity;
+    
+    // Relative velocity along collision normal (approach velocity)
     double velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
-
-    // Hanya proses kalau bola mendekati satu sama lain
+    
+    // Only handle collision if balls are approaching
     if (velocityAlongNormal >= 0.0) return;
-
-    // Impulse scalar untuk equal-mass elastic collision
-    // Damping HANYA pada komponen collision (bukan seluruh velocity)
-    constexpr double RESTITUTION = 0.96; // koefisien restitusi, <1 = slight energy loss
-    double impulse = -(1.0 + RESTITUTION) * velocityAlongNormal * 0.5;
-
-    Point2D impulseVec = normal * impulse;
-
-    // Terapkan impulse hanya sepanjang normal — tangensial tidak berubah
-    ballA.velocity = ballA.velocity + impulseVec;
-    ballB.velocity = ballB.velocity - impulseVec;
+    
+    // For equal mass elastic collision, exchange velocity components along normal
+    // Each ball's velocity along the normal is exchanged
+    Point2D velocityChangeA = normal * (-velocityAlongNormal);
+    
+    // Apply impulse to both balls (equal and opposite)
+    ballA.velocity = ballA.velocity + velocityChangeA;
+    ballB.velocity = ballB.velocity - velocityChangeA;
+    
+    // Apply slight damping to account for energy loss in real collisions
+    constexpr double COLLISION_DAMPING = 0.98;
+    ballA.velocity = ballA.velocity * COLLISION_DAMPING;
+    ballB.velocity = ballB.velocity * COLLISION_DAMPING;
 }
 
  void Prediction::determineShotState() {
@@ -655,7 +660,7 @@ inline bool Prediction::Ball::isMovingOrSpinning() const {
 
 /* BALL PRIVATE METHODS */
 
-#include "Prediction.update.h"
+#include "Prediction.update2.h"
 
 /* bool Prediction::Ball::willCollideWithTable(const double *smallestTime) const {
     double currentX = this->predictedPosition.x;
