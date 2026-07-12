@@ -1,13 +1,13 @@
 #pragma once
 
-#include "Prediction.fast2.h"
+#include "Prediction.fast.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 
 #include "ScreenTable.h"
 
 // #include "PowerSlider.h"
-//#include "mod/ButtonClicker.h"
+//#include "ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -498,7 +498,7 @@ namespace AutoPlay {
                         g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
                         foundShot = true;
                         Shoot(usedAngle, usedPower);
-                        goto scanFastDone;
+                        break;
                     }
 
                     if (gPrediction->guiData.balls[cand.idx].onTable) continue;
@@ -527,6 +527,7 @@ namespace AutoPlay {
                     usedAngle = tryAngle; usedPower = tryPower; simOk = true;
                     break;
                 }
+                if (simOk) break;
             }
 
             if (!simOk) continue;
@@ -539,7 +540,8 @@ namespace AutoPlay {
             Shoot(usedAngle, usedPower);
             break;
         }
-        scanFastDone:
+
+        if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
             LOGI("AutoPlay: No good angle found after smart scan.");
             scan = SLOW;
@@ -616,7 +618,7 @@ namespace AutoPlay {
         if (!_powerBarView) return false; // null = power bar belum ada, bukan stuck
 
         auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView);
-        return (activeAction != nullptr);
+        return (activeAction != 0); // uintptr_t, bukan pointer — pakai != 0
     }
 
     static double g_turnStartTime = 0.0;
@@ -624,7 +626,7 @@ namespace AutoPlay {
 
     void Update() {
         buttonClicker.Update();
-       // DrawToggleButton();
+        DrawToggleButton();
 
         // Timeout 1.5 detik untuk handle kasus animasi stuck di awal/break
         if (!g_turnTimerStarted) { g_turnStartTime = ImGui::GetTime(); g_turnTimerStarted = true; }
