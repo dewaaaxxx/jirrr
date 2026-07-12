@@ -255,7 +255,18 @@ struct PhysicsEngine {
     // Validate cue ball won't scratch (won't be potted)
     // ========================================================================
     static bool validateCueBallSafety(const Prediction& pred) {
-        return pred.guiData.balls[0].onTable;  // Cue ball still on table
+        auto& cb = pred.guiData.balls[0];
+        if (!cb.onTable) return false;
+
+        // Cek posisi akhir cue ball tidak terlalu dekat pocket
+        // Threshold 200 = ~14 unit = ~5x ball radius — buffer untuk "suction zone"
+        auto pockets = AutoPlay::getPockets();
+        for (auto& p : pockets) {
+            double dx = cb.predictedPosition.x - p.x;
+            double dy = cb.predictedPosition.y - p.y;
+            if (dx*dx + dy*dy < 200.0) return false;
+        }
+        return true;
     }
     
     // ========================================================================
@@ -302,12 +313,22 @@ struct PhysicsEngine {
     // ========================================================================
     // Validate target ball actually gets potted (not opponent ball)
     // ========================================================================
-    static bool validateTargetBallPocketed(const Prediction& pred, int targetIdx) {
-        // CORRECTED: Check that ONLY the target ball was potted
-        // Not opponent balls by accident
+    static bool validateTargetBallPocketed(const Prediction& pred, int targetIdx, BallType myBallType) {
         auto& targetBall = pred.guiData.balls[targetIdx];
-        
-        return targetBall.originalOnTable && !targetBall.onTable;
+        if (!targetBall.originalOnTable || targetBall.onTable) return false;
+
+        // Cek tidak ada bola lawan yang ikut masuk
+        if (myBallType == SOLIDS || myBallType == STRIPES) {
+            BallType opponentType = (myBallType == SOLIDS) ? STRIPES : SOLIDS;
+            for (int i = 1; i < pred.guiData.ballsCount; i++) {
+                if (i == targetIdx) continue;
+                auto& ball = pred.guiData.balls[i];
+                if (!ball.originalOnTable || ball.onTable) continue;
+                if (getBallType(i) == opponentType) return false; // bola lawan ikut masuk
+            }
+        }
+        return true;
+    }
     }
 };
 
@@ -555,74 +576,65 @@ for (const auto& cand : candidates) {
     double confirmedAngle = baseAngle;
     double confirmedPower = cand.power;
 
+    gPrediction->forceFullSimulation = true;
     for (double dA : kAngleOffsets) {
         if (simOk) break;
         double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
         for (double pf : kPowerFactors) {
             double tryPower = std::min(std::max(cand.power * pf, 120.0), 666.0);
             gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
-            
-            if (!gPrediction->guiData.balls[0].onTable) continue;
-            if (gPrediction->firstHitIsTarget) {
-                confirmedAngle = tryAngle;
-                confirmedPower = tryPower;
-                simOk = true;
-                break;
-            }
+
+            if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+            if (!gPrediction->firstHitIsTarget) continue;
+
+            confirmedAngle = tryAngle;
+            confirmedPower = tryPower;
+            simOk = true;
+            break;
         }
     }
+    gPrediction->forceFullSimulation = false;
     if (!simOk) continue;
 
-    // ================================================================
-    // CEK 8-BALL PREMATURE (MANUAL)
-    // ================================================================
+    // CEK 8-BALL PREMATURE
     bool only8Left = false;
     if (myBallType == SOLIDS || myBallType == STRIPES) {
         bool foundOwn = false;
         for (int k = 1; k < gPrediction->guiData.ballsCount; k++) {
             if (k == 8) continue;
-            if (gPrediction->guiData.balls[k].classification == myBallType) {
-                if (gPrediction->guiData.balls[k].originalOnTable && 
-                    gPrediction->guiData.balls[k].onTable) {
-                    foundOwn = true;
-                    break;
-                }
+            auto& bk = gPrediction->guiData.balls[k];
+            if (getBallType(k) == myBallType && bk.originalOnTable && bk.onTable) {
+                foundOwn = true; break;
             }
         }
         if (!foundOwn) only8Left = true;
     }
 
-    // ================================================================
-    // VALIDASI TARGET
-    // ================================================================
-    if (gPrediction->guiData.balls[cand.idx].onTable) continue;
+    // VALIDASI SAFETY
+    if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+    if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx, myBallType)) continue;
+
+    // Target ball harus masuk ke pocket yang benar
     if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
 
-    auto& targetBall = gPrediction->guiData.balls[cand.idx];
-    bool isAngleGood = (targetBall.originalOnTable && !targetBall.onTable);
-
-    if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
+    // First hit validation
+    if (gPrediction->guiData.collision.firstHitBall) {
         auto firstHit = gPrediction->guiData.collision.firstHitBall;
-        if (myBallType != ANY && firstHit->classification != myBallType) isAngleGood = false;
-        else if (myBallType == ANY && firstHit->classification == EIGHT_BALL) isAngleGood = false;
+        if (myBallType != ANY && firstHit->classification != myBallType) continue;
+        if (myBallType == ANY && firstHit->classification == EIGHT_BALL) continue;
     }
 
-    if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
-    
-    auto& eightBallRef = gPrediction->guiData.balls[8];
-    if (isAngleGood && eightBallRef.originalOnTable && !eightBallRef.onTable
-        && !only8Left && myBallType != EIGHT_BALL) {
-        isAngleGood = false;
-    }
-    
-    if (isAngleGood) {
-        g_CurrentCandidate = cand;
-        g_CurrentCandidate.angle = confirmedAngle;
-        g_CurrentCandidate.power = confirmedPower;
-        foundShot = true;
-        Shoot(confirmedAngle, confirmedPower);
-        break;
-    }
+    // Bola 8 tidak boleh masuk kalau bukan giliran 8
+    auto& eb = gPrediction->guiData.balls[8];
+    if (eb.originalOnTable && !eb.onTable && !only8Left && myBallType != EIGHT_BALL) continue;
+
+    g_CurrentCandidate = cand;
+    g_CurrentCandidate.angle = confirmedAngle;
+    g_CurrentCandidate.power = confirmedPower;
+    foundShot = true;
+    Shoot(confirmedAngle, confirmedPower);
+    break;
+}
 }
 
 if (!foundShot) {
@@ -676,30 +688,37 @@ if (!foundShot) {
           //  std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
             std::vector<double> powers = {666.0, 550.0, 450.0, 350.0, 250.0, 150.0, 100.0, 80.0};
             for (double power : powers) {
+                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-                
-                // Safety checks FIRST
+                gPrediction->forceFullSimulation = false;
+
+                // Safety checks
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                 if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
                 BallType targetType = isOpenTable ? ANY : myBallType;
                 if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, targetType)) continue;
-                
-                // This angle/power legally hits our own ball first without
-                // fouling — remember it as a fallback "safety" shot (use the
+
                 // Find what was potted
                 int targetIdx = -1;
+                bool opponentPotted = false;
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (!ball.originalOnTable || ball.onTable) continue;
 
                     BallType ballType = getBallType(i);
                     bool isMyBall = (ballType == myBallType);
-                    
+
+                    // Cek bola lawan ikut masuk
+                    if (!isOpenTable && !isMyBall && ballType != EIGHT_BALL && ballType != CUE_BALL) {
+                        opponentPotted = true; break;
+                    }
+
                     bool isValid = isMyBall || (isOpenTable && ballType != EIGHT_BALL && ballType != CUE_BALL);
                     if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) isValid = false;
-                                        
+
                     if (isValid) { targetIdx = i; break; }
                 }
+                if (opponentPotted) continue;
 
                 if (targetIdx == -1) continue;
 
