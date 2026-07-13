@@ -260,7 +260,7 @@ struct PhysicsEngine {
 
         // Cek posisi akhir cue ball tidak terlalu dekat pocket
         // Threshold 200 = ~14 unit = ~5x ball radius — buffer untuk "suction zone"
-        auto pockets = AutoPlay::getPockets();
+        auto pockets = getPockets();
         for (auto& p : pockets) {
             double dx = cb.predictedPosition.x - p.x;
             double dy = cb.predictedPosition.y - p.y;
