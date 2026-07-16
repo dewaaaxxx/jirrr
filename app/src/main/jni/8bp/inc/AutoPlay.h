@@ -22,8 +22,8 @@ using namespace ImGui;
 #endif
 
 const double TWO_PI = 2.0 * PI;
-const double ANGLE_STEP_FAST = 0.05;      // 0.05 radians (~2.86 degrees)
-const double ANGLE_STEP_SLOW = 0.02;      // 0.02 radians (~1.15 degrees)
+const double ANGLE_STEP_FAST = 0.1;      // 0.05 radians (~2.86 degrees)
+const double ANGLE_STEP_SLOW = 0.01;      // 0.02 radians (~1.15 degrees)
 const double MIN_POCKET_DIST = 40.0;      // Minimum distance to pocket
 const double MAX_POCKET_DIST = 120.0;     // Maximum distance to pocket
 const double BALL_SAFETY_MARGIN = 5.0;    // Safety margin around ball
@@ -640,7 +640,7 @@ namespace AutoPlay {
 
             // Strategic power levels for testing
            // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
-            std::vector<double> powers = {666.0, 350.0};
+            std::vector<double> powers = {666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0, 80.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
