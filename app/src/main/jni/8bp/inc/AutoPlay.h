@@ -607,10 +607,10 @@ namespace AutoPlay {
                     break;
                 }
             }
-                Shoot(angle, cand.power);
+            if (candFound) {
+                Shoot(g_CurrentCandidate.angle, g_CurrentCandidate.power);
                 break;
             }
-            if (candFound) break;
         }
 
         if (!foundShot) {
