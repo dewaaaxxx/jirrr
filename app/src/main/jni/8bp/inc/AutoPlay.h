@@ -91,18 +91,24 @@ struct PhysicsEngine {
     ) {
         if (ballToPocketDist < 1.0) return 120.0;
 
-        // Pakai sliding factor (196) bukan rolling factor (0.0111) yang terlalu kecil
-        double deceleration = friction._velocityReductionSlidingFactor > 1.0
-            ? friction._velocityReductionSlidingFactor
-            : 196.0; // fallback ke nilai default
+        // Engine: velocity langsung = shotPower, deceleration = 196.0/s
+        // Jarak = v² / (2 * 196)  →  v = sqrt(2 * 196 * distance)
+        constexpr double DECEL = 196.0;
 
-        // v = sqrt(2 * a * s) untuk target ball sampai ke pocket
-        double requiredVelocity = std::sqrt(2.0 * deceleration * ballToPocketDist);
+        // Kecepatan yang dibutuhkan target ball untuk sampai pocket
+        double vTarget = std::sqrt(2.0 * DECEL * ballToPocketDist);
 
-        // Tambah energi buat kompensasi loss di collision (~10%) dan jarak cue ke bola
-        double collisionOverhead = requiredVelocity * 1.15;
-        double cueOverhead       = std::sqrt(2.0 * deceleration * cueToBallDist) * 0.4;
-        double power             = collisionOverhead + cueOverhead;
+        // Elastic collision equal mass: target dapat ~50% velocity cue
+        // Jadi cue harus punya velocity = vTarget / 0.5 = vTarget * 2.0
+        // Tapi ada energy loss di cloth ~8%, jadi factor ~2.16
+        double vCueNeeded = vTarget * 2.16;
+
+        // Tambah velocity cue untuk cover jarak cue ke bola
+        // Cue butuh cukup velocity untuk sampai ke bola + sisa untuk transfer
+        double vCueForTravel = std::sqrt(2.0 * DECEL * cueToBallDist);
+
+        // Total: max dari (kebutuhan transfer) dan (travel + transfer)
+        double power = std::max(vCueNeeded, vCueForTravel + vCueNeeded * 0.3);
 
         return std::min(std::max(power, 120.0), 666.0);
     }
@@ -574,24 +580,33 @@ namespace AutoPlay {
         bool foundShot = false;
         
         for (const auto& cand : candidates) {
-            // Coba angle persis + refinement kecil di sekitarnya
-            constexpr double offsets[] = {0.0, 0.003, -0.003, 0.007, -0.007, 0.012, -0.012};
+            // Angle refinement + power sweep
+            constexpr double offsets[]       = {0.0, 0.003, -0.003, 0.007, -0.007, 0.012, -0.012, 0.018, -0.018, 0.025, -0.025};
+            constexpr double powerFactors[]  = {1.0, 1.05, 0.95, 1.12, 0.88, 1.20, 0.82, 1.35, 0.70, 1.5, 0.60, 1.75, 0.50, 2.0, 0.40};
             bool candFound = false;
 
             for (double offset : offsets) {
+                if (candFound) break;
                 double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle + offset));
-                gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
 
-                if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
-                if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
-                if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
-                if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx, myBallType)) continue;
-                if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+                for (double pf : powerFactors) {
+                    double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
+                    gPrediction->determineShotResult(true, angle, tryPower, sharedGameManager.getShotSpin(), cand);
 
-                LOGI("AutoPlay: FAST - Ball %d angle %f (offset %f) power %f", cand.idx, angle, offset, cand.power);
-                g_CurrentCandidate = cand;
-                g_CurrentCandidate.angle = angle;
-                foundShot = candFound = true;
+                    if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
+                    if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
+                    if (!PhysicsEngine::validateFirstHit(*gPrediction, myBallType, getBallType(cand.idx))) continue;
+                    if (!PhysicsEngine::validateTargetBallPocketed(*gPrediction, cand.idx, myBallType)) continue;
+                    if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+
+                    LOGI("AutoPlay: FAST - Ball %d angle %f (offset %f) power %f (factor %.2f)", cand.idx, angle, offset, tryPower, pf);
+                    g_CurrentCandidate = cand;
+                    g_CurrentCandidate.angle = angle;
+                    g_CurrentCandidate.power = tryPower;
+                    foundShot = candFound = true;
+                    break;
+                }
+            }
                 Shoot(angle, cand.power);
                 break;
             }
