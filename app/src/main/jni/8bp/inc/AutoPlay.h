@@ -89,7 +89,7 @@ struct PhysicsEngine {
         double ballToPocketDist,
         const FrictionProperties& friction
     ) {
-        if (ballToPocketDist < 1.0) return 100.0;
+        if (ballToPocketDist < 1.0) return 120.0;
 
         // Pakai sliding factor (196) bukan rolling factor (0.0111) yang terlalu kecil
         double deceleration = friction._velocityReductionSlidingFactor > 1.0
@@ -100,7 +100,7 @@ struct PhysicsEngine {
         double requiredVelocity = std::sqrt(2.0 * deceleration * ballToPocketDist);
 
         // Tambah energi buat kompensasi loss di collision (~10%) dan jarak cue ke bola
-        double collisionOverhead = requiredVelocity / 0.9;
+        double collisionOverhead = requiredVelocity * 1.15;
         double cueOverhead       = std::sqrt(2.0 * deceleration * cueToBallDist) * 0.4;
         double power             = collisionOverhead + cueOverhead;
 
