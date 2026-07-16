@@ -104,7 +104,7 @@ struct PhysicsEngine {
         double cueOverhead       = std::sqrt(2.0 * deceleration * cueToBallDist) * 0.4;
         double power             = collisionOverhead + cueOverhead;
 
-        return std::min(std::max(power, 80.0), 666.0);
+        return std::min(std::max(power, 120.0), 666.0);
     }
     
     // ========================================================================
