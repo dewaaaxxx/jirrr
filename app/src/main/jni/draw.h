@@ -170,38 +170,12 @@ static void Icon_Table(ImDrawList* dl, ImVec2 c, ImU32 col){
     dl->AddCircleFilled(c, 4.0f, IM_COL32(14, 22, 38, 255), 32);
 }
 static void Icon_Account(ImDrawList* dl, ImVec2 c, ImU32 col){
-    dl->AddCircleFilled(ImVec2(c.x, c.y - 4.5f), 5.0f, col, 32);
-    ImVector<ImVec2> arc;
-    ImVec2 sa(c.x - 9.0f, c.y + 10.5f);
-    ImVec2 sb(c.x + 9.0f, c.y + 10.5f);
-    for (int i = 0; i <= 18; ++i){
-        float t = (float)i / 18.0f;
-        float x = sa.x + (sb.x - sa.x) * t;
-        float y = c.y + 2.0f + sinf(t * IM_PI) * -6.5f;
-        arc.push_back(ImVec2(x, y));
-    }
-    arc.push_back(sb);
-    arc.push_back(sa);
-    dl->AddConvexPolyFilled(arc.Data, arc.Size, col);
+    // --- GANTI DENGAN INI ---
+    dl->AddCircle(ImVec2(c.x, c.y - 6), 6.5f, col, 16, 2.0f);
+    dl->AddBezierCubic(ImVec2(c.x - 15, c.y + 13), ImVec2(c.x - 10, c.y + 2),
+                       ImVec2(c.x + 10, c.y + 2), ImVec2(c.x + 15, c.y + 13), col, 2.2f, 18);
 }
-static void Icon_Bell(ImDrawList* dl, ImVec2 c, ImU32 col){
-    ImVector<ImVec2> body;
-    for (int i = 0; i <= 14; ++i){
-        float t = (float)i / 14.0f;
-        float ang = IM_PI - t * IM_PI;
-        body.push_back(ImVec2(c.x + cosf(ang) * 8.5f, c.y - 3.0f + sinf(ang) * -6.5f));
-    }
-    body.push_back(ImVec2(c.x + 8.5f, c.y + 6.0f));
-    body.push_back(ImVec2(c.x - 8.5f, c.y + 6.0f));
-    dl->AddConvexPolyFilled(body.Data, body.Size, col);
-    dl->AddRectFilled(ImVec2(c.x - 10.0f, c.y + 5.5f), ImVec2(c.x + 10.0f, c.y + 8.0f), col, 1.5f);
-    dl->AddCircleFilled(ImVec2(c.x, c.y + 11.0f), 2.0f, col, 16);
-}
-static void Icon_Info(ImDrawList* dl, ImVec2 c, ImU32 col){
-    dl->AddCircle(c, 11.5f, col, 48, 2.0f);
-    dl->AddCircleFilled(ImVec2(c.x, c.y - 4.5f), 2.0f, col, 16);
-    dl->AddRectFilled(ImVec2(c.x - 1.8f, c.y - 1.0f), ImVec2(c.x + 1.8f, c.y + 7.5f), col, 1.0f);
-}
+
 static void Icon_Camera(ImDrawList* dl, ImVec2 c, ImU32 col){
     dl->AddRectFilled(ImVec2(c.x - 9.0f, c.y - 5.0f), ImVec2(c.x + 9.0f, c.y + 6.5f), col, 2.0f);
     dl->AddRectFilled(ImVec2(c.x - 3.0f, c.y - 7.5f), ImVec2(c.x + 3.0f, c.y - 4.5f), col, 1.0f);
@@ -214,30 +188,24 @@ static void DrawTabIcon(ImDrawList* dl, int tab, ImVec2 c, ImU32 col){
         case 1: Icon_Play   (dl, c, col); break;
         case 2: Icon_Table  (dl, c, col); break;
         case 3: Icon_Account(dl, c, col); break;
-        case 4: Icon_Bell   (dl, c, col); break;
-        case 5: Icon_Info   (dl, c, col); break;
         default: Icon_Gear(dl, c, col); break;
     }
 }
 
 
 static const char* CurrentTabTitle(){
-    static const char* en[6] = {
-        "General",
-        "Auto Play",
-        "Table",
-        "Account",
-        "Notifications",
-        "About"
+    static const char* en[r] = {
+        "Visual",
+        "Aim",
+        "Misc",
+        "User",
     };
 
-    static const char* ar[6] = {
+    static const char* ar[4] = {
         "ﺕﺍﺩﺍﺪﻋﻻﺍ",
         "ﻲﺋﺎﻘﻠﺘﻟﺍ",
         "ﺔﻟﻭﺎﻄﻟﺍ",
         "ﺏﺎﺴﺤﻟﺍ",
-        "ﺕﺍﺭﺎﻌﺷﻻﺍ",
-        "ﺕﺎﻣﻮﻠﻌﻤﻟﺍ"
     };
 
     int t = g_menu.currentTab;
@@ -1031,12 +999,10 @@ static void DrawSidebar(float sidebarW, float winH, ImVec2 winPos){
 
     struct Tab { const char* en; const char* ar; const char* icon; };
     Tab tabs[] = {
-        { "General",   "ﺕﺍﺩﺍﺪﻋﻻﺍ",          "0" },
-        { "Auto Play", "ﻲﺋﺎﻘﻠﺘﻟ", "1" }, 
-        { "Table",     "ﺔﻟﻭﺎﻄﻟﺍ",        "2" },
-        { "Account",   "ﺏﺎﺴﺤﻟﺍ",         "3" },
-        { "Notify",    "ﺕﺍﺭﺎﻌﺷﻹﺍ",      "4" }, 
-        { "About",     "ﻝﻮﺣ",            "5" },
+        { "Visual",   "ﺕﺍﺩﺍﺪﻋﻻﺍ",          "0" },
+        { "Aim", "ﻲﺋﺎﻘﻠﺘﻟ", "1" }, 
+        { "Misc",     "ﺔﻟﻭﺎﻄﻟﺍ",        "2" },
+        { "User",   "ﺏﺎﺴﺤﻟﺍ",         "3" },
     };
     int n = (int)(sizeof(tabs)/sizeof(tabs[0]));
     for (int i = 0; i < n; i++) {
@@ -1059,7 +1025,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
 
   //  GameSpeed::Draw();
     
-    const char* titlesEn[] = { "General","Auto Play","Table","Account","Notifications","About" };
+    const char* titlesEn[] = { "Visual","Aim","Misc","User" };
     const char* titlesAr[] = { "ﺕﺍﺩﺍﺪﻋﻻﺍ","ﻲﺋﺎﻘﻠﺘﻟﺍ","ﺔﻟﻭﺎﻄﻟﺍ","ﺏﺎﺴﺤﻟﺍ","ﺕﺍﺭﺎﻌﺷﻹﺍ","ﻝﻮﺣ" };
     int idx = g_menu.currentTab;
 
@@ -1162,20 +1128,6 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 logged_in = false;
             }
             PopStyleVar(); PopStyleColor(2);
-            break;
-        }
-        case 4: {
-            Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("No new notifications","ﺓﺪﻳﺪﺟ ﺕﺍﺭﺎﻌﺷﺇ ﺪﺟﻮﺗ ﻻ"));
-            break;
-        }
-        case 5: {
-            Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "CM ENGINE  v1.0");
-            Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium 8 Ball Pool Assistant","https://t.me/cmengine ﺎﻫﻮﻌﺑﺎﺗ ﻲﻠﺘﻟﺍ ﺓﺎﻨﻗ"));
-            Dummy(ImVec2(0,20));
-            TextColored(ImVec4(0.55f,0.60f,0.70f,1.0f), "%s", L("Contact @xabi666 on Telegram","@xabi666 ﻡﺍﺮﺠﻠﺗ ﻞﺻﺍﻮﺗ"));
             break;
         }
     }
