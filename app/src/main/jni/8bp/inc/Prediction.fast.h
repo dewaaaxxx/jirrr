@@ -26,7 +26,7 @@ struct Prediction {
 
     static bool forceFullSimulation;
 
-    bool determineShotResult(bool isAuto, double shotAngle = 0.0, double shotPower = 0.0, Vec2d shotSpin = {0.0, 0.0}, Candidate cand = {-1});
+    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin(), Candidate cand = {-1});
     bool mockPredictShotResult();
 
     struct Ball {
@@ -318,42 +318,17 @@ void Prediction::handleCollision() {
 void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    
-    // Physics-based elastic collision with proper momentum transfer
-    // Calculate relative position and normalized collision normal
-    Point2D relativePosition = ballB.predictedPosition - ballA.predictedPosition;
-    double distanceSquared = relativePosition.square();
-    
-    // Prevent division by zero
-    if (distanceSquared < 1e-10) return;
-    
-    double distance = sqrt(distanceSquared);
-    double invDistance = 1.0 / distance;
-    
-    // Collision normal (from ballA to ballB)
-    Point2D normal = relativePosition * invDistance;
-    
-    // Relative velocity of ballA with respect to ballB
-    Point2D relativeVelocity = ballA.velocity - ballB.velocity;
-    
-    // Relative velocity along collision normal (approach velocity)
-    double velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
-    
-    // Only handle collision if balls are approaching
-    if (velocityAlongNormal >= 0.0) return;
-    
-    // For equal mass elastic collision, exchange velocity components along normal
-    // Each ball's velocity along the normal is exchanged
-    Point2D velocityChangeA = normal * (-velocityAlongNormal);
-    
-    // Apply impulse to both balls (equal and opposite)
-    ballA.velocity = ballA.velocity + velocityChangeA;
-    ballB.velocity = ballB.velocity - velocityChangeA;
-    
-    // Apply slight damping to account for energy loss in real collisions
-    constexpr double COLLISION_DAMPING = 0.98;
-    ballA.velocity = ballA.velocity * COLLISION_DAMPING;
-    ballB.velocity = ballB.velocity * COLLISION_DAMPING;
+    Point2D relativePosition = ballA.predictedPosition - ballB.predictedPosition;
+    double invDistance = 1.0 / sqrt(relativePosition.square());
+    Point2D collisionNormal = relativePosition * invDistance;
+    double velocityComponentA = ballA.velocity.x * collisionNormal.x + ballA.velocity.y * collisionNormal.y;
+    double velocityComponentB = ballB.velocity.x * collisionNormal.x + ballB.velocity.y * collisionNormal.y;
+    Point2D velocityA = collisionNormal * velocityComponentA;
+    Point2D velocityB = collisionNormal * velocityComponentB;
+    ballA.velocity.x = velocityB.x - (velocityA.x - ballA.velocity.x);
+    ballA.velocity.y = velocityB.y - (velocityA.y - ballA.velocity.y);
+    ballB.velocity.x = velocityA.x - (velocityB.x - ballB.velocity.x);
+    ballB.velocity.y = velocityA.y - (velocityB.y - ballB.velocity.y);
 }
 
  void Prediction::determineShotState() {
@@ -545,20 +520,9 @@ inline void Prediction::Ball::findNextCollision(void *pData, double *time) {
                     this->velocity.x += delta.x * unkTime;
                     this->velocity.y += delta.y * unkTime;
                     if (deltaSquare < BALL_RADIUS_SQUARE) {
-                        // CRITICAL: White ball penalty - prevent cue ball from entering pockets
-                        if (this->index == 0) {
-                            // White ball detected (cue ball, index 0)
-                            // Apply strong rejection force to push it away from pocket
-                            double rejectionForceMagnitude = 150.0; // Strong penalty force
-                            Point2D rejectionDirection = -delta * (1.0 / sqrt(deltaSquare + 1e-10));
-                            this->velocity = this->velocity + (rejectionDirection * rejectionForceMagnitude);
-                            // Don't mark as IN_POCKET - keep it on table
-                        } else {
-                            // Regular ball - mark as pocketed
-                            this->state = ::Ball::State::IN_POCKET;
-                            this->pocketIndex = i;
-                            Prediction::pocketStatus[i] = true;
-                        }
+                        this->state = ::Ball::State::IN_POCKET;
+                        this->pocketIndex = i;
+                        Prediction::pocketStatus[i] = true;
                     }
                 }
             }
@@ -573,6 +537,7 @@ inline void Prediction::Ball::findNextCollision(void *pData, double *time) {
         this->spin.nullify();
     }
 }
+
 
 inline void Prediction::Ball::move(const double &time) {
     if (this->velocity) {
