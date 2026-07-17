@@ -1075,8 +1075,45 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,8));
             break;
         }
+        case 2: { 
+            Dummy(ImVec2(0,4));
+            need_save |= GoldToggle(O("Enable Auto Queue"), O(""), &persistent_bool[("bAutoQueue")]);
+            Dummy(ImVec2(0, 20));
+            
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
+            Dummy(ImVec2(0, 8));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+            SetNextItemWidth(GetContentRegionAvail().x);
+         //   need_save |= GoldCombo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
+            need_save |= GoldCombo("Mode", "Queue selection mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
+            PopStyleColor(2);
+            PopStyleVar(2);
+            
+            if (persistent_int["iAutoQueue_Mode"] == 1) {
+                Dummy(ImVec2(0, 15));
+                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Bet Percent"));
+                Dummy(ImVec2(0, 8));
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.3f, 0.6f, 0.95f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
+                SetNextItemWidth(GetContentRegionAvail().x);
+                need_save |= SliderInt("##betpercent", &persistent_int["iAutoQueue_BetPercent"], 1, 100, "%d%%");
+                PopStyleColor(3);
+                PopStyleVar(2);
+            }
+            
+            Dummy(ImVec2(0, 25));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
+            break;
+        }
         case 3: { 
-            Dummy(ImVec2(0,10));
+            Dummy(ImVec2(0, 10)); // Jarak awal dari atas
         
             // --- LAMBDA HELPER UNTUK INFO ROW ---
             auto DrawInfoRow = [&](const char* key, const char* val) {
@@ -1106,7 +1143,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             DrawInfoRow(O("Model: "), s_model);
             DrawInfoRow(O("ABI: "), s_abi);
             DrawInfoRow(O("Android: "), s_android);
-            
+        
             // --- SENSOR KEY ---
             std::string fullKey = persistent_string["key"];
             std::string maskedKey = fullKey;
@@ -1122,7 +1159,6 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 maskedKey = "****";
             }
             DrawInfoRow(O("Key: "), maskedKey.c_str());
-            // --- SELESAI SENSOR ---
         
             // --- EXPIRE ---
             {
@@ -1175,9 +1211,10 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 Dummy(ImVec2(0, 12));
             }
         
-            // --- UPDATE KEY SECTION ---
+            // --- UPDATE KEY SECTION (DIPISAHKAN DENGAN JARAK YG CUKUP) ---
+            Dummy(ImVec2(0, 12));
             DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), COL_GOLD_BRIGHT, O("Update Key"));
-            Dummy(ImVec2(0, 10));
+            Dummy(ImVec2(0, 8));
             
             {
                 static char  s_newKey[128]  = {};
@@ -1221,6 +1258,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 }
                 if (!canApply) EndDisabled();
         
+                Dummy(ImVec2(0, 6)); // Jarak agar teks status tidak menempel dengan tombol
                 if (s_keyApplying || is_logging_in) {
                     DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(230, 192, 51, 255), O("Verifying..."));
                 } else if (!s_keyMsg.empty()) {
@@ -1230,7 +1268,9 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                  s_keyMsg.c_str());
                 }
             }
-            Dummy(ImVec2(0, 12));
+            
+            // --- JARAK SEBELUM LOGOUT ---
+            Dummy(ImVec2(0, 20));
         
             // --- LOGOUT BUTTON ---
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
