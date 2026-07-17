@@ -74,7 +74,11 @@ static BallType getBallType(int ballIndex) {
 // PHYSICS ENGINE - CORRECTED FOR PROPER BALL COLLISION
 // ============================================================================
 struct PhysicsEngine {
-    static constexpr double BALL_DIAMETER = 2.0 * Physics::BALL_RADIUS;
+    // BALL_DIAMETER dalam game units (bukan Physics::BALL_RADIUS yang pakai meter).
+    // BALL_RADIUS dari GameConstants = 3.800475 (game units).
+    // Ghost ball harus 2 * 3.800475 = 7.600950 unit dari bola target.
+    // Physics::BALL_RADIUS = 0.028575 (meter) → SALAH untuk koordinat game.
+    static constexpr double BALL_DIAMETER = 2.0 * BALL_RADIUS; // = 7.600950 game units
     static constexpr double GRAVITY = 9.81;
     
     // ========================================================================
@@ -91,24 +95,14 @@ struct PhysicsEngine {
     ) {
         if (ballToPocketDist < 1.0) return 120.0;
 
-        // Engine: velocity langsung = shotPower, deceleration = 196.0/s
-        // Jarak = v² / (2 * 196)  →  v = sqrt(2 * 196 * distance)
+        // Engine: velocity = shotPower, deceleration = 196.0 (sliding)
+        // Formula: v = sqrt(2 * 196 * total_distance)
+        // Total distance = jarak cue ke bola + jarak bola ke pocket
+        // Factor 1.35: kompensasi energy loss di collision (~15%) dan
+        // gap antara POCKET_RADIUS_SQUARE dan BALL_RADIUS_SQUARE (suction zone)
         constexpr double DECEL = 196.0;
-
-        // Kecepatan yang dibutuhkan target ball untuk sampai pocket
-        double vTarget = std::sqrt(2.0 * DECEL * ballToPocketDist);
-
-        // Elastic collision equal mass: target dapat ~50% velocity cue
-        // Jadi cue harus punya velocity = vTarget / 0.5 = vTarget * 2.0
-        // Tapi ada energy loss di cloth ~8%, jadi factor ~2.16
-        double vCueNeeded = vTarget * 2.16;
-
-        // Tambah velocity cue untuk cover jarak cue ke bola
-        // Cue butuh cukup velocity untuk sampai ke bola + sisa untuk transfer
-        double vCueForTravel = std::sqrt(2.0 * DECEL * cueToBallDist);
-
-        // Total: max dari (kebutuhan transfer) dan (travel + transfer)
-        double power = std::max(vCueNeeded, vCueForTravel + vCueNeeded * 0.3);
+        double totalDist = cueToBallDist + ballToPocketDist;
+        double power = std::sqrt(2.0 * DECEL * totalDist) * 1.35;
 
         return std::min(std::max(power, 120.0), 666.0);
     }
@@ -288,20 +282,20 @@ struct PhysicsEngine {
     // ========================================================================
     static bool validateTargetBallPocketed(const Prediction& pred, int targetIdx, BallType myBallType) {
         auto& targetBall = pred.guiData.balls[targetIdx];
-        // Target harus masuk pocket
         if (!targetBall.originalOnTable || targetBall.onTable) return false;
 
-        // Pastikan tidak ada bola musuh yang ikut masuk
-        for (int i = 1; i < pred.guiData.ballsCount; i++) {
-            if (i == targetIdx) continue;
-            auto& ball = pred.guiData.balls[i];
-            if (!ball.originalOnTable || ball.onTable) continue; // masih di meja, aman
-
-            BallType t = getBallType(i);
-            // Bola musuh masuk = invalid
-            if (myBallType == SOLIDS && t == STRIPES) return false;
-            if (myBallType == STRIPES && t == SOLIDS) return false;
+        // Cek bola musuh ikut masuk — hanya invalid setelah open table selesai
+        if (myBallType == SOLIDS || myBallType == STRIPES) {
+            BallType opponentType = (myBallType == SOLIDS) ? STRIPES : SOLIDS;
+            for (int i = 1; i < pred.guiData.ballsCount; i++) {
+                if (i == targetIdx) continue;
+                auto& ball = pred.guiData.balls[i];
+                if (!ball.originalOnTable || ball.onTable) continue;
+                if (getBallType(i) == opponentType) return false;
+            }
         }
+        return true;
+    }
         return true;
     }
 };
@@ -364,7 +358,8 @@ namespace AutoPlay {
     void takeShot(double angle, double power) {
         setAimAngle(angle);
         setShotPower(power);
-        gPrediction->determineShotResult(false, angle, power);
+        // Pass spin {0,0} supaya konsisten dengan scan yang juga pakai center spin
+        gPrediction->determineShotResult(false, angle, power, {0.0, 0.0});
         sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
@@ -383,7 +378,7 @@ namespace AutoPlay {
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
         setShotPower(power);
-        gPrediction->determineShotResult(false, angle, power);
+        gPrediction->determineShotResult(false, angle, power, {0.0, 0.0});
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -524,7 +519,7 @@ namespace AutoPlay {
 
                 for (double pf : powerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
-                    gPrediction->determineShotResult(true, angle, tryPower, sharedGameManager.getShotSpin(), cand);
+                    gPrediction->determineShotResult(true, angle, tryPower, {0.0, 0.0}, cand);
 
                     if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
                     if (!PhysicsEngine::validateEightBallSafety(*gPrediction, myBallType)) continue;
@@ -590,7 +585,7 @@ namespace AutoPlay {
            // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
             std::vector<double> powers = {666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0, 80.0};
             for (double power : powers) {
-                gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->determineShotResult(true, angle, power, {0.0, 0.0});
                 
                 // Safety checks FIRST
                 if (!PhysicsEngine::validateCueBallSafety(*gPrediction)) continue;
