@@ -140,6 +140,25 @@ static void DrawGradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 c1, ImU32
 
 
 static void Icon_Gear(ImDrawList* dl, ImVec2 c, ImU32 col){
+    dl->PathClear();
+    for (int i = 0; i < 28; ++i) {
+        float a = ((float)i / 28.0f) * (IM_PI * 2.0f);
+        dl->PathLineTo(ImVec2(c.x + cosf(a) * 17.0f, c.y + sinf(a) * 9.0f));
+    }
+    dl->PathStroke(col, true, 2.0f);
+    dl->AddCircleFilled(c, 4.5f, col, 16);
+}
+
+static void Icon_Play(ImDrawList* dl, ImVec2 c, ImU32 col){
+    // --- GANTI DENGAN INI ---
+    dl->AddCircle(c, 10.5f, col, 24, 2.0f);
+    dl->AddLine(ImVec2(c.x - 16, c.y), ImVec2(c.x - 6, c.y), col, 2.0f);
+    dl->AddLine(ImVec2(c.x + 6, c.y), ImVec2(c.x + 16, c.y), col, 2.0f);
+    dl->AddLine(ImVec2(c.x, c.y - 16), ImVec2(c.x, c.y - 6), col, 2.0f);
+    dl->AddLine(ImVec2(c.x, c.y + 6), ImVec2(c.x, c.y + 16), col, 2.0f);
+}
+
+static void Icon_Table(ImDrawList* dl, ImVec2 c, ImU32 col){
     const float r1 = 12.0f, r2 = 8.0f;
     ImVector<ImVec2> pts;
     for (int i = 0; i < 16; i++){
@@ -149,23 +168,6 @@ static void Icon_Gear(ImDrawList* dl, ImVec2 c, ImU32 col){
     }
     dl->AddConvexPolyFilled(pts.Data, pts.Size, col);
     dl->AddCircleFilled(c, 4.0f, IM_COL32(14, 22, 38, 255), 32);
-}
-static void Icon_Play(ImDrawList* dl, ImVec2 c, ImU32 col){
-    dl->AddCircle(c, 12.0f, col, 48, 1.8f);
-    ImVec2 p1(c.x - 4.0f, c.y - 6.5f);
-    ImVec2 p2(c.x - 4.0f, c.y + 6.5f);
-    ImVec2 p3(c.x + 7.0f, c.y);
-    dl->AddTriangleFilled(p1, p2, p3, col);
-}
-static void Icon_Table(ImDrawList* dl, ImVec2 c, ImU32 col){
-    ImVec2 a(c.x - 13.0f, c.y - 8.5f);
-    ImVec2 b(c.x + 13.0f, c.y + 8.5f);
-    dl->AddRect(a, b, col, 3.0f, 0, 2.0f);
-    dl->AddCircleFilled(ImVec2(a.x + 2.0f, a.y + 2.0f), 2.3f, col, 16);
-    dl->AddCircleFilled(ImVec2(b.x - 2.0f, b.y - 2.0f), 2.3f, col, 16);
-    dl->AddCircleFilled(ImVec2(b.x - 2.0f, a.y + 2.0f), 2.3f, col, 16);
-    dl->AddCircleFilled(ImVec2(a.x + 2.0f, b.y - 2.0f), 2.3f, col, 16);
-    dl->AddCircleFilled(c, 2.0f, col, 16);
 }
 static void Icon_Account(ImDrawList* dl, ImVec2 c, ImU32 col){
     dl->AddCircleFilled(ImVec2(c.x, c.y - 4.5f), 5.0f, col, 32);
