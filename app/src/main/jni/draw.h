@@ -1133,7 +1133,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(235, 238, 245, 255), val);
                 
                 // 6. Paksa kursor turun ke bawah untuk baris berikutnya (PALING PENTING!)
-                Dummy(ImVec2(0, 12));
+                Dummy(ImVec2(0, 24));
             };
         
             // --- INFO DEVICE ---
@@ -1209,7 +1209,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                  (secsLeft < 7*86400)      ? IM_COL32(255, 184, 46, 255) :
                                                               IM_COL32(89, 235, 122, 255);
                 DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), expColor, expireBuf);
-                Dummy(ImVec2(0, 12));
+                Dummy(ImVec2(0, 24));
             }
         
             // --- SYNC COUNTDOWN ---
@@ -1224,7 +1224,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                     snprintf(s_syncBuf, sizeof(s_syncBuf), "Never synced");
                 }
                 DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(115, 115, 140, 255), s_syncBuf);
-                Dummy(ImVec2(0, 12));
+                Dummy(ImVec2(0, 24));
             }
         
             // --- UPDATE KEY SECTION ---
@@ -1285,7 +1285,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                 "%s", s_keyMsg.c_str());
                 }
             }
-            Dummy(ImVec2(0, 12));
+            Dummy(ImVec2(0, 24));
         
             // --- LOGOUT BUTTON ---
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
