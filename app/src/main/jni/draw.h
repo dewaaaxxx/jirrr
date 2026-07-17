@@ -209,7 +209,7 @@ static const char* CurrentTabTitle(){
     };
 
     int t = g_menu.currentTab;
-    if (t < 0 || t > 5) t = 0;
+    if (t < 0 || t > 3) t = 0;
 
     return L(en[t], ar[t]);
 }
@@ -1512,16 +1512,24 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawShotApprovalPrompt(io);
         //DrawLiveStatusOverlay(io);
         SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-                Begin(O("##PoweredBy"), nullptr,
-                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-                      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
-                      ImGuiWindowFlags_NoInputs);
-                TextColored(ImColor(0, 255, 0, 255), O("@Cmengine"));
-                End();
-
-
-
+        Begin(O("##PoweredBy"), nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
+              ImGuiWindowFlags_NoInputs);
+        
+        // --- GANTI TEKS DI SINI ---
+        const char* title = O("@Cmengine"); 
+        
+        // 1. Ambil posisi cursor
+        ImVec2 cursorPos = GetCursorScreenPos();
+        
+        // 2. Panggil fungsi DrawBoldText 
+        //    (Pakai IM_COL32, BUKAN ImColor)
+        DrawBoldText(GetWindowDrawList(), cursorPos, IM_COL32(0, 255, 0, 255), title);
+        
+        // 3. Beri tahu ImGui ukuran teksnya
+        Dummy(CalcTextSize(title));
     } else {
         DrawLogin(io);
     }
