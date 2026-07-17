@@ -296,9 +296,6 @@ struct PhysicsEngine {
         }
         return true;
     }
-        return true;
-    }
-};
 
 // ============================================================================
 // GAME STATE & HELPER FUNCTIONS
