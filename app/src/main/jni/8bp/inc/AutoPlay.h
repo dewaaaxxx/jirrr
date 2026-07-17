@@ -534,7 +534,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-        DrawToggleButton();
+       // DrawToggleButton();
 
         if (isAnimationActive()) return;
 
