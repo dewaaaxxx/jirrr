@@ -194,7 +194,7 @@ static void DrawTabIcon(ImDrawList* dl, int tab, ImVec2 c, ImU32 col){
 
 
 static const char* CurrentTabTitle(){
-    static const char* en[r] = {
+    static const char* en[4] = {
         "Visual",
         "Aim",
         "Misc",
