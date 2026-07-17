@@ -1113,15 +1113,19 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             break;
         }
         case 3: { 
-            Dummy(ImVec2(0, 8)); // Jarak awal dari atas
+            Dummy(ImVec2(0, 4));
         
-            // --- LAMBDA HELPER DENGAN DUMMY DI DALAMNYA ---
+            // --- LAMBDA KHUSUS UNTUK ROW INFO (PAKAI DRAWBOLDTEXT) ---
             auto DrawInfoRow = [&](const char* key, const char* val) {
                 ImVec2 pos = GetCursorScreenPos();
                 DrawBoldText(GetWindowDrawList(), pos, IM_COL32(140, 140, 165, 255), key);
-                SameLine();
-                DrawBoldText(GetWindowDrawList(), ImVec2(pos.x + CalcTextSize(key).x, pos.y), IM_COL32(235, 238, 245, 255), val);
-                Dummy(ImVec2(0, 8)); // Tambah jarak 8px setiap baris
+                
+                ImVec2 keySize = CalcTextSize(key);
+                SetCursorScreenPos(ImVec2(pos.x + keySize.x, pos.y));
+                SameLine(0, 0);
+                
+                DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(235, 238, 245, 255), val);
+                Dummy(ImVec2(0, 12));
             };
         
             // --- INFO DEVICE ---
@@ -1186,15 +1190,19 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
         
                 ImVec2 pos = GetCursorScreenPos();
                 DrawBoldText(GetWindowDrawList(), pos, IM_COL32(140, 140, 165, 255), O("Expire: "));
-                SameLine();
+                
+                ImVec2 keySize = CalcTextSize(O("Expire: "));
+                SetCursorScreenPos(ImVec2(pos.x + keySize.x, pos.y));
+                SameLine(0, 0);
+        
                 int64_t secsLeft = (g_ExpiryTimestamp > 0) ? (g_ExpiryTimestamp - (int64_t)time(nullptr)) : 1;
                 ImU32 expColor = (g_ExpiryTimestamp == 0) ? IM_COL32(102, 230, 140, 255) :
                                  (secsLeft <= 0)           ? IM_COL32(255, 77, 77, 255) :
                                  (secsLeft < 86400)        ? IM_COL32(255, 102, 102, 255) :
                                  (secsLeft < 7*86400)      ? IM_COL32(255, 184, 46, 255) :
                                                               IM_COL32(89, 235, 122, 255);
-                DrawBoldText(GetWindowDrawList(), ImVec2(pos.x + CalcTextSize(O("Expire: ")).x, pos.y), expColor, expireBuf);
-                Dummy(ImVec2(0, 8));
+                DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), expColor, expireBuf);
+                Dummy(ImVec2(0, 12));
             }
         
             // --- SYNC COUNTDOWN ---
@@ -1210,13 +1218,13 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 }
                 ImVec2 pos = GetCursorScreenPos();
                 DrawBoldText(GetWindowDrawList(), pos, IM_COL32(115, 115, 140, 255), s_syncBuf);
-                Dummy(ImVec2(0, 8));
+                Dummy(ImVec2(0, 12));
             }
         
-            // --- UPDATE KEY SECTION ---
+            // --- UPDATE KEY SECTION (PAKAI IMGUI BIASA, JANGAN BOLD GLITCH) ---
             Dummy(ImVec2(0, 4));
-            DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), COL_GOLD_BRIGHT, O("Update Key"));
-            Dummy(ImVec2(0, 8));
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", O("Update Key")); // Pakai normal biar rapi
+            Dummy(ImVec2(0, 10));
             
             {
                 static char  s_newKey[128]  = {};
@@ -1261,13 +1269,14 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 if (!canApply) EndDisabled();
         
                 Dummy(ImVec2(0, 6));
+                
+                // Status Verifying/Updated pakai ImGui biasa (karena teks Arab)
                 if (s_keyApplying || is_logging_in) {
-                    DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(230, 192, 51, 255), O("Verifying..."));
+                    TextColored(ImVec4(0.9f, 0.75f, 0.2f, 1.0f), "%s", O("Verifying..."));
                 } else if (!s_keyMsg.empty()) {
                     bool ok2 = (s_keyMsg.find("updated") != std::string::npos);
-                    DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), 
-                                 ok2 ? IM_COL32(89, 235, 122, 255) : IM_COL32(255, 89, 89, 255), 
-                                 s_keyMsg.c_str());
+                    TextColored(ok2 ? ImVec4(0.35f, 0.9f, 0.5f, 1.0f) : ImVec4(1.0f, 0.35f, 0.35f, 1.0f),
+                                "%s", s_keyMsg.c_str());
                 }
             }
             Dummy(ImVec2(0, 12));
