@@ -2,6 +2,7 @@
 
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
+#include <sys/system_properties.h>
 
 ImFont* fontShotFound = nullptr; // ← Deklarasi global
 
@@ -365,14 +366,21 @@ static bool GoldToggle(const char* label, const char* sub, bool* v){
     dl->AddRectFilled(bb.Min, bb.Max, bgCol, 12.0f);
     dl->AddRect(bb.Min, bb.Max, IM_COL32(55, 70, 95, 120), 12.0f, 0, 1.0f);
 
+    // --- BAGIAN YANG DIUBAH (Teks Utama jadi BOLD) ---
     ImVec2 ts = CalcTextSize(label);
-    dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12), COL_TEXT, label);
-    if (sub && *sub) dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12 + ts.y + 4), COL_TEXT_FAINT, sub);
+    DrawBoldText(dl, ImVec2(bb.Min.x + 18, bb.Min.y + 12), COL_TEXT, label); 
+    // --- SELESAI DIUBAH ---
+
+    // --- BAGIAN YANG DIUBAH (Sub-teks jadi BOLD juga) ---
+    if (sub && *sub) {
+        DrawBoldText(dl, ImVec2(bb.Min.x + 18, bb.Min.y + 12 + ts.y + 4), COL_TEXT_FAINT, sub);
+    }
+    // --- SELESAI DIUBAH ---
 
     ImVec2 togPos = ImVec2(bb.Max.x - tw - 18.0f, bb.Min.y + (rowH - th) * 0.5f);
     ImVec2 togEnd = ImVec2(togPos.x + tw, togPos.y + th);
 
-    // ===== FIX: Warna aktif jadi HIJAU =====
+    // ===== Warna aktif jadi HIJAU =====
     ImVec4 off = ImVec4(0.18f, 0.22f, 0.30f, 1.0f);
     ImVec4 on  = ImVec4(0.18f, 0.80f, 0.44f, 1.0f);  // Hijau zamrud (#2ECC71)
     ImVec4 cur = ImLerp(off, on, t);
@@ -1067,59 +1075,164 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,8));
             break;
         }
-        case 2: { 
-            Dummy(ImVec2(0,4));
-            need_save |= GoldToggle(O("Enable Auto Queue"), O(""), &persistent_bool[("bAutoQueue")]);
-            Dummy(ImVec2(0, 20));
-            
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
-            Dummy(ImVec2(0, 8));
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
-            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
-            SetNextItemWidth(GetContentRegionAvail().x);
-         //   need_save |= GoldCombo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
-            need_save |= GoldCombo("Mode", "Queue selection mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
-            PopStyleColor(2);
-            PopStyleVar(2);
-            
-            if (persistent_int["iAutoQueue_Mode"] == 1) {
-                Dummy(ImVec2(0, 15));
-                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Bet Percent"));
-                Dummy(ImVec2(0, 8));
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
-                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.3f, 0.6f, 0.95f, 1.0f));
-                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
-                SetNextItemWidth(GetContentRegionAvail().x);
-                need_save |= SliderInt("##betpercent", &persistent_int["iAutoQueue_BetPercent"], 1, 100, "%d%%");
-                PopStyleColor(3);
-                PopStyleVar(2);
-            }
-            
-            Dummy(ImVec2(0, 25));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
-            break;
-        }
         case 3: { 
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", L("Mod Information","تفصيل ما يقولونه"));
-            Dummy(ImVec2(0,14));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Version: ","DewaaPrtamaa: "));
-            SameLine();
-            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "8 Ball Pool 56.27.0");
-            Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Expired: ","Rafisla: "));
-            SameLine();
-            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "Lifetime");
-            Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Dev: ","ﻡﺍﺮﺠﻴﻠﻴﺗ: "));
-            SameLine();
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "@frustashitx");
-            Dummy(ImVec2(0,20));
+        
+            // --- LAMBDA HELPER UNTUK INFO ROW ---
+            auto DrawInfoRow = [&](const char* key, const char* val) {
+                ImVec2 pos = GetCursorScreenPos();
+                DrawBoldText(GetWindowDrawList(), pos, IM_COL32(140, 140, 165, 255), key);
+                SameLine();
+                DrawBoldText(GetWindowDrawList(), ImVec2(pos.x + CalcTextSize(key).x, pos.y), IM_COL32(235, 238, 245, 255), val);
+                Dummy(ImVec2(0, 8));
+            };
+        
+            // --- INFO DEVICE ---
+            static char s_manufacturer[PROP_VALUE_MAX] = {};
+            static char s_model[PROP_VALUE_MAX] = {};
+            static char s_abi[PROP_VALUE_MAX] = {};
+            static char s_android[PROP_VALUE_MAX] = {};
+            static bool s_props_loaded = false;
+            
+            if (!s_props_loaded) {
+                __system_property_get("ro.product.manufacturer", s_manufacturer);
+                __system_property_get("ro.product.model", s_model);
+                __system_property_get("ro.product.cpu.abi", s_abi);
+                __system_property_get("ro.build.version.release", s_android);
+                s_props_loaded = true;
+            }
+        
+            DrawInfoRow(O("Manufacturer: "), s_manufacturer);
+            DrawInfoRow(O("Model: "), s_model);
+            DrawInfoRow(O("ABI: "), s_abi);
+            DrawInfoRow(O("Android: "), s_android);
+            
+            // --- SENSOR KEY ---
+            std::string fullKey = persistent_string["key"];
+            std::string maskedKey = fullKey;
+            if (fullKey.length() > 8) {
+                std::string start = fullKey.substr(0, 4);
+                std::string end   = fullKey.substr(fullKey.length() - 4, 4);
+                maskedKey = start + "****" + end;
+            } else if (fullKey.length() > 4) {
+                std::string start = fullKey.substr(0, 2);
+                std::string end   = fullKey.substr(fullKey.length() - 2, 2);
+                maskedKey = start + "****" + end;
+            } else {
+                maskedKey = "****";
+            }
+            DrawInfoRow(O("Key: "), maskedKey.c_str());
+            // --- SELESAI SENSOR ---
+        
+            // --- EXPIRE ---
+            {
+                int64_t now_ts = (int64_t)time(nullptr);
+                int64_t diff = (g_ExpiryTimestamp > 0) ? (g_ExpiryTimestamp - now_ts) : 0;
+                char expireBuf[64];
+                if (g_ExpiryTimestamp == 0) {
+                    snprintf(expireBuf, sizeof(expireBuf), "%s", O("Lifetime"));
+                } else if (diff > 0) {
+                    int days  = (int)(diff / 86400);
+                    int hours = (int)((diff % 86400) / 3600);
+                    int mins  = (int)((diff % 3600)  / 60);
+                    int secs  = (int)(diff % 60);
+                    if (days > 0)
+                        snprintf(expireBuf, sizeof(expireBuf), "%dd %dh %dm %ds", days, hours, mins, secs);
+                    else if (hours > 0)
+                        snprintf(expireBuf, sizeof(expireBuf), "%dh %dm %ds", hours, mins, secs);
+                    else
+                        snprintf(expireBuf, sizeof(expireBuf), "%dm %ds", mins, secs);
+                } else {
+                    snprintf(expireBuf, sizeof(expireBuf), "%s", O("EXPIRED"));
+                }
+        
+                ImVec2 pos = GetCursorScreenPos();
+                DrawBoldText(GetWindowDrawList(), pos, IM_COL32(140, 140, 165, 255), O("Expire: "));
+                SameLine();
+                int64_t secsLeft = (g_ExpiryTimestamp > 0) ? (g_ExpiryTimestamp - (int64_t)time(nullptr)) : 1;
+                ImU32 expColor = (g_ExpiryTimestamp == 0) ? IM_COL32(102, 230, 140, 255) :
+                                 (secsLeft <= 0)           ? IM_COL32(255, 77, 77, 255) :
+                                 (secsLeft < 86400)        ? IM_COL32(255, 102, 102, 255) :
+                                 (secsLeft < 7*86400)      ? IM_COL32(255, 184, 46, 255) :
+                                                              IM_COL32(89, 235, 122, 255);
+                DrawBoldText(GetWindowDrawList(), ImVec2(pos.x + CalcTextSize(O("Expire: ")).x, pos.y), expColor, expireBuf);
+                Dummy(ImVec2(0, 8));
+            }
+        
+            // --- SYNC COUNTDOWN ---
+            {
+                static char s_syncBuf[48];
+                if (g_StatusChecking) {
+                    snprintf(s_syncBuf, sizeof(s_syncBuf), "Syncing...");
+                } else if (g_lastSyncTime > 0) {
+                    int64_t ago = (int64_t)time(nullptr) - (int64_t)g_lastSyncTime;
+                    snprintf(s_syncBuf, sizeof(s_syncBuf), "Synced %ds ago", (int)ago);
+                } else {
+                    snprintf(s_syncBuf, sizeof(s_syncBuf), "Never synced");
+                }
+                ImVec2 pos = GetCursorScreenPos();
+                DrawBoldText(GetWindowDrawList(), pos, IM_COL32(115, 115, 140, 255), s_syncBuf);
+                Dummy(ImVec2(0, 12));
+            }
+        
+            // --- UPDATE KEY SECTION ---
+            DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), COL_GOLD_BRIGHT, O("Update Key"));
+            Dummy(ImVec2(0, 10));
+            
+            {
+                static char  s_newKey[128]  = {};
+                static bool  s_keyApplying  = false;
+                static std::string s_keyMsg = "";
+        
+                float avW = GetContentRegionAvail().x;
+                SetNextItemWidth(avW - 165.0f);
+                PushStyleColor(ImGuiCol_FrameBg, IM_COL32(22, 28, 44, 220));
+                InputText(O("##ChgKey"), s_newKey, sizeof(s_newKey));
+                PopStyleColor();
+                SameLine(0, 6);
+        
+                if (Button(O("Paste"), ImVec2(68.0f, 0))) {
+                    JNIEnv* penv = nullptr;
+                    jint jr = VM->GetEnv((void**)&penv, JNI_VERSION_1_6);
+                    if (jr == JNI_EDETACHED) VM->AttachCurrentThread(&penv, nullptr);
+                    if (penv) {
+                        std::string clip = getClipboard(penv);
+                        if (!clip.empty()) {
+                            strncpy(s_newKey, clip.c_str(), sizeof(s_newKey)-1);
+                            s_newKey[sizeof(s_newKey)-1] = '\0';
+                        }
+                    }
+                }
+                SameLine(0, 6);
+        
+                bool canApply = s_newKey[0] != '\0' && !s_keyApplying && !is_logging_in;
+                if (!canApply) BeginDisabled();
+                if (Button(O("Apply"), ImVec2(80.0f, 0))) {
+                    s_keyMsg = "";
+                    s_keyApplying = true;
+                    std::string nk(s_newKey);
+                    std::string hw = persistent_string["hwid"];
+                    std::thread([nk, hw]() {
+                        bool ok = Login(hw, nk);
+                        if (ok) { s_keyMsg = OO("Key updated!").str(); RefreshLicenseStatus(); }
+                        else    { s_keyMsg = ERROR_MESSAGE.empty() ? OO("Invalid key").str() : ERROR_MESSAGE; }
+                        s_keyApplying = false;
+                    }).detach();
+                }
+                if (!canApply) EndDisabled();
+        
+                if (s_keyApplying || is_logging_in) {
+                    DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(230, 192, 51, 255), O("Verifying..."));
+                } else if (!s_keyMsg.empty()) {
+                    bool ok2 = (s_keyMsg.find("updated") != std::string::npos);
+                    DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), 
+                                 ok2 ? IM_COL32(89, 235, 122, 255) : IM_COL32(255, 89, 89, 255), 
+                                 s_keyMsg.c_str());
+                }
+            }
+            Dummy(ImVec2(0, 12));
+        
+            // --- LOGOUT BUTTON ---
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
             PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f,0.22f,0.22f,1.0f));
             PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
@@ -1128,6 +1241,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 logged_in = false;
             }
             PopStyleVar(); PopStyleColor(2);
+        
             break;
         }
     }
