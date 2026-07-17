@@ -297,6 +297,7 @@ struct PhysicsEngine {
         return true;
     }
 };
+
 // ============================================================================
 // GAME STATE & HELPER FUNCTIONS
 // ============================================================================
@@ -506,10 +507,14 @@ namespace AutoPlay {
         
         for (const auto& cand : candidates) {
             // Angle refinement + power sweep
-            constexpr double offsets[]       = {0.0, 0.003, -0.003, 0.007, -0.007, 0.012, -0.012, 0.018, -0.018, 0.025, -0.025};
-            constexpr double powerFactors[]  = {1.0, 1.05, 0.95, 1.12, 0.88, 1.20, 0.82, 1.35, 0.70, 1.5, 0.60, 1.75, 0.50, 2.0, 0.40};
+            // 5 angle × 5 power = 25 simulasi per kandidat (sebelumnya 165 = freeze)
+            constexpr double offsets[]      = {0.0, -0.0175, +0.0175, -0.035, +0.035};
+            constexpr double powerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7};
             bool candFound = false;
 
+            // forceFullSimulation: simulasi penuh supaya hasil validasi akurat
+            // Ringan karena hanya aktif per-kandidat, bukan di ScanSlow
+            gPrediction->forceFullSimulation = true;
             for (double offset : offsets) {
                 if (candFound) break;
                 double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle + offset));
@@ -532,6 +537,7 @@ namespace AutoPlay {
                     break;
                 }
             }
+            gPrediction->forceFullSimulation = false;
             if (candFound) {
                 Shoot(g_CurrentCandidate.angle, g_CurrentCandidate.power);
                 break;

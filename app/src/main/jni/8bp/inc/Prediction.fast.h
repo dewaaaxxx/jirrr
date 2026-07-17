@@ -95,6 +95,11 @@ struct Prediction {
 
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
+    // forceFullSimulation: paksa simulasi jalan penuh tanpa early-return.
+    // Dipakai saat validasi kandidat di ScanFast supaya scratch dan hasil
+    // akurat — tanpa ini early-return saat firstHit ditemukan bisa
+    // menghentikan simulasi sebelum bola target selesai bergerak.
+    bool forceFullSimulation = false;
 
     void calculateShotResultSize();
     void initBalls();
@@ -123,11 +128,14 @@ static Point2D prevSpin = {0.0, 0.0};
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    if (!forceFullSimulation) {
+        if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    }
     prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
     this->m_candidate = cand;
-    fastCalc = isAuto;
+    // forceFullSimulation → fastCalc=false → simulasi penuh tanpa early-return
+    fastCalc = forceFullSimulation ? false : isAuto;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -221,7 +229,9 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                   // if (!this->firstHitIsTarget) return;
+                   // Kalau forceFullSimulation: jangan early-return — lanjutkan
+                   // simulasi sampai semua bola berhenti supaya hasil akurat.
+                   if (!this->firstHitIsTarget && !this->forceFullSimulation) return;
                 }
             }
             time -= time2;
