@@ -1113,15 +1113,15 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             break;
         }
         case 3: { 
-            Dummy(ImVec2(0, 10)); // Jarak awal dari atas
+            Dummy(ImVec2(0, 8)); // Jarak awal dari atas
         
-            // --- LAMBDA HELPER UNTUK INFO ROW ---
+            // --- LAMBDA HELPER DENGAN DUMMY DI DALAMNYA ---
             auto DrawInfoRow = [&](const char* key, const char* val) {
                 ImVec2 pos = GetCursorScreenPos();
                 DrawBoldText(GetWindowDrawList(), pos, IM_COL32(140, 140, 165, 255), key);
                 SameLine();
                 DrawBoldText(GetWindowDrawList(), ImVec2(pos.x + CalcTextSize(key).x, pos.y), IM_COL32(235, 238, 245, 255), val);
-                Dummy(ImVec2(0, 8));
+                Dummy(ImVec2(0, 8)); // Tambah jarak 8px setiap baris
             };
         
             // --- INFO DEVICE ---
@@ -1144,21 +1144,23 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             DrawInfoRow(O("ABI: "), s_abi);
             DrawInfoRow(O("Android: "), s_android);
         
-            // --- SENSOR KEY ---
-            std::string fullKey = persistent_string["key"];
-            std::string maskedKey = fullKey;
-            if (fullKey.length() > 8) {
-                std::string start = fullKey.substr(0, 4);
-                std::string end   = fullKey.substr(fullKey.length() - 4, 4);
-                maskedKey = start + "****" + end;
-            } else if (fullKey.length() > 4) {
-                std::string start = fullKey.substr(0, 2);
-                std::string end   = fullKey.substr(fullKey.length() - 2, 2);
-                maskedKey = start + "****" + end;
-            } else {
-                maskedKey = "****";
+            // --- KEY (CENSORED) ---
+            {
+                std::string fullKey = persistent_string["key"];
+                std::string maskedKey = fullKey;
+                if (fullKey.length() > 8) {
+                    std::string start = fullKey.substr(0, 4);
+                    std::string end   = fullKey.substr(fullKey.length() - 4, 4);
+                    maskedKey = start + "****" + end;
+                } else if (fullKey.length() > 4) {
+                    std::string start = fullKey.substr(0, 2);
+                    std::string end   = fullKey.substr(fullKey.length() - 2, 2);
+                    maskedKey = start + "****" + end;
+                } else {
+                    maskedKey = "****";
+                }
+                DrawInfoRow(O("Key: "), maskedKey.c_str());
             }
-            DrawInfoRow(O("Key: "), maskedKey.c_str());
         
             // --- EXPIRE ---
             {
@@ -1208,11 +1210,11 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 }
                 ImVec2 pos = GetCursorScreenPos();
                 DrawBoldText(GetWindowDrawList(), pos, IM_COL32(115, 115, 140, 255), s_syncBuf);
-                Dummy(ImVec2(0, 12));
+                Dummy(ImVec2(0, 8));
             }
         
-            // --- UPDATE KEY SECTION (DIPISAHKAN DENGAN JARAK YG CUKUP) ---
-            Dummy(ImVec2(0, 12));
+            // --- UPDATE KEY SECTION ---
+            Dummy(ImVec2(0, 4));
             DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), COL_GOLD_BRIGHT, O("Update Key"));
             Dummy(ImVec2(0, 8));
             
@@ -1258,7 +1260,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                 }
                 if (!canApply) EndDisabled();
         
-                Dummy(ImVec2(0, 6)); // Jarak agar teks status tidak menempel dengan tombol
+                Dummy(ImVec2(0, 6));
                 if (s_keyApplying || is_logging_in) {
                     DrawBoldText(GetWindowDrawList(), GetCursorScreenPos(), IM_COL32(230, 192, 51, 255), O("Verifying..."));
                 } else if (!s_keyMsg.empty()) {
@@ -1268,9 +1270,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                  s_keyMsg.c_str());
                 }
             }
-            
-            // --- JARAK SEBELUM LOGOUT ---
-            Dummy(ImVec2(0, 20));
+            Dummy(ImVec2(0, 12));
         
             // --- LOGOUT BUTTON ---
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
