@@ -1055,24 +1055,10 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     dl->AddRectFilled(a, b, IM_COL32(14, 22, 38, 255), 14.0f);
     dl->AddRect(a, b, IM_COL32(50, 65, 90, 200), 14.0f, 0, 1.0f);
 
-    GameSpeed::Draw();
+  //  GameSpeed::Draw();
     
     const char* titlesEn[] = { "General","Auto Play","Table","Account","Notifications","About" };
     const char* titlesAr[] = { "ﺕﺍﺩﺍﺪﻋﻻﺍ","ﻲﺋﺎﻘﻠﺘﻟﺍ","ﺔﻟﻭﺎﻄﻟﺍ","ﺏﺎﺴﺤﻟﺍ","ﺕﺍﺭﺎﻌﺷﻹﺍ","ﻝﻮﺣ" };
-    int idx = g_menu.currentTab;
-    dl->AddText(ImVec2(a.x + 22, a.y + 18), COL_GOLD_BRIGHT, L(titlesEn[idx], titlesAr[idx]));
-    dl->AddLine(ImVec2(a.x + 22, a.y + 50), ImVec2(b.x - 22, a.y + 50), IM_COL32(55,70,95,180), 1.0f);
-    // ── EXP Key di pojok kanan atas (sebelah kanan judul) ──
-const char* expText = (g_ExpTime.empty() || g_ExpTime == "N/A" || g_ExpTime == "Lifetime") 
-                      ? "EXP : Lifetime" 
-                      : "EXP : %s";
-
-// Hitung posisi teks agar ada di sebelah kanan garis
-ImVec2 textSize = ImGui::CalcTextSize(expText, nullptr, true);
-float textX = b.x - 22 - textSize.x - 10; // 10px padding dari kanan
-float textY = a.y + 18; // sejajar dengan judul
-
-dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
 
     SetCursorScreenPos(ImVec2(a.x + 16, a.y + 62));
     PushStyleColor(ImGuiCol_ChildBg, ImVec4(0,0,0,0));
@@ -1155,15 +1141,15 @@ dl->AddText(ImVec2(textX, textY), IM_COL32(255, 0, 0, 255), expText);
             Dummy(ImVec2(0,14));
             TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Version: ","DewaaPrtamaa: "));
             SameLine();
-            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "8 Ball Pool 56.22.0");
+            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "8 Ball Pool 56.27.0");
             Dummy(ImVec2(0,10));
-            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Premium: ","Rafisla: "));
+            TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Expired: ","Rafisla: "));
             SameLine();
-            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "No");
+            TextColored(ImVec4(0.95f,0.95f,1.0f,1.0f), "%s", "Lifetime");
             Dummy(ImVec2(0,10));
             TextColored(ImVec4(0.62f,0.66f,0.75f,1.0f), "%s", L("Dev: ","ﻡﺍﺮﺠﻴﻠﻴﺗ: "));
             SameLine();
-            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "@xabi666");
+            TextColored(ImVec4(0.18f, 0.80f, 0.44f, 1.0f), "%s", "@frustashitx");
             Dummy(ImVec2(0,20));
             PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f,0.18f,0.18f,1.0f));
             PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.70f,0.22f,0.22f,1.0f));
@@ -1576,7 +1562,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
                       ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
                       ImGuiWindowFlags_NoInputs);
-                TextColored(ImColor(0, 255, 0, 255), O("tg : @Cmengine"));
+                TextColored(ImColor(0, 255, 0, 255), O("@Cmengine"));
                 End();
 
 
