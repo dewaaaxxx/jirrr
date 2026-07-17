@@ -1059,6 +1059,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
     
     const char* titlesEn[] = { "General","Auto Play","Table","Account","Notifications","About" };
     const char* titlesAr[] = { "ﺕﺍﺩﺍﺪﻋﻻﺍ","ﻲﺋﺎﻘﻠﺘﻟﺍ","ﺔﻟﻭﺎﻄﻟﺍ","ﺏﺎﺴﺤﻟﺍ","ﺕﺍﺭﺎﻌﺷﻹﺍ","ﻝﻮﺣ" };
+    int idx = g_menu.currentTab;
 
     SetCursorScreenPos(ImVec2(a.x + 16, a.y + 62));
     PushStyleColor(ImGuiCol_ChildBg, ImVec4(0,0,0,0));
