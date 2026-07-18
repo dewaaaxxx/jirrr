@@ -158,7 +158,6 @@ namespace AutoPlay {
 
             // Power sweep ringan: 4 nilai cukup untuk cover range
             std::vector<double> powers = {566.0, 400.0, 250.0, 120.0, 666.0, 466.0, 266.0, 100.0};
-    };
             for (double power : powers) {
                 gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
