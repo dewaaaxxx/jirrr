@@ -1,5 +1,5 @@
 #pragma once
-#include "Prediction.h"
+#include "Prediction.fastt.h"
 #include <vector>
 #include <algorithm>
 #include <cmath>
