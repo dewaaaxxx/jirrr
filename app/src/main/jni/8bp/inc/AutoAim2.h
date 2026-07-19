@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Prediction.fast2.h"
+#include "Prediction_fast2.h"
 #include <imgui/imgui.h>
 #include "Prediction.h"
 
