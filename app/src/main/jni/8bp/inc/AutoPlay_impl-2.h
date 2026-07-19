@@ -1,8 +1,6 @@
 #include "AutoPlayy.h"
 #include "Prediction.fastt.h"
 extern ButtonClicker buttonClicker;
-#include "PowerSlider.h"
-extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 // --- Static Helpers ---
@@ -161,18 +159,6 @@ void AutoPlay::ClearState() {
 
     if (anim_TouchStarted) {
         NativeTouchesEnd(5, Width * 0.83f, Height * 0.82f);
-    }
-
-    if (powerSlider.Active) {
-        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-        float sliderX = Width * sliderXPercent;
-        if (persistent_int[O("iPowerBarSide")] == 1) {
-            sliderX = Width * (1.0f - sliderXPercent);
-        }
-        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-        NativeTouchesEnd(powerSlider.TouchIndex, sliderX, sliderYStart);
-        powerSlider.Active = false;
-        powerSlider.state = PowerSlider::IDLE;
     }
 
     if (buttonClicker.Active) {
@@ -1153,7 +1139,6 @@ void AutoPlay::ScanFast(double angleStep) {
 void AutoPlay::Update() {
     frameCounter++;
     buttonClicker.Update();
-    powerSlider.Update();
 
     // Track cue ball movement/dragging (ball-in-hand)
     static Point2D lastFrameCuePos = {-1000.0, -1000.0};
@@ -1684,47 +1669,16 @@ void AutoPlay::Update() {
             return;
         }
 
-        // 5. POWER PULL (0.85s smooth) via simulated slider touch
+        // 5. FIRE — langsung pakai triggerShot tanpa animasi slider
         if (humanState == HUM_PULLING) {
             setAimAngle(targetAngle);
-            if (!powerSlider.Active) {
-                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-                float sliderX = Width * sliderXPercent;
-                if (persistent_int[O("iPowerBarSide")] == 1) {
-                    sliderX = Width * (1.0f - sliderXPercent); // Right Side
-                }
-                float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
-                ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-
-                powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
-            }
-
-            gPrediction->forceFullSimulation = true;
-            gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                             sharedGameManager.getShotSpin(), g_CurrentCandidate);
-            gPrediction->forceFullSimulation = false;
-
-            if (powerSlider.Active) {
-                return; // Wait for slider simulation to finish and release touch
-            }
-
-            stateStartTime = now;
-            humanState = HUM_DELAY_BEFORE_SHOT;
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+            triggerShot();
+            humanShotLocked = false;
+            ClearState();
+            state = IDLE; humanState = HUM_IDLE;
             return;
         }
-
-        // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
-        if (humanState == HUM_DELAY_BEFORE_SHOT) {
-            setAimAngle(targetAngle);
-            if (now - stateStartTime >= 0.4) {
-                humanShotLocked = false;
-                ClearState();
-                state = IDLE; humanState = HUM_IDLE;
-            }
-            return;
-        }
-    }
 
     // ABORT HANDLER: If user turns off AutoPlay or turn ends
     if (!bAutoPlaying || !isPlayerTurn) {
@@ -1733,18 +1687,6 @@ void AutoPlay::Update() {
                 float jX = Width * 0.83f;
                 float jY = Height * 0.82f;
                 NativeTouchesEnd(5, jX, jY);
-            }
-            
-            if (powerSlider.Active) {
-                float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-                float sliderX = Width * sliderXPercent;
-                if (persistent_int[O("iPowerBarSide")] == 1) {
-                    sliderX = Width * (1.0f - sliderXPercent);
-                }
-                float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                NativeTouchesEnd(powerSlider.TouchIndex, sliderX, sliderYStart);
-                powerSlider.Active = false;
-                powerSlider.state = PowerSlider::IDLE;
             }
 
             if (sharedGameManager) {
