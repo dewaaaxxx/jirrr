@@ -57,16 +57,6 @@ static Point2D lastCuePosWhenAimed = { -1000.0, -1000.0 };
 #define M_PI 3.14159265358979323846
 #endif
 
-constexpr double maxAngle = 360.0 / (180.0 / M_PI);
-
-double normalizeAngle(double angle) {
-    double newAngle = angle;
-    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
-    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
-    return newAngle;
-}
-
-
 static double CalculateRequiredPower(double totalDist) {
     // AIMX Physics Sync: v = sqrt(2 * a * s) where a = 196.0
     double p = sqrt(totalDist * 2.0 * 196.0); 
