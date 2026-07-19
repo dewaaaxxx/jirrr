@@ -7,6 +7,15 @@ extern PowerSlider powerSlider;
 #include <random>
 // --- Static Helpers ---
 
+constexpr double maxAngle = 360.0 / (180.0 / M_PI);
+
+double normalizeAngle(double angle) {
+    double newAngle = angle;
+    if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
+    else if (newAngle < 0) newAngle = maxAngle - fmod(-newAngle, maxAngle);
+    return newAngle;
+}
+
 // AutoPlay.h - di dalam class AutoPlay, bagian public
 static inline bool IsShotValid() {
     if (AutoPlay::g_CurrentCandidate.idx == -1) return false;
