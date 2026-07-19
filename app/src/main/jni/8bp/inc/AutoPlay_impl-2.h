@@ -1,5 +1,5 @@
 #include "AutoPlayy.h"
-#include "Prediction.h"
+#include "Prediction.fastt.h"
 extern ButtonClicker buttonClicker;
 #include "PowerSlider.h"
 extern PowerSlider powerSlider;
