@@ -174,13 +174,13 @@ namespace AutoPlay {
         bool foundShot = false;
         
         // Scan 10 angles per frame
-        while (steps < 35 && currentScanAngle < maxAngle) {
+        while (steps < 20 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
             // Power sweep ringan: 4 nilai cukup untuk cover range
-            std::vector<double> powers = {566.0, 400.0, 250.0, 120.0, 666.0, 466.0, 266.0, 100.0};
+            std::vector<double> powers = {566.0, 400.0, 250.0, 120.0};
             for (double power : powers) {
                 gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
@@ -542,9 +542,9 @@ namespace AutoPlay {
         }
 
         // Angle refinement: ±0.5°, ±1° → 5 angle × 3 power = 15 sim per kandidat
-        static const double kDA[] = {0.0, -0.00873, +0.00873, -0.01745, +0.01745};
-        static const double kPF[] = {1.0, 0.85, 1.15};
-
+        static const double kDA[] = {0.0, -0.0175, +0.0175, -0.035, +0.035}; // 0°, ±1°, ±2°
+        static const double kPF[] = {1.0, 1.2, 0.8, 1.4, 0.6, 1.6, 0.5};
+        
         bool foundShot = false;
         while (!foundShot && fs.evalIndex < fs.raw.size()) {
             auto raw = fs.raw[fs.evalIndex++];
