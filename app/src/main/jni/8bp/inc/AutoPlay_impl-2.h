@@ -1679,6 +1679,7 @@ void AutoPlay::Update() {
             state = IDLE; humanState = HUM_IDLE;
             return;
         }
+    }
 
     // ABORT HANDLER: If user turns off AutoPlay or turn ends
     if (!bAutoPlaying || !isPlayerTurn) {
