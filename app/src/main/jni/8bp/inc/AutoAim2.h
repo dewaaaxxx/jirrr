@@ -2,7 +2,7 @@
 
 #include "Prediction_fast2.h"
 #include <imgui/imgui.h>
-#include "Prediction.h"
+#include "Prediction.fastt.h"
 
 using namespace ImGui;
 
