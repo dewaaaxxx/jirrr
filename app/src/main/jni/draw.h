@@ -1073,6 +1073,37 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
+            TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "%s", L("Auto Play Style","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
+            Dummy(ImVec2(0, 8));
+            
+            int curMode = persistent_int["iAutoPlayMode"];
+            // Sync ke AutoPlay setiap frame
+            AutoPlay::automationSpeed = (AutoPlay::AutomationSpeed)curMode;
+            
+            const char* modeNames[2] = {
+                L("Fast", "ﻊﻳﺮﺳ"),
+                L("Human", "ﺔﻗﺩﺎﺑ")
+            };
+            float bwMode = (GetContentRegionAvail().x - 8) / 2.0f; // 2 mode, bukan 3
+            
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+            for (int i = 0; i < 2; i++) {
+                if (i) SameLine();
+                bool sel = (curMode == i);
+                PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
+                PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
+                PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
+            
+                if (Button(modeNames[i], ImVec2(bwMode, 44))) {
+                    persistent_int["iAutoPlayMode"] = i;
+                    curMode = i;
+                    AutoPlay::automationSpeed = (AutoPlay::AutomationSpeed)i;
+                    need_save = true;
+                }
+            
+                PopStyleColor(3);
+            }
+            PopStyleVar();
             break;
         }
         case 2: { 
