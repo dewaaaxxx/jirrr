@@ -305,7 +305,6 @@ namespace AutoPlay {
     void ScanFast(double angleStep = 0.1f) {
         if (g_CurrentCandidate.idx != -1) return;
 
-        bShowAutoPlayLines = !persistent_bool[O("bDisableFlicker")];
         static double fastSweepAngle = 0.0;
 
         Prediction::SceneData savedGuiData = gPrediction->guiData;
@@ -648,7 +647,6 @@ namespace AutoPlay {
                 gPrediction->determineShotResult(true, fastSweepAngle, 400.0, sharedGameManager.getShotSpin());
                 gPrediction->forceFullSimulation = false;
             }
-            sweepAngle = fastSweepAngle;
         }
 
         if (!foundShot && fs.evalIndex >= fs.raw.size()) {
