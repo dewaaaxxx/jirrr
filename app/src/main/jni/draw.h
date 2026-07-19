@@ -30,7 +30,7 @@ using namespace std;
 
 #include "8bp/FrictionProperties.h"
 #include "ButtonClicker.h"
-#include "8bp/inc/AutoAim2.h"
+//#include "8bp/inc/AutoAim2.h"
 #include "8bp/inc/AutoPlay_impl-2.h"
 #include "logo.h"
 #include "on.h"
