@@ -43,7 +43,7 @@ static bool g_aqCounting = false;
 static std::chrono::steady_clock::time_point g_aqLastCall;
 static std::chrono::steady_clock::time_point g_aqCountdownStart;
 static bool DEBUG_BYPASS_LOGIN = false;
-static const int64_t EXPIRY_TS = O(1784426596);
+static const int64_t EXPIRY_TS = O(1879291848);
 
 static const char* L(const char* en, const char* ar);
 
@@ -503,7 +503,7 @@ static bool GoldCombo(const char* label, const char* sub, int* val, const char* 
 
 
 INLINE void DrawAutoQueue() {
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
@@ -706,7 +706,7 @@ INLINE void DrawShotApprovalPrompt(ImGuiIO& io) {
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 INLINE void DrawESP(ImDrawList* draw) {
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
         UpdateScreenTable();
         sharedDirector = F(ptr, libmain + O(0x4f06288));   if (!sharedDirector) return;
