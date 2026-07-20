@@ -22,7 +22,7 @@ struct Prediction {
     Prediction() = default;
     ~Prediction() = default;
 
-    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin(), Candidate cand = {-1});
+    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = share[...]
     bool mockPredictShotResult();
 
     struct Ball {
@@ -274,17 +274,42 @@ void Prediction::handleCollision() {
 void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    Point2D relativePosition = ballA.predictedPosition - ballB.predictedPosition;
-    double invDistance = 1.0 / sqrt(relativePosition.square());
-    Point2D collisionNormal = relativePosition * invDistance;
-    double velocityComponentA = ballA.velocity.x * collisionNormal.x + ballA.velocity.y * collisionNormal.y;
-    double velocityComponentB = ballB.velocity.x * collisionNormal.x + ballB.velocity.y * collisionNormal.y;
-    Point2D velocityA = collisionNormal * velocityComponentA;
-    Point2D velocityB = collisionNormal * velocityComponentB;
-    ballA.velocity.x = velocityB.x - (velocityA.x - ballA.velocity.x);
-    ballA.velocity.y = velocityB.y - (velocityA.y - ballA.velocity.y);
-    ballB.velocity.x = velocityA.x - (velocityB.x - ballB.velocity.x);
-    ballB.velocity.y = velocityA.y - (velocityB.y - ballB.velocity.y);
+    
+    // Physics-based elastic collision with proper momentum transfer
+    // Calculate relative position and normalized collision normal
+    Point2D relativePosition = ballB.predictedPosition - ballA.predictedPosition;
+    double distanceSquared = relativePosition.square();
+    
+    // Prevent division by zero
+    if (distanceSquared < 1e-10) return;
+    
+    double distance = sqrt(distanceSquared);
+    double invDistance = 1.0 / distance;
+    
+    // Collision normal (from ballA to ballB)
+    Point2D normal = relativePosition * invDistance;
+    
+    // Relative velocity of ballA with respect to ballB
+    Point2D relativeVelocity = ballA.velocity - ballB.velocity;
+    
+    // Relative velocity along collision normal (approach velocity)
+    double velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
+    
+    // Only handle collision if balls are approaching
+    if (velocityAlongNormal >= 0.0) return;
+    
+    // For equal mass elastic collision, exchange velocity components along normal
+    // Each ball's velocity along the normal is exchanged
+    Point2D velocityChangeA = normal * (-velocityAlongNormal);
+    
+    // Apply impulse to both balls (equal and opposite)
+    ballA.velocity = ballA.velocity + velocityChangeA;
+    ballB.velocity = ballB.velocity - velocityChangeA;
+    
+    // Apply slight damping to account for energy loss in real collisions
+    constexpr double COLLISION_DAMPING = 0.98;
+    ballA.velocity = ballA.velocity * COLLISION_DAMPING;
+    ballB.velocity = ballB.velocity * COLLISION_DAMPING;
 }
 
 /* void Prediction::determineShotState() {
@@ -418,7 +443,7 @@ const std::array<Point2D, TABLE_SHAPE_SIZE>& getTableShape() {
     return TABLE_SHAPE;
 }
 
-void Prediction::Ball::findNextCollision(void *pData, double *time) {
+inline void Prediction::Ball::findNextCollision(void *pData, double *time) {
     auto *data = reinterpret_cast<SceneData *>(pData);
     auto pockets = getPockets();
     // find collisions with other balls
@@ -435,7 +460,7 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
     }
     if (this->willCollideWithTable(time)) {
         if (this->state == ::Ball::State::IN_POCKET) {
-            double unkTime = *time * 1.5; // F(double, libmain + 0x4dae0b8);
+            double unkTime = *time * F(double, libmain + 0x4dae0b8); //  1.5E
             this->velocity.x -= this->predictedPosition.x * unkTime;
             this->velocity.y -= this->predictedPosition.y * unkTime;
         } else if (this->state == ::Ball::State::DEFAULT) { // check if this ball is potted
@@ -447,13 +472,24 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
                 delta.y = pockets[i].y - this->predictedPosition.y;
                 deltaSquare = delta.x * delta.x + delta.y * delta.y;
                 if (deltaSquare < POCKET_RADIUS_SQUARE) {
-                    unkTime = *time * 120.0; // F(double, libmain + 0x4dae0c0);
+                    unkTime = *time * F(double, libmain + 0x4dae0c0); // 120.0E
                     this->velocity.x += delta.x * unkTime;
                     this->velocity.y += delta.y * unkTime;
                     if (deltaSquare < BALL_RADIUS_SQUARE) {
-                        this->state = ::Ball::State::IN_POCKET;
-                        this->pocketIndex = i;
-                        Prediction::pocketStatus[i] = true;
+                        // CRITICAL: White ball penalty - prevent cue ball from entering pockets
+                        if (this->index == 0) {
+                            // White ball detected (cue ball, index 0)
+                            // Apply strong rejection force to push it away from pocket
+                            double rejectionForceMagnitude = 150.0; // Strong penalty force
+                            Point2D rejectionDirection = -delta * (1.0 / sqrt(deltaSquare + 1e-10));
+                            this->velocity = this->velocity + (rejectionDirection * rejectionForceMagnitude);
+                            // Don't mark as IN_POCKET - keep it on table
+                        } else {
+                            // Regular ball - mark as pocketed
+                            this->state = ::Ball::State::IN_POCKET;
+                            this->pocketIndex = i;
+                            Prediction::pocketStatus[i] = true;
+                        }
                     }
                 }
             }
@@ -468,67 +504,6 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
         this->spin.nullify();
     }
 }
-
-/* void Prediction::Ball::calcVelocity() {
-    if (!this->isMovingOrSpinning()) {
-        return;
-    }
-    
-    double v15 = BALL_RADIUS * this->spin.x - this->velocity.y;
-    double v16 = -this->velocity.x - this->spin.y * BALL_RADIUS;
-    double v17 = sqrt(v16 * v16 + v15 * v15);
-    double v18 = v17 * 0.0014577259475218659; // _frictionProperties._timeOfequilibriumFactor
-    if (v18 > unk_35B3F80) {
-        double v20 = (v18 < TIME_PER_TICK) ? (v17 * 0.0014577259475218659) : TIME_PER_TICK;
-        double v21 = 196.0 * v20 / v17; // _frictionProperties._velocityReductionSlidingFactor
-        double v22 = v16 * v21;
-        double v23 = v15 * v21;
-        this->velocity.x += v22;
-        this->velocity.y += v23;
-        this->spin.x -= v23 * 0.6578125102783204; // unk_35B3F88 / BALL_RADIUS
-        this->spin.y += v22 * 0.6578125102783204; // unk_35B3F88 / BALL_RADIUS
-    }
-    if (v18 < TIME_PER_TICK) {
-        double v24 = this->velocity.x;
-        double v25 = this->velocity.y;
-        double v27 = (TIME_PER_TICK - v18) * 10.878; // frictionProperties._velocityReductionRollingFactor
-        double v28 = 1.0 - v27 / sqrt(v25 * v25 + v24 * v24);
-        v28 = (v28 < 0.0) ? 0.0 : v28;
-        this->velocity.x = v24 * v28;
-        this->velocity.y = v25 * v28;
-        this->spin.x = v25 * v28 / BALL_RADIUS;
-        this->spin.y = -(v24 * v28) / BALL_RADIUS;
-    }
-    constexpr double v29 = 9.8 * TIME_PER_TICK; // frictionProperties._deltaSpinFactor
-    this->spin.z = (this->spin.z > 0.0) ? fmax(this->spin.z - v29, 0.0) : fmin(this->spin.z + v29, 0.0);
-} */
-
-// DAT_04c8b9a8 2.0E
-// FUN_02b1bb3c
-/* void Prediction::Ball::calcVelocityPostCollision(const double &angle) {
-    double angleCos = round(cos(angle) * 10000.0) / 10000.0;
-    double angleSin = round(sin(angle) * 10000.0) / 10000.0;
-    double velocityX = angleCos * this->velocity.x - angleSin * this->velocity.y;
-    double velocityY = angleSin * this->velocity.x + angleCos * this->velocity.y;
-    double spinFactor = velocityX - BALL_RADIUS * this->spin.z;
-    double absSpinFactor = (spinFactor > 0.0) ? spinFactor : -spinFactor;
-    double velocityFactor = absSpinFactor / 2.5;
-    double absVelocityY = (velocityY > 0.0) ? velocityY : -velocityY;
-    double spinDirection = (spinFactor > 0.0) ? 1.0 : -1.0; // DAT_04c8b9a0 1.0E
-    double minSpinFactor = 0.4 * absVelocityY;
-    if (velocityFactor < minSpinFactor) minSpinFactor = velocityFactor;
-    double spinChange = spinDirection * minSpinFactor;
-    double newVelocityX = velocityX - spinChange / 2.5; // DAT_04c8bc80 2.5E
-    double newVelocityY = -0.804 * velocityY; // -(velocityY * dword_35B7978) // DAT_04cb4410 0.804E
-    this->velocity.x = angleSin * newVelocityY + angleCos * newVelocityX;
-    this->velocity.y = angleCos * newVelocityY - newVelocityX * angleSin;
-    double newSpinX = angleSin * this->spin.x + angleCos * this->spin.y;
-    double newSpinY = angleCos * this->spin.x - angleSin * this->spin.y - velocityY * 0.1420875022201172; // dword_35B7988 / BALL_RADIUS   DAT_04cb4420 0.54E
-    double newSpinZ = this->spin.z + spinChange * 0.6578125102783204; // unk_35B7A28 / BALL_RADIUS
-    this->spin.x = angleSin * newSpinX + angleCos * newSpinY;
-    this->spin.y = angleCos * newSpinX - newSpinY * angleSin;
-    this->spin.z = newSpinZ;
-} */
 
 void Prediction::Ball::move(const double &time) {
     if (this->velocity) {
