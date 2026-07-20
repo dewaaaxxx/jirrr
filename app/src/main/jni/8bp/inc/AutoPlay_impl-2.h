@@ -15,23 +15,6 @@ double normalizeAngle(double angle) {
 }
 
 // AutoPlay.h - di dalam class AutoPlay, bagian public
-static inline bool IsShotValid() {
-    if (AutoPlay::g_CurrentCandidate.idx == -1) return false;
-    if (!gPrediction || !gPrediction->guiData.balls[0].onTable) return false;
-    if (gPrediction->guiData.balls[AutoPlay::g_CurrentCandidate.idx].onTable) return false;
-    
-    uint nominatedPocket = sharedGameManager.getNominatedPocket();
-    if (nominatedPocket < 6 && AutoPlay::g_CurrentCandidate.pocketIndex != nominatedPocket) return false;
-    
-    auto firstHit = gPrediction->guiData.collision.firstHitBall;
-    if (!firstHit) return false;
-    
-    Ball::Classification myclass = sharedGameManager.getPlayerClassification();
-    if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) return false;
-    if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) return false;
-    
-    return true;
-}
 
 static double EaseInOutCubic(double t) {
     return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
@@ -64,11 +47,21 @@ static Point2D lastCuePosWhenAimed = { -1000.0, -1000.0 };
 #define M_PI 3.14159265358979323846
 #endif
 
-static double CalculateRequiredPower(double totalDist) {
-    // AIMX Physics Sync: v = sqrt(2 * a * s) where a = 196.0
-    double p = sqrt(totalDist * 2.0 * 196.0); 
-    if (p < 100.0) p = 100.0; 
-    if (p > 666.0) p = 666.0;
+static double CalculateRequiredPower(double totalDist, double distCG = -1.0) {
+    // Adaptive power: short shots reduced to prevent overshoot,
+    // long shots boosted slightly to compensate rail energy loss.
+    double rawPow = sqrt(2.0 * 196.0 * totalDist);
+    double mult = 1.0;
+    if (distCG >= 0.0 && distCG < 25.0) {
+        mult = 0.62 + (distCG / 25.0) * 0.38;
+    } else if (totalDist > 160.0) {
+        double boost = ((totalDist - 160.0) / 100.0) * 0.18;
+        if (boost > 0.18) boost = 0.18;
+        mult = 1.0 + boost;
+    }
+    double p = rawPow * mult;
+    if (p > 480.0) p = 480.0;
+    if (p < 80.0)  p = 80.0;
     return p;
 }
 
@@ -617,7 +610,7 @@ void AutoPlay::ScanFast(double angleStep) {
                     double angle = atan2(shotLine.y, shotLine.x);
                     if (angle < 0) angle += 2 * M_PI;
                     double score = distCueToTarget + distTargetToPocket;
-                    double power = CalculateRequiredPower(score);
+                    double power = CalculateRequiredPower(score, distCueToTarget);
                     specialRaw.push_back({i, angle, score, pocketIdx, power});
 
 
@@ -874,11 +867,22 @@ void AutoPlay::ScanFast(double angleStep) {
         }
 
         if (gPrediction->guiData.collision.firstHitBall && gPrediction->guiData.balls[0].onTable && isPotted) {
-            // SCRATCH CHECK: Simulation directly tells us if cue ball was potted (onTable=false).
-            // Trust the simulation result - no need for unreliable path-proximity heuristic.
-            // The path-proximity check (81.0 threshold) was causing false positives AND false negatives.
-            raw.power = testPower;
-            evaluatedValid = true;
+            // FIX BUG 1: Cek firstHit classification supaya tidak hit bola lawan dulu
+            auto fh = gPrediction->guiData.collision.firstHitBall;
+            bool firstHitOk = false;
+            if (isNineBallGame) {
+                firstHitOk = (fh->index == raw.idx);
+            } else if (onlyEightBallLeft) {
+                firstHitOk = (fh->index == 8);
+            } else if (myclass == Ball::Classification::ANY) {
+                firstHitOk = (fh->classification != Ball::Classification::EIGHT_BALL);
+            } else {
+                firstHitOk = (fh->classification == myclass);
+            }
+            if (firstHitOk) {
+                raw.power = testPower;
+                evaluatedValid = true;
+            }
         }
         
         // Fallback to calculated power if testPower failed and we are in fast mode
@@ -919,8 +923,19 @@ void AutoPlay::ScanFast(double angleStep) {
             }
 
             if (gPrediction->guiData.collision.firstHitBall && gPrediction->guiData.balls[0].onTable && isPottedFallback) {
-                // SCRATCH CHECK: Same as primary - trust simulation directly.
-                evaluatedValid = true;
+                // FIX BUG 1: firstHit classification check di fallback path juga
+                auto fh = gPrediction->guiData.collision.firstHitBall;
+                bool firstHitOk = false;
+                if (isNineBallGame) {
+                    firstHitOk = (fh->index == raw.idx);
+                } else if (onlyEightBallLeft) {
+                    firstHitOk = (fh->index == 8);
+                } else if (myclass == Ball::Classification::ANY) {
+                    firstHitOk = (fh->classification != Ball::Classification::EIGHT_BALL);
+                } else {
+                    firstHitOk = (fh->classification == myclass);
+                }
+                if (firstHitOk) evaluatedValid = true;
             }
         }
 
@@ -1046,11 +1061,22 @@ void AutoPlay::ScanFast(double angleStep) {
 
         // GENIUS MODE: If we are in standard play and find a valid direct shot, shoot immediately!
         if (!isNineBallGame && (cleanTableMode == CLEAN_OFF || onlyEightBallLeft)) {
+            // FIX BUG 2: cek 8-ball premature SEBELUM shoot
+            // GENIUS MODE dulu langsung return tanpa cek ini → 8-ball masuk premature!
+            bool eightBallPottedHere = false;
+            for (int k = 1; k < gPrediction->guiData.ballsCount; k++) {
+                if (k == 8 && gPrediction->guiData.balls[k].originalOnTable && !gPrediction->guiData.balls[k].onTable) {
+                    eightBallPottedHere = true; break;
+                }
+            }
+            if (eightBallPottedHere && !onlyEightBallLeft) goto skipGeniusMode; // 8-ball masuk premature, skip
+
             fs.isInitiated = false;
             g_CurrentCandidate = cf;
             Shoot(cf.angle, cf.power);
             return;
         }
+        skipGeniusMode:;
 
         fs.evals.push_back({cf, totalPotted, ownPotted, false});
     }
