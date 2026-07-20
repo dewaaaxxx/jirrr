@@ -48,9 +48,7 @@ static Point2D lastCuePosWhenAimed = { -1000.0, -1000.0 };
 #endif
 
 static double CalculateRequiredPower(double totalDist, double distCG = -1.0) {
-    // Adaptive power: short shots reduced to prevent overshoot,
-    // long shots boosted slightly to compensate rail energy loss.
-    double rawPow = sqrt(2.0 * 196.0 * totalDist);
+    double rawPow = sqrt(2.0 * 210.0 * totalDist); // 196 → 210
     double mult = 1.0;
     if (distCG >= 0.0 && distCG < 25.0) {
         mult = 0.62 + (distCG / 25.0) * 0.38;
@@ -60,7 +58,7 @@ static double CalculateRequiredPower(double totalDist, double distCG = -1.0) {
         mult = 1.0 + boost;
     }
     double p = rawPow * mult;
-    if (p > 480.0) p = 480.0;
+    if (p > 600.0) p = 600.0; // 480 → 600
     if (p < 80.0)  p = 80.0;
     return p;
 }
