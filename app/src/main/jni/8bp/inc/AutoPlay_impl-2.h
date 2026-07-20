@@ -909,7 +909,7 @@ void AutoPlay::ScanFast(double angleStep) {
                                      (gPrediction->guiData.balls[i].classification == myclass);
                         if (match && !gPrediction->guiData.balls[i].onTable) {
                             if (nominatedPocket >= 6 || gPrediction->guiData.balls[i].pocketIndex == nominatedPocket) {
-                                isPottedFallback = true;
+                        isPottedFallback = true;
                                 raw.idx = i;
                                 break;
                             }
@@ -1359,17 +1359,18 @@ void AutoPlay::Update() {
             return;
         }
 
-        // State 2: Wait for power slider to complete (slider already started in state 1)
+        // State 2: Fire
         if (fastShotState == 2) {
             gPrediction->forceFullSimulation = true;
     gPrediction->determineShotResult(true, anim_TargetAngle, anim_TargetPower,
                                      sharedGameManager.getShotSpin(), g_CurrentCandidate);
     gPrediction->forceFullSimulation = false;
 
-    // 🔥 TAMBAHKAN DELAY 0.2 DETIK
     if (nowSec() - stateStartTime < 0.2) return;
 
-    // 🔥 LANGSUNG TEMBAK SETELAH DELAY
+    // Set power DULU sebelum trigger
+    setPower(anim_TargetPower);
+    setAimAngle(anim_TargetAngle);
     triggerShot();
 
     stateStartTime = nowSec();
@@ -1672,11 +1673,11 @@ void AutoPlay::Update() {
         // 5. FIRE — langsung pakai triggerShot tanpa animasi slider
         if (humanState == HUM_PULLING) {
             setAimAngle(targetAngle);
-            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+            setPower(pendingShotPower); // set power via game API dulu
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(pendingShotPower));
             triggerShot();
             humanShotLocked = false;
-            ClearState();
-            state = IDLE; humanState = HUM_IDLE;
+            humanState = HUM_IDLE;
             return;
         }
     }
