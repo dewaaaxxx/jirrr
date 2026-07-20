@@ -24,7 +24,7 @@ struct Prediction {
 
     bool forceFullSimulation = false; // true = fastCalc=false + skip cache → simulasi penuh
 
-    bool determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand);
+    bool determineShotResult(bool isAuto, double shotAngle = 0.0, double shotPower = 0.0, Vec2d shotSpin = {0.0, 0.0}, Candidate cand = {-1});
     bool mockPredictShotResult();
 
     struct Ball {
