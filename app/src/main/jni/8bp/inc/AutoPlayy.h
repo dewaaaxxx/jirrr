@@ -56,7 +56,7 @@ public:
     static inline AutoMode currentMode = MODE_OFF;
     static inline NineBallStrategy nineBallStrategy = NINEBALL_SNIPE_9;
     static inline AutomationSpeed automationSpeed = SPEED_FAST;
-    static inline CleanTableMode cleanTableMode = CLEAN_OFF;
+    static inline CleanTableMode cleanTableMode = CLEAN_ALL_BALLS;
     static inline SpinPreset spinPreset = SPIN_CENTER;
     static inline float powerMin = 100.0f;
     static inline float powerMax = 666.0f;
