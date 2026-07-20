@@ -24,7 +24,7 @@ struct Prediction {
 
     bool forceFullSimulation = false; // true = fastCalc=false + skip cache → simulasi penuh
 
-    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = share[...]
+    bool determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand);
     bool mockPredictShotResult();
 
     struct Ball {
