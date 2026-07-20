@@ -22,6 +22,8 @@ struct Prediction {
     Prediction() = default;
     ~Prediction() = default;
 
+    bool forceFullSimulation = false; // true = fastCalc=false + skip cache → simulasi penuh
+
     bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = share[...]
     bool mockPredictShotResult();
 
@@ -95,7 +97,6 @@ struct Prediction {
 
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
-    bool forceFullSimulation = false; // true = fastCalc=false + skip cache → simulasi penuh
 
     void calculateShotResultSize();
     void initBalls();
