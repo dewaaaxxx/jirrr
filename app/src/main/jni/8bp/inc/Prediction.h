@@ -2,7 +2,6 @@
 
 #include "NumberUtils.h"
 #include <array>
-#include <chrono>
 
 #include "GameConstants.h"
 #include <Vector/Vectors.h>
@@ -10,7 +9,6 @@
 
 #include "8bp/Ball.h"
 
-//#include "8bp/inc/AutoPlay.h"
 #include <imgui/inc/persistence.h>
 
 #include "8bp/GameManager.h"
@@ -24,9 +22,7 @@ struct Prediction {
     Prediction() = default;
     ~Prediction() = default;
 
-    static bool forceFullSimulation;
-
-    bool determineShotResult(bool isAuto, double shotAngle = 0.0, double shotPower = 0.0, Vec2d shotSpin = {0.0, 0.0}, Candidate cand = {-1});
+    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin());
     bool mockPredictShotResult();
 
     struct Ball {
@@ -81,7 +77,6 @@ struct Prediction {
         Prediction::Ball *ballA;
         Prediction::Ball *ballB;
         Prediction::Ball *firstHitBall;
-        int railCollisions;
     };
 
     struct SceneData {
@@ -98,9 +93,6 @@ struct Prediction {
     int shotResultSize = 0;
     static float shotResult[MAX_SHOT_RESULT_SIZE];
 
-    bool firstHitIsTarget = false;
-    Candidate m_candidate = {-1};
-
     void calculateShotResultSize();
     void initBalls();
     void initCueBall(double shotAngle, double shotPower, const Point2D& shotSpin);
@@ -112,65 +104,25 @@ struct Prediction {
 };
 
 extern Prediction *gPrediction;
-inline static Prediction prediction;
-inline Prediction *gPrediction = &prediction;
+static Prediction prediction;
+Prediction *gPrediction = &prediction;
 
-inline bool Prediction::pocketStatus[TABLE_POCKETS_COUNT] = {};
-inline float Prediction::shotResult[MAX_SHOT_RESULT_SIZE] = {};
-inline bool Prediction::forceFullSimulation = false;
+bool Prediction::pocketStatus[] = {};
+float Prediction::shotResult[MAX_SHOT_RESULT_SIZE];
 
 static double prevAngle = 0.0;
 static double prevPower = 0.0;
-static bool prevIsAuto = false;
 static Point2D prevSpin = {0.0, 0.0};
-static Point2D prevCuePos = {0.0, 0.0};
-static double prevBallsSum = 0.0;
 
-bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-    extern std::map<std::string, float> persistent_float;
-    static auto lastCalcTime = std::chrono::steady_clock::now();
-    if (!isAuto && !forceFullSimulation) {
-        float targetFps = persistent_float.count(O("fPredictionFps")) ? persistent_float[O("fPredictionFps")] : 30.0f;
-        if (targetFps > 30.0f) targetFps = 30.0f;
-        if (targetFps < 1.0f) targetFps = 1.0f;
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastCalcTime).count();
-        double minInterval = 1000.0 / targetFps;
-        if (elapsed < minInterval) {
-            return false;
-        }
-        lastCalcTime = now;
-    }
+// constexpr double dword_35B7988 = 0.54;
+// constexpr double dword_35B7978 = 0.804;
 
-    Point2D cuePos = {0.0, 0.0};
-    double ballsSum = 0.0;
-    if (sharedGameManager) {
-        Table table = sharedGameManager.mTable;
-        if (table) {
-            auto& balls = table.mBalls();
-            if (balls) {
-                for (int i = 0; i < balls.Count; i++) {
-                    auto pos = balls[i].position();
-                    ballsSum += pos.x + pos.y;
-                }
-                if (balls.Count > 0) {
-                    cuePos = balls[0].position();
-                }
-            }
-        }
-    }
+/* PREDICTION PUBLIC METHODS ==================================================================== */
 
-    if (!forceFullSimulation && shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin && isAuto == prevIsAuto && cuePos == prevCuePos && ballsSum == prevBallsSum)
-        return false;
+bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin) { // returns isShouldReDraw
+    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
-    prevAngle = shotAngle;
-    prevPower = shotPower;
-    prevSpin  = shotSpin;
-    prevIsAuto = isAuto;
-    prevCuePos = cuePos;
-    prevBallsSum = ballsSum;
-
-    this->m_candidate = cand;
     fastCalc = isAuto;
 
     this->initBalls();
@@ -178,7 +130,6 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
     this->guiData.collision.firstHitBall = nullptr;
     
     for (bool &_pocketStatus : pocketStatus) _pocketStatus = false;
-    this->guiData.collision.railCollisions = 0;
 
     this->determineBallsPositions();
     // if (dynamic_bool["isDrawShotStateEnabled", false]) this->determineShotState();
@@ -219,10 +170,6 @@ void Prediction::initBalls() {
         ball.predictedPosition = ball.initialPosition;
         ball.velocity.nullify();
         ball.spin.nullify();
-        ball.pocketIndex = -1; // CRITICAL: Reset pocketIndex every simulation - prevents stale pocket
-                               // data from previous simulation contaminating current one.
-                               // Without this, black ball might retain pocketIndex=3 from simulation N,
-                               // even when simulation N+1 uses a different angle where ball goes elsewhere.
         if (!ball.positions.empty()) ball.positions.clear();
         ball.positions.reserve(20);
         ball.positions.push_back(ball.initialPosition);
@@ -268,17 +215,13 @@ void Prediction::determineBallsPositions() {
             }
             if (this->guiData.collision.valid) {
                 this->handleCollision();
-                if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
-                    this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                    // if (!this->firstHitIsTarget) return; // Removed to enable full combination shots calculations
-                }
             }
             time -= time2;
         } while (time > MIN_TIME);
         isAnyBallMovingOrSpinning = false;
         for (i = 0; i < this->guiData.ballsCount; i++) {
             Ball &ball = this->guiData.balls[i];
-            if (ball.onTable && ball.isMovingOrSpinning()) {
+            if (ball.onTable) {
                 ball.calcVelocity();
                 if (ball.isMovingOrSpinning()) {
                     isAnyBallMovingOrSpinning = true;
@@ -291,17 +234,16 @@ void Prediction::determineBallsPositions() {
 void Prediction::handleCollision() {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    if (!fastCalc || forceFullSimulation) ballA.positions.push_back(ballA.predictedPosition);
+    if (!fastCalc) ballA.positions.push_back(ballA.predictedPosition);
     
     switch (this->guiData.collision.type) {
         case Collision::Type::BALL:
             this->handleBallBallCollision();
-            if (!fastCalc || forceFullSimulation) ballB.positions.push_back(ballB.predictedPosition);
+            if (!fastCalc) ballB.positions.push_back(ballB.predictedPosition);
             if (this->guiData.collision.firstHitBall == nullptr) this->guiData.collision.firstHitBall = &ballB;
             break;
         case Collision::Type::LINE:
             ballA.calcVelocityPostCollision(this->guiData.collision.angle);
-            this->guiData.collision.railCollisions++;
             break;
         default:
             Point2D delta = {
@@ -310,7 +252,6 @@ void Prediction::handleCollision() {
             };
             this->guiData.collision.angle = -NumberUtils::calcAngle(delta);
             ballA.calcVelocityPostCollision(this->guiData.collision.angle);
-            this->guiData.collision.railCollisions++;
             break;
     }
 }
@@ -318,45 +259,20 @@ void Prediction::handleCollision() {
 void Prediction::handleBallBallCollision() const {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    
-    // Physics-based elastic collision with proper momentum transfer
-    // Calculate relative position and normalized collision normal
-    Point2D relativePosition = ballB.predictedPosition - ballA.predictedPosition;
-    double distanceSquared = relativePosition.square();
-    
-    // Prevent division by zero
-    if (distanceSquared < 1e-10) return;
-    
-    double distance = sqrt(distanceSquared);
-    double invDistance = 1.0 / distance;
-    
-    // Collision normal (from ballA to ballB)
-    Point2D normal = relativePosition * invDistance;
-    
-    // Relative velocity of ballA with respect to ballB
-    Point2D relativeVelocity = ballA.velocity - ballB.velocity;
-    
-    // Relative velocity along collision normal (approach velocity)
-    double velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
-    
-    // Only handle collision if balls are approaching
-    if (velocityAlongNormal >= 0.0) return;
-    
-    // For equal mass elastic collision, exchange velocity components along normal
-    // Each ball's velocity along the normal is exchanged
-    Point2D velocityChangeA = normal * (-velocityAlongNormal);
-    
-    // Apply impulse to both balls (equal and opposite)
-    ballA.velocity = ballA.velocity + velocityChangeA;
-    ballB.velocity = ballB.velocity - velocityChangeA;
-    
-    // Apply slight damping to account for energy loss in real collisions
-    constexpr double COLLISION_DAMPING = 0.98;
-    ballA.velocity = ballA.velocity * COLLISION_DAMPING;
-    ballB.velocity = ballB.velocity * COLLISION_DAMPING;
+    Point2D relativePosition = ballA.predictedPosition - ballB.predictedPosition;
+    double invDistance = 1.0 / sqrt(relativePosition.square());
+    Point2D collisionNormal = relativePosition * invDistance;
+    double velocityComponentA = ballA.velocity.x * collisionNormal.x + ballA.velocity.y * collisionNormal.y;
+    double velocityComponentB = ballB.velocity.x * collisionNormal.x + ballB.velocity.y * collisionNormal.y;
+    Point2D velocityA = collisionNormal * velocityComponentA;
+    Point2D velocityB = collisionNormal * velocityComponentB;
+    ballA.velocity.x = velocityB.x - (velocityA.x - ballA.velocity.x);
+    ballA.velocity.y = velocityB.y - (velocityA.y - ballA.velocity.y);
+    ballB.velocity.x = velocityA.x - (velocityB.x - ballB.velocity.x);
+    ballB.velocity.y = velocityA.y - (velocityB.y - ballB.velocity.y);
 }
 
- void Prediction::determineShotState() {
+/* void Prediction::determineShotState() {
     this->guiData.shotState = false;
     // cue ball didn't hit any other ball
     if (this->guiData.collision.firstHitBall == nullptr) {
@@ -366,11 +282,11 @@ void Prediction::handleBallBallCollision() const {
     if (!this->guiData.balls[0].onTable) {
         return;
     }
-    BallEnums::Classification playerClassification = sharedGameManager.getPlayerClassification();
+    ::Ball::Classification playerClassification = MemoryManager::GameManager::getPlayerClassification();
     // 8-ball before break
-    if (playerClassification == BallEnums::ANY) {
+    if (playerClassification == BallClassification::ANY) {
         if (this->guiData.collision.firstHitBall->classification ==
-            BallEnums::EIGHT_BALL) {
+            BallClassification::EIGHT_BALL) {
             return;
         }
         for (int i = 0; i < this->guiData.ballsCount; i++) {
@@ -387,7 +303,7 @@ void Prediction::handleBallBallCollision() const {
             return;
         }
         // 9-ball mode
-        if (playerClassification == BallEnums::NINE_BALL_RULE) {
+        if (playerClassification == BallClassification::NINE_BALL_RULE) {
             for (int i = 1; i < this->guiData.ballsCount; i++) {
                 Ball &ball = this->guiData.balls[i];
                 // ball has been potted during current shot
@@ -400,13 +316,13 @@ void Prediction::handleBallBallCollision() const {
         }
     }
     // 8-ball mode after break
-    if (playerClassification == BallEnums::EIGHT_BALL) {
+    if (playerClassification == BallClassification::EIGHT_BALL) {
         // 8-ball has been potted during current shot
         this->guiData.shotState = !this->guiData.balls[8].onTable;
         return;
     }
     // to only check balls with correct classification
-    int startBall = (playerClassification == BallEnums::SOLID) ? 1 : 9;
+    int startBall = (playerClassification == BallClassification::SOLID) ? 1 : 9;
     for (int i = startBall; i < startBall + 7; i++) {
         Ball &ball = this->guiData.balls[i];
         // any ball except 8-ball has been potted during current shot
@@ -415,7 +331,7 @@ void Prediction::handleBallBallCollision() const {
             return;
         }
     }
-} 
+} */
 
 /* ============================================================================================== */
 
@@ -423,31 +339,7 @@ void Prediction::handleBallBallCollision() const {
 
 /* BALL PUBLIC METHODS ========================================================================== */
 
-#ifndef PREDICTION_HELPERS
-#define PREDICTION_HELPERS
-inline const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
-    static std::array<Point2D, TABLE_POCKETS_COUNT> dynPockets;
-    static bool dynInit = false;
-
-    if (sharedGameManager) {
-        Table table = sharedGameManager.mTable;
-        if (table) {
-            auto props = table.mTableProperties();
-            if (props) {
-                Vec2d* pArr = props.mPockets();
-                if (pArr) {
-                    for (int i = 0; i < 6; i++) {
-                        dynPockets[i] = Point2D(pArr[i].x, pArr[i].y);
-                    }
-                    dynInit = true;
-                    return dynPockets;
-                }
-            }
-        }
-    }
-
-    if (dynInit) return dynPockets;
-
+const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
     static const std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
             Point2D(-130.8, -67.3),
             Point2D(0, -72),
@@ -459,7 +351,7 @@ inline const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
     return POCKET_POSITIONS;
 }
 
-inline const std::array<Point2D, TABLE_SHAPE_SIZE>& getTableShape() {
+const std::array<Point2D, TABLE_SHAPE_SIZE>& getTableShape() {
     static const std::array<Point2D, TABLE_SHAPE_SIZE> TABLE_SHAPE = {
             Point2D(-127, 53.5),
             Point2D(-136.9, 64.1),
@@ -510,9 +402,8 @@ inline const std::array<Point2D, TABLE_SHAPE_SIZE>& getTableShape() {
     };
     return TABLE_SHAPE;
 }
-#endif
 
-inline void Prediction::Ball::findNextCollision(void *pData, double *time) {
+void Prediction::Ball::findNextCollision(void *pData, double *time) {
     auto *data = reinterpret_cast<SceneData *>(pData);
     auto pockets = getPockets();
     // find collisions with other balls
@@ -545,20 +436,9 @@ inline void Prediction::Ball::findNextCollision(void *pData, double *time) {
                     this->velocity.x += delta.x * unkTime;
                     this->velocity.y += delta.y * unkTime;
                     if (deltaSquare < BALL_RADIUS_SQUARE) {
-                        // CRITICAL: White ball penalty - prevent cue ball from entering pockets
-                        if (this->index == 0) {
-                            // White ball detected (cue ball, index 0)
-                            // Apply strong rejection force to push it away from pocket
-                            double rejectionForceMagnitude = 150.0; // Strong penalty force
-                            Point2D rejectionDirection = -delta * (1.0 / sqrt(deltaSquare + 1e-10));
-                            this->velocity = this->velocity + (rejectionDirection * rejectionForceMagnitude);
-                            // Don't mark as IN_POCKET - keep it on table
-                        } else {
-                            // Regular ball - mark as pocketed
-                            this->state = ::Ball::State::IN_POCKET;
-                            this->pocketIndex = i;
-                            Prediction::pocketStatus[i] = true;
-                        }
+                        this->state = ::Ball::State::IN_POCKET;
+                        this->pocketIndex = i;
+                        Prediction::pocketStatus[i] = true;
                     }
                 }
             }
@@ -635,12 +515,12 @@ inline void Prediction::Ball::findNextCollision(void *pData, double *time) {
     this->spin.z = newSpinZ;
 } */
 
-inline void Prediction::Ball::move(const double &time) {
+void Prediction::Ball::move(const double &time) {
     if (this->velocity) {
         this->predictedPosition.x += this->velocity.x * time;
         this->predictedPosition.y += this->velocity.y * time;
         
-        if (!fastCalc || forceFullSimulation) {
+        if (!fastCalc) {
             auto lastIndex = this->positions.size() - 1;
             if (lastIndex > 1) {
                 auto &a = this->positions[lastIndex - 1];
@@ -652,7 +532,7 @@ inline void Prediction::Ball::move(const double &time) {
     }
 }
 
-inline bool Prediction::Ball::isMovingOrSpinning() const {
+bool Prediction::Ball::isMovingOrSpinning() const {
     return bool(this->velocity) || bool(this->spin);
 }
 
@@ -660,7 +540,7 @@ inline bool Prediction::Ball::isMovingOrSpinning() const {
 
 /* BALL PRIVATE METHODS */
 
-#include "Prediction.update2.h"
+#include "Prediction.update.h"
 
 /* bool Prediction::Ball::willCollideWithTable(const double *smallestTime) const {
     double currentX = this->predictedPosition.x;
@@ -689,7 +569,7 @@ inline bool Prediction::Ball::isMovingOrSpinning() const {
             bottomY > TABLE_BOUND_BOTTOM);
 } */
 
-inline void Prediction::Ball::determineBallTableCollision(void *pData, double *smallestTime) {
+void Prediction::Ball::determineBallTableCollision(void *pData, double *smallestTime) {
     double angle;
     auto *data = reinterpret_cast<Prediction::SceneData *>(pData);
     auto tableShape = getTableShape();
