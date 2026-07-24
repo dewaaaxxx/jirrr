@@ -4,7 +4,7 @@
 #include <imgui/imgui.h>
 #include <algorithm>
 #include "ScreenTable.h"
-#include "mod/ButtonClicker.h"
+#include "ButtonClicker.h"
 
 using namespace ImGui;
 
