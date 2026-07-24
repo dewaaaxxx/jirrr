@@ -492,7 +492,10 @@ namespace AutoPlay {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
 
             // CALL 1: verify
+            gPrediction->forceFullSimulation = true;
             gPrediction->determineShotResult(true, angle, cand.power, 0.0, cand);
+            gPrediction->forceFullSimulation = false;
+            
             if (!isLegalPot(cand)) continue;
 
             if (isNineBall) {
