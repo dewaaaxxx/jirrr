@@ -1073,7 +1073,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
-            TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "%s", L("Auto Play Style","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
+           /* TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "%s", L("Auto Play Style","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
             Dummy(ImVec2(0, 8));
             
             int curMode = persistent_int["iAutoPlayMode"];
@@ -1103,7 +1103,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             
                 PopStyleColor(3);
             }
-            PopStyleVar();
+            PopStyleVar();*/
             break;
         }
         case 2: { 
