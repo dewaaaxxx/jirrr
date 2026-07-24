@@ -115,6 +115,8 @@ struct Prediction {
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
 
+    bool forceFullSimulation = false;
+
     void calculateShotResultSize();
     void initBalls();
     void initCueBall(double shotAngle, double shotPower, const Point2D& shotSpin);
@@ -142,11 +144,13 @@ static Point2D prevSpin = {0.0, 0.0};
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    if (!forceFullSimulation) {
+        if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    }
     prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
     this->m_candidate = cand;
-    fastCalc = isAuto;
+    fastCalc = forceFullSimulation ? false : isAuto;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -261,7 +265,7 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                    if (!this->firstHitIsTarget) return;
+                    if (!this->firstHitIsTarget && !this->forceFullSimulation) return;
                 }
             }
             time -= time2;
