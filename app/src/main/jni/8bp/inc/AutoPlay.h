@@ -94,7 +94,7 @@ namespace AutoPlay {
     // ── Scene Snapshot: capture ball positions once per turn, reuse for all
     // simulation calls in ScanFast/ScanSlow. Eliminates repeated game-memory
     // reads that are the primary cause of FPS stutter during scanning.
- /*   void TakeSnapshot() {
+    void TakeSnapshot() {
         g_useSnapshot = false;
         g_sceneSnapshot.valid = false;
         Table table = sharedGameManager.mTable;
@@ -120,7 +120,7 @@ namespace AutoPlay {
         }
         g_sceneSnapshot.valid = true;
         g_useSnapshot         = true;
-    }*/
+    }
 
     // ── Auto-power: reduce for close shots (prevent overshoot),
     // boost slightly for long rail shots (ensure ball reaches pocket).
@@ -674,8 +674,8 @@ namespace AutoPlay {
                 scan = FAST;
                 lastFailedCuePos = { -1000.0, -1000.0 };
                 // Release snapshot — turn is over, game memory is stale
-         //       g_useSnapshot        = false;
-          //      g_sceneSnapshot.valid = false;
+                g_useSnapshot        = false;
+                g_sceneSnapshot.valid = false;
             }
             return;
         }
@@ -686,7 +686,7 @@ namespace AutoPlay {
             // Capture ball positions once per turn — all simulation calls in
             // ScanFast / ScanSlow reuse this snapshot instead of reading game
             // memory repeatedly, eliminating the per-frame FPS stutter.
-       //     TakeSnapshot();
+            TakeSnapshot();
             ScanFast();  // Immediate — find shot in SAME frame, no 1-frame gap
         } else if (state == SCANNING) {
             // Safety net: reached only if ScanFast above failed (scan = SLOW)
