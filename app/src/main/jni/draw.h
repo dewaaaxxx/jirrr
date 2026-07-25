@@ -344,7 +344,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (persistent_bool[O("bESP_DrawPockets")]) {
             for (int i = 0; i < 6; i++) {
                 auto screenPos = WorldToScreen(pockets[i]);
-                draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 40, WHITE, 0, 3.f);
+                draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, WHITE, 0, 3.f);
             }
         }
 
@@ -361,33 +361,49 @@ INLINE void DrawESP(ImDrawList* draw) {
             for (int i = 0; i < 6; i++) {
                 if (Prediction::pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
-                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 40, GREEN, 0, 5.f);
+                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
                 }
             }
         }
 
+        float lineThick = persistent_float["fLineThick"];
+
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
+        
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
+                    if (lineThick < 1.f) lineThick = 1.f;
+                    
+                    bool isStripe = (i >= 9 && i <= 15);
+                    
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], 10.f);
+                        if (lastPos.x || lastPos.y) {
+                            draw->AddLine(lastPos, point, colors[i], lineThick);
+                            if (isStripe && j % 2 == 0) {  // ← PUTUS-PUTUS
+                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 180), lineThick * 0.4f);
+                            }
+                        }
                         lastPos = point;
                     }
                 }
             }
         }
-
+        
+        // ================================================================
+        // GAMBAR LINGKARAN PREDICTION (TETAP SAMA)
+        // ================================================================
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
+        
                 if (ball.initialPosition != ball.predictedPosition) {
-                    draw->AddCircle(WorldToScreen(ball.initialPosition), 20, colors[i], 0, 6.f);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
+                    float circleR = lineThick + 1.f;
+                    if (circleR < 2.f) circleR = 2.f;
+                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
         }
@@ -514,6 +530,20 @@ static void DrawContentArea(float sidebarW, float winW, float winH) {
             need_save |= ToggleSwitch(O("Draw Pockets"), &persistent_bool[O("bESP_DrawPockets")]);
             Dummy(ImVec2(0, 8));
             need_save |= ToggleSwitch(O("Draw Shot State"), &persistent_bool[O("bESP_DrawPocketsShotState")]);
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Line Thickness"));
+            Dummy(ImVec2(0, 8));
+            {
+                if (persistent_int[O("iLineThickness")] < 1) persistent_int[O("iLineThickness")] = 4;
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));       // ← ganti jadi magenta
+                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));  // ← ganti jadi magenta
+                SetNextItemWidth(GetContentRegionAvail().x);
+                need_save |= SliderInt(O("##lineThick"), &persistent_int[O("iLineThickness")], 1, 10, "%d");
+                PopStyleColor(3);
+                PopStyleVar(2);
+            }
             break;
         }
         case 1: {
@@ -522,6 +552,40 @@ static void DrawContentArea(float sidebarW, float winW, float winH) {
             Dummy(ImVec2(0, 25));
             TextColored(ImVec4(0.65f, 0.65f, 0.7f, 1.0f), O("Auto play will automatically"));
             TextColored(ImVec4(0.65f, 0.65f, 0.7f, 1.0f), O("aim and shoot for you"));
+            Dummy(ImVec2(0, 10));
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), "Scan Speed");
+            Dummy(ImVec2(0, 6));
+        
+            // Pilihan combo
+            const char* speedItems[] = {
+                GameSpeed::SPEED_CONFIGS[0].name,
+                GameSpeed::SPEED_CONFIGS[1].name,
+                GameSpeed::SPEED_CONFIGS[2].name,
+                GameSpeed::SPEED_CONFIGS[3].name
+            };
+        
+            // Combo box
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 8));
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+            PushStyleColor(ImGuiCol_Button,        ImVec4(0.12f, 0.25f, 0.5f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.30f, 0.6f, 1.0f));
+            PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        
+            SetNextItemWidth(GetContentRegionAvail().x);
+            if (Combo("##GameSpeedCombo", (int*)&GameSpeed::currentSpeed, speedItems, 4)) {
+                // Saat speed berubah, update steps di ScanSlow
+                switch (GameSpeed::currentSpeed) {
+                    case GameSpeed::SLOW:      AutoPlay::scanSteps = 4;  break;
+                    case GameSpeed::NORMAL:    AutoPlay::scanSteps = 8;  break;
+                    case GameSpeed::FAST:      AutoPlay::scanSteps = 12; break;
+                    case GameSpeed::VERY_FAST: AutoPlay::scanSteps = 20; break;
+                }
+            }
+        
+            PopStyleColor(5);
+            PopStyleVar(2);
             break;
         }
         case 2: {
