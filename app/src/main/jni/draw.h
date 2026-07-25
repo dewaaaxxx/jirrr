@@ -553,39 +553,31 @@ static void DrawContentArea(float sidebarW, float winW, float winH) {
             TextColored(ImVec4(0.65f, 0.65f, 0.7f, 1.0f), O("Auto play will automatically"));
             TextColored(ImVec4(0.65f, 0.65f, 0.7f, 1.0f), O("aim and shoot for you"));
             Dummy(ImVec2(0, 10));
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), "Scan Speed");
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Game Speed"));
             Dummy(ImVec2(0, 6));
-        
-            // Pilihan combo
+
             const char* speedItems[] = {
-                GameSpeed::SPEED_CONFIGS[0].name,
-                GameSpeed::SPEED_CONFIGS[1].name,
-                GameSpeed::SPEED_CONFIGS[2].name,
-                GameSpeed::SPEED_CONFIGS[3].name
-            };
-        
-            // Combo box
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 8));
-            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
-            PushStyleColor(ImGuiCol_Button,        ImVec4(0.12f, 0.25f, 0.5f, 1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.30f, 0.6f, 1.0f));
-            PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-        
-            SetNextItemWidth(GetContentRegionAvail().x);
-            if (Combo("##GameSpeedCombo", (int*)&GameSpeed::currentSpeed, speedItems, 4)) {
-                // Saat speed berubah, update steps di ScanSlow
-                switch (GameSpeed::currentSpeed) {
-                    case GameSpeed::SLOW:      AutoPlay::scanSteps = 4;  break;
-                    case GameSpeed::NORMAL:    AutoPlay::scanSteps = 8;  break;
-                    case GameSpeed::FAST:      AutoPlay::scanSteps = 12; break;
-                    case GameSpeed::VERY_FAST: AutoPlay::scanSteps = 20; break;
-                }
-            }
-        
-            PopStyleColor(5);
-            PopStyleVar(2);
+               GameSpeed::SPEED_CONFIGS[0].name,
+        GameSpeed::SPEED_CONFIGS[1].name,
+        GameSpeed::SPEED_CONFIGS[2].name,
+        GameSpeed::SPEED_CONFIGS[3].name
+    };
+
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+    PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 8));
+    PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+    PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+    PushStyleColor(ImGuiCol_Button,        ImVec4(0.12f, 0.25f, 0.5f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.30f, 0.6f, 1.0f));
+    PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    SetNextItemWidth(GetContentRegionAvail().x);
+    if (Combo("##GameSpeedCombo", (int*)&GameSpeed::currentSpeed, speedItems, 4)) {
+        LOGI("Game speed changed to: %s", GameSpeed::getCurrentSpeedName());
+    }
+
+    PopStyleColor(5);
+    PopStyleVar(2);
             break;
         }
         case 2: {
