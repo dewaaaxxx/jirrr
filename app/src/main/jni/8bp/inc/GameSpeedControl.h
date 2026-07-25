@@ -22,10 +22,10 @@ namespace GameSpeed {
     };
     
     static const SpeedSettings SPEED_CONFIGS[] = {
-        { "🐢 Slow",      0.5f,  0.016f, 800.0f },   // 50% speed
-        { "▶️ Normal",     1.0f,  0.016f, 500.0f },   // 100% speed
-        { "⏩ Fast",       1.5f,  0.012f, 300.0f },   // 150% speed
-        { "⚡ Very Fast",  2.0f,  0.008f, 150.0f }    // 200% speed
+        { "Slow",      0.5f,  0.016f, 800.0f },   // 50% speed
+        { "Normal",     1.0f,  0.016f, 500.0f },   // 100% speed
+        { "Fast",       1.5f,  0.012f, 300.0f },   // 150% speed
+        { "Very Fast",  2.0f,  0.008f, 150.0f }    // 200% speed
     };
     
     static SpeedMode currentSpeed = NORMAL;
