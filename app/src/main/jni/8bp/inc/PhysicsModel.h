@@ -6,8 +6,8 @@
 // 🎱 Enhanced Physical Model for 8 Ball Pool
 namespace Physics {
     // Ball physics constants
-    constexpr double BALL_RADIUS = 0.028575; // Standard 8-ball radius (57.15mm diameter)
-    constexpr double TABLE_FRICTION = 0.1; // Sliding friction coefficient
+    constexpr double BALL_RADIUS = 3.800475; // Standard 8-ball radius (57.15mm diameter)
+    constexpr double TABLE_FRICTION = 196.0; // Sliding friction coefficient
     constexpr double ROLLING_FRICTION = 0.01; // Rolling friction
     constexpr double RESTITUTION = 0.95; // Coefficient of restitution (bounciness)
     constexpr double SPIN_FACTOR = 0.5; // How much spin affects ball trajectory
@@ -81,7 +81,7 @@ namespace Physics {
     inline double calculatePowerForDistance(double distance) {
         // Physics: v² = 2 * a * s
         // a = friction deceleration
-        double deceleration = 9.81 * TABLE_FRICTION;
+        double deceleration = TABLE_FRICTION;
         double requiredVelocity = std::sqrt(2.0 * deceleration * distance);
         return requiredVelocity;
     }
