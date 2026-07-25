@@ -548,7 +548,7 @@ bool Prediction::Ball::isMovingOrSpinning() const {
 
 /* BALL PRIVATE METHODS */
 
-#include "Prediction.Physics.Fixed.h"
+#include "Prediction.update.h"
 
 /* bool Prediction::Ball::willCollideWithTable(const double *smallestTime) const {
     double currentX = this->predictedPosition.x;
