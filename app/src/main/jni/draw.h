@@ -533,14 +533,14 @@ static void DrawContentArea(float sidebarW, float winW, float winH) {
             TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Line Thickness"));
             Dummy(ImVec2(0, 8));
             {
-                if (persistent_int[O("fLineThick")] < 1) persistent_int[O("fLineThick")] = 4;
+                if (persistent_float[O("fLineThick")] < 1) persistent_float[O("fLineThick")] = 4;
                 PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
                 PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
                 PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
                 PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));       // ← ganti jadi magenta
                 PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));  // ← ganti jadi magenta
                 SetNextItemWidth(GetContentRegionAvail().x);
-                need_save |= SliderInt(O("##lineThick"), &persistent_int[O("fLineThick")], 1, 10, "%d");
+                need_save |= SliderFloat(O("##lineThick"), &persistent_float[O("fLineThick")], 1, 10, "%d");
                 PopStyleColor(3);
                 PopStyleVar(2);
             }
@@ -939,7 +939,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawFloatingButton(io);
         DrawMenu(io);
         // 🎮 Draw speed control buttons at the top
-        GameSpeed::Draw();
+       // GameSpeed::Draw();
     } else {
         DrawLogin(io);
     }
