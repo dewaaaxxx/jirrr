@@ -16,25 +16,6 @@
 static Vec4d table_bounds;
 static bool fastCalc = true;
 
-struct SceneSnapshot {
-    int ballsCount = 0;
-    struct BallData {
-        int index;
-        ::Ball::Classification classification;
-        ::Ball::State state;
-        bool originalOnTable;
-        Point2D position;
-    } balls[MAX_BALLS_COUNT];
-    Vec4d tableBounds;
-    // FIX-4: Capture real pocket positions from game memory instead of hardcoded values.
-    // Different table types (VIP, Premium) have different pocket positions.
-    Point2D pockets[TABLE_POCKETS_COUNT];
-    bool hasPockets = false;
-    bool valid = false;
-};
-static SceneSnapshot g_sceneSnapshot;
-static thread_local bool g_useSnapshot = false;
-
 struct Prediction {
     static bool pocketStatus[TABLE_POCKETS_COUNT];
 
@@ -115,8 +96,6 @@ struct Prediction {
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
 
-    bool forceFullSimulation = false;
-
     void calculateShotResultSize();
     void initBalls();
     void initCueBall(double shotAngle, double shotPower, const Point2D& shotSpin);
@@ -144,13 +123,11 @@ static Point2D prevSpin = {0.0, 0.0};
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-    if (!forceFullSimulation) {
-        if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
-    }
+    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
     prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
     this->m_candidate = cand;
-    fastCalc = forceFullSimulation ? false : isAuto;
+    fastCalc = isAuto;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -176,27 +153,6 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
 /* PREDICTION PRIVATE METHODS =================================================================== */
 
 void Prediction::initBalls() {
-    
-    if (g_useSnapshot && g_sceneSnapshot.valid) {
-        table_bounds = g_sceneSnapshot.tableBounds;
-        this->guiData.ballsCount = g_sceneSnapshot.ballsCount;
-        for (int i = 0; i < this->guiData.ballsCount; i++) {
-            Ball &ball = this->guiData.balls[i];
-            const auto &src = g_sceneSnapshot.balls[i];
-            ball.index       = src.index;
-            ball.state       = src.state;
-            ball.originalOnTable = src.originalOnTable;
-            ball.onTable     = src.originalOnTable;
-            ball.classification = src.classification;
-            ball.initialPosition  = src.position;
-            ball.predictedPosition = src.position;
-            ball.velocity.nullify();
-            ball.spin.nullify();
-            ball.positions.clear();
-        }
-        return;
-    }
-    
     Table table = sharedGameManager.mTable;
     if (!table) return;
     
@@ -265,7 +221,7 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                    if (!this->firstHitIsTarget && !this->forceFullSimulation) return;
+                    if (!this->firstHitIsTarget) return;
                 }
             }
             time -= time2;
@@ -392,7 +348,7 @@ void Prediction::handleBallBallCollision() const {
 /* BALL PUBLIC METHODS ========================================================================== */
 
 const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
-    static std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
+    static const std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
             Point2D(-130.8, -67.3),
             Point2D(0, -72),
             Point2D(130.8, -67.3),
@@ -400,10 +356,6 @@ const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
             Point2D(0, 72),
             Point2D(-130.8, 67.3)
     };
-    if (g_useSnapshot && g_sceneSnapshot.hasPockets) {
-        for (int i = 0; i < TABLE_POCKETS_COUNT; i++)
-            POCKET_POSITIONS[i] = g_sceneSnapshot.pockets[i];
-    }
     return POCKET_POSITIONS;
 }
 
@@ -596,7 +548,7 @@ bool Prediction::Ball::isMovingOrSpinning() const {
 
 /* BALL PRIVATE METHODS */
 
-#include "Prediction.update.h"
+#include "Prediction.Physics.Fixed.h"
 
 /* bool Prediction::Ball::willCollideWithTable(const double *smallestTime) const {
     double currentX = this->predictedPosition.x;
