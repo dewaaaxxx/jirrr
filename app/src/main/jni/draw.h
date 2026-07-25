@@ -426,14 +426,14 @@ static void DrawSidebar(float sidebarW, float winH) {
     Dummy(ImVec2(sidebarW, 5));
     SetCursorPosX(25);
     
-    PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.75f, 1.0f, 1.0f));
+    PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));
     SetWindowFontScale(1.2f);
     Text(O("CM"));
     SetWindowFontScale(1.0f);
     PopStyleColor();
     
     SetCursorPosX(25);
-    TextColored(ImVec4(0.55f, 0.55f, 0.6f, 1.0f), O("Vip Version  v1.0"));
+    TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), O("PREMIUM"));
     
     Dummy(ImVec2(sidebarW, 35));
     
@@ -533,14 +533,14 @@ static void DrawContentArea(float sidebarW, float winW, float winH) {
             TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Line Thickness"));
             Dummy(ImVec2(0, 8));
             {
-                if (persistent_int[O("iLineThickness")] < 1) persistent_int[O("iLineThickness")] = 4;
+                if (persistent_int[O("fLineThick")] < 1) persistent_int[O("fLineThick")] = 4;
                 PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
                 PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
                 PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
                 PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));       // ← ganti jadi magenta
                 PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1.0f, 0.0f, 0.75f, 1.0f));  // ← ganti jadi magenta
                 SetNextItemWidth(GetContentRegionAvail().x);
-                need_save |= SliderInt(O("##lineThick"), &persistent_int[O("iLineThickness")], 1, 10, "%d");
+                need_save |= SliderInt(O("##lineThick"), &persistent_int[O("fLineThick")], 1, 10, "%d");
                 PopStyleColor(3);
                 PopStyleVar(2);
             }
@@ -553,31 +553,31 @@ static void DrawContentArea(float sidebarW, float winW, float winH) {
             TextColored(ImVec4(0.65f, 0.65f, 0.7f, 1.0f), O("Auto play will automatically"));
             TextColored(ImVec4(0.65f, 0.65f, 0.7f, 1.0f), O("aim and shoot for you"));
             Dummy(ImVec2(0, 10));
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Game Speed"));
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Scan Speed"));
             Dummy(ImVec2(0, 6));
-
+        
             const char* speedItems[] = {
-               GameSpeed::SPEED_CONFIGS[0].name,
-        GameSpeed::SPEED_CONFIGS[1].name,
-        GameSpeed::SPEED_CONFIGS[2].name,
-        GameSpeed::SPEED_CONFIGS[3].name
-    };
-
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-    PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 8));
-    PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-    PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
-    PushStyleColor(ImGuiCol_Button,        ImVec4(0.12f, 0.25f, 0.5f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.30f, 0.6f, 1.0f));
-    PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-
-    SetNextItemWidth(GetContentRegionAvail().x);
-    if (Combo("##GameSpeedCombo", (int*)&GameSpeed::currentSpeed, speedItems, 4)) {
-        LOGI("Game speed changed to: %s", GameSpeed::getCurrentSpeedName());
-    }
-
-    PopStyleColor(5);
-    PopStyleVar(2);
+                GameSpeed::SPEED_CONFIGS[0].name,
+                GameSpeed::SPEED_CONFIGS[1].name,
+                GameSpeed::SPEED_CONFIGS[2].name,
+                GameSpeed::SPEED_CONFIGS[3].name
+            };
+        
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 8));
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+            PushStyleColor(ImGuiCol_Button,        ImVec4(0.12f, 0.25f, 0.5f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.30f, 0.6f, 1.0f));
+            PushStyleColor(ImGuiCol_Text,          ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+        
+            SetNextItemWidth(GetContentRegionAvail().x);
+            if (Combo("##GameSpeedCombo", (int*)&GameSpeed::currentSpeed, speedItems, 4)) {
+                LOGI("Game speed changed to: %s", GameSpeed::getCurrentSpeedName());
+            }
+        
+            PopStyleColor(5);
+            PopStyleVar(2);
             break;
         }
         case 2: {
