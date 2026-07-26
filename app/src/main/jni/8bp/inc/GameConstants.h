@@ -57,6 +57,7 @@ struct Candidate {
     double score;
     int pocketIndex;
     double power;
+    double geomScore;
     bool operator<(const Candidate& other) const {
         return score < other.score;
     }
