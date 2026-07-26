@@ -20,7 +20,7 @@ extern PowerSlider powerSlider;
 #include "../../include/external/Vector/Vectors.h"
 #include "imgui/imgui.h"
 #include "GameConstants.h"
-#include "Ball.h"
+#include "8bp/Ball.h"
 
 // ==================== تعريف Candidate من GameConstants.h ====================
 // ملاحظة: Candidate معرف في GameConstants.h، لا نعيد تعريفه هنا!
