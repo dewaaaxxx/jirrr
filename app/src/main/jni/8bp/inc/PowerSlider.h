@@ -1,17 +1,19 @@
 #pragma once
 
 #include "include/input.h"
-//#include "AutoPlay.impl.h"
+
+extern struct Candidate;
+extern Candidate g_CurrentCandidate;
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
 
-//extern bool IsShotValid();
+extern Point2D lastFailedCuePos;
+
+extern bool IsShotValid();
 
 struct PowerSlider {
     bool Active = false;
-    float TargetPower = 0.5f;
-    float CurrentPower = 0.0f;
     float ElapsedTime = 0.f, Duration = 0.f;
     float HoldTime = 0.f, HoldDuration = 0.f;
     ImVec2 StartPos;
@@ -20,7 +22,7 @@ struct PowerSlider {
     ImVec2 CurrentPos;
 
     float ShotPower = 666.0f;
-    int TouchIndex = 8; // High touch index
+    int TouchIndex = 10; // High touch index
 
     enum State {
         IDLE,
@@ -51,7 +53,7 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        AutoPlay::g_CurrentCandidate.idx = -1;
+        g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
@@ -65,8 +67,8 @@ struct PowerSlider {
         this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
 
-        AutoPlay::g_CurrentCandidate.idx = -1;
-        AutoPlay::lastFailedCuePos = { -1000.0, -1000.0 };
+        g_CurrentCandidate.idx = -1;
+        lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
     
@@ -134,12 +136,12 @@ struct PowerSlider {
         if (this->state == ENDING) {
             this->HoldTime += dt;
             if (this->HoldTime >= this->HoldDuration) {
-               // if (IsShotValid()) {
+                if (IsShotValid()) {
                     this->End();
-              //  } else {
-        //            LOGI("Shot invalid before release. Canceling.");
-      //              this->Cancel();
-             //   }
+                } else {
+                    LOGI("Shot invalid before release. Canceling.");
+                    this->Cancel();
+                }
             }
         }
 
