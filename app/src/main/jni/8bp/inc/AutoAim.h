@@ -1,10 +1,9 @@
 #pragma once
 
-#include "Prediction.fast.h" // 🌟 الحل: الربط الصافي مع النسخة السريعة لمنع التكرار
+#include "Prediction.fast.h"
 #include <imgui/imgui.h>
-
-using namespace ImGui;
-
+#include <algorithm>
+#include <cmath>
 
 using namespace ImGui;
 
