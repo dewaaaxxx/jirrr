@@ -8,6 +8,9 @@ extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 
+inline Candidate g_CurrentCandidate = {-1, 0.0, 0.0, -1, 0.0, 0.0};
+inline Point2D lastFailedCuePos = {-1000.0, -1000.0};
+
 // --- Static Helpers ---
 static double EaseInOutCubic(double t) {
     return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
