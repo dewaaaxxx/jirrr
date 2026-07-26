@@ -2084,7 +2084,6 @@ for (int i = 12; i > 0; i--) {
                 persistent_string["key"] = "";
                 logged_in = false;
                 bValid = false;
-                keylogger_active = false;
                 g_Token = "";
                 g_Auth = "";
                 save_persistence();
