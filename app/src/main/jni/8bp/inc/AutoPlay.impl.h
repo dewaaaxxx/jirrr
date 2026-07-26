@@ -2,6 +2,7 @@
 #include "8bp/GameManager.h"
 #include "Prediction.h"
 #include "ButtonClicker.h"
+#include "ScreenTable.h"
 extern ButtonClicker buttonClicker;
 #include "PowerSlider.h"
 extern PowerSlider powerSlider;
