@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 #include <cmath>
