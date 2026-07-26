@@ -36,10 +36,9 @@ static Point2D lastCuePosWhenAimed = { -1000.0, -1000.0 };
 #define M_PI 3.14159265358979323846
 #endif
 
-inline Candidate g_CurrentCandidate = {-1, 0.0, 0.0, -1, 0.0, 0.0};
-inline Point2D lastFailedCuePos = {-1000.0, -1000.0};
-
 struct AutoPlay {
+    inline Candidate g_CurrentCandidate = {-1, 0.0, 0.0, -1, 0.0, 0.0};
+    inline Point2D lastFailedCuePos = {-1000.0, -1000.0};
     enum State {
         IDLE,
         SCANNING,
