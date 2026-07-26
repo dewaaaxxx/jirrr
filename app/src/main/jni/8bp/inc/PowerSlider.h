@@ -10,7 +10,7 @@ extern Candidate g_CurrentCandidate;
 
 extern Point2D lastFailedCuePos;
 
-extern bool IsShotValid();
+//extern bool IsShotValid();
 
 struct PowerSlider {
     bool Active = false;
@@ -53,7 +53,7 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        g_CurrentCandidate.idx = -1;
+        AutoPlay::g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
@@ -67,8 +67,8 @@ struct PowerSlider {
         this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
 
-        g_CurrentCandidate.idx = -1;
-        lastFailedCuePos = { -1000.0, -1000.0 };
+        AutoPlay::g_CurrentCandidate.idx = -1;
+        AutoPlay::lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
     
@@ -136,11 +136,11 @@ struct PowerSlider {
         if (this->state == ENDING) {
             this->HoldTime += dt;
             if (this->HoldTime >= this->HoldDuration) {
-                if (IsShotValid()) {
+               // if (IsShotValid()) {
                     this->End();
-                } else {
-                    LOGI("Shot invalid before release. Canceling.");
-                    this->Cancel();
+              //  } else {
+              //      LOGI("Shot invalid before release. Canceling.");
+                //    this->Cancel();
                 }
             }
         }
