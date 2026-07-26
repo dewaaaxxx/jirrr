@@ -53,7 +53,7 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        AutoPlay::g_CurrentCandidate.idx = -1;
+        g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
@@ -67,8 +67,8 @@ struct PowerSlider {
         this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
 
-        AutoPlay::g_CurrentCandidate.idx = -1;
-        AutoPlay::lastFailedCuePos = { -1000.0, -1000.0 };
+        g_CurrentCandidate.idx = -1;
+        lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
     
@@ -141,7 +141,7 @@ struct PowerSlider {
               //  } else {
               //      LOGI("Shot invalid before release. Canceling.");
                 //    this->Cancel();
-                }
+              //  }
             }
         }
 
