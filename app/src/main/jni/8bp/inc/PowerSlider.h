@@ -119,7 +119,7 @@ struct PowerSlider {
 
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
-                return Cancel();
+            //    return Cancel();
                 // Ensure we hit the target exactly
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
@@ -140,22 +140,21 @@ struct PowerSlider {
     }
 }
         if (this->state == RETURNING) {
-            this->ElapsedTime += dt;
+    this->ElapsedTime += dt;
 
-            if (this->ElapsedTime < this->Duration) {
-                float t = this->ElapsedTime / this->Duration;
-                // Interpolate from EndPos (captured CurrentPos) to TargetPos (StartPos)
-                this->CurrentPos = ImVec2(
-                    this->EndPos.x + (this->TargetPos.x - this->EndPos.x) * t,
-                    this->EndPos.y + (this->TargetPos.y - this->EndPos.y) * t
-                );
-                NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
-            } else {
-                // Finished returning
-                this->CurrentPos = this->TargetPos;
-    NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
-    this->state = ENDING;
-            }
+    if (this->ElapsedTime < this->Duration) {
+        float t = this->ElapsedTime / this->Duration;
+        this->CurrentPos = ImVec2(
+            this->EndPos.x + (this->TargetPos.x - this->EndPos.x) * t,
+            this->EndPos.y + (this->TargetPos.y - this->EndPos.y) * t
+        );
+        NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
+    } else {
+        this->CurrentPos = this->TargetPos;
+        NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
+        End(); // bukan state = ENDING
+    }
+        }
 
             if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
