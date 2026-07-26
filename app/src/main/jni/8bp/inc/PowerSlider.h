@@ -76,7 +76,7 @@ struct PowerSlider {
     void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
         if (this->Active) return;
         
-        ShotPower = 666.f;
+       // ShotPower = 666.f;
         this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
         float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
         
@@ -134,17 +134,11 @@ struct PowerSlider {
         }
 
         if (this->state == ENDING) {
-            this->HoldTime += dt;
-            if (this->HoldTime >= this->HoldDuration) {
-               // if (IsShotValid()) {
-                    this->End();
-              //  } else {
-              //      LOGI("Shot invalid before release. Canceling.");
-                //    this->Cancel();
-              //  }
-            }
-        }
-
+    this->HoldTime += dt;
+    if (this->HoldTime >= this->HoldDuration) {
+        this->End();
+    }
+}
         if (this->state == RETURNING) {
             this->ElapsedTime += dt;
 
@@ -159,8 +153,8 @@ struct PowerSlider {
             } else {
                 // Finished returning
                 this->CurrentPos = this->TargetPos;
-                NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
-                End();
+    NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
+    this->state = ENDING;
             }
 
             if (dynamic_bool["DebugTouch"]) {
