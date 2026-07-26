@@ -15,6 +15,7 @@
 
 static Vec4d table_bounds;
 static bool fastCalc = true;
+inline bool gForceFullSimulation = false;
 
 struct Prediction {
     static bool pocketStatus[TABLE_POCKETS_COUNT];
@@ -22,7 +23,7 @@ struct Prediction {
     Prediction() = default;
     ~Prediction() = default;
 
-    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin());
+    bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin(), Candidate cand = {-1});
     bool mockPredictShotResult();
 
     struct Ball {
@@ -93,6 +94,9 @@ struct Prediction {
     int shotResultSize = 0;
     static float shotResult[MAX_SHOT_RESULT_SIZE];
 
+    bool firstHitIsTarget = false;
+    Candidate m_candidate = {-1};
+
     void calculateShotResultSize();
     void initBalls();
     void initCueBall(double shotAngle, double shotPower, const Point2D& shotSpin);
@@ -119,11 +123,12 @@ static Point2D prevSpin = {0.0, 0.0};
 
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
-bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin) { // returns isShouldReDraw
+bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
     if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
     prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
-    fastCalc = isAuto;
+    this->m_candidate = cand;
+    fastCalc = isAuto && !gForceFullSimulation;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -215,6 +220,10 @@ void Prediction::determineBallsPositions() {
             }
             if (this->guiData.collision.valid) {
                 this->handleCollision();
+                if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
+                    this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
+                    if (!this->firstHitIsTarget) return;
+                }
             }
             time -= time2;
         } while (time > MIN_TIME);
@@ -420,7 +429,7 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
     }
     if (this->willCollideWithTable(time)) {
         if (this->state == ::Ball::State::IN_POCKET) {
-            double unkTime = *time * F(double, libmain + 0x4dae0b8); //  1.5E
+            double unkTime = *time * 1.5; // F(double, libmain + 0x4dae0b8);
             this->velocity.x -= this->predictedPosition.x * unkTime;
             this->velocity.y -= this->predictedPosition.y * unkTime;
         } else if (this->state == ::Ball::State::DEFAULT) { // check if this ball is potted
@@ -432,7 +441,7 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
                 delta.y = pockets[i].y - this->predictedPosition.y;
                 deltaSquare = delta.x * delta.x + delta.y * delta.y;
                 if (deltaSquare < POCKET_RADIUS_SQUARE) {
-                    unkTime = *time * F(double, libmain + 0x4dae0c0); // 120.0E
+                    unkTime = *time * 120.0; // F(double, libmain + 0x4dae0c0);
                     this->velocity.x += delta.x * unkTime;
                     this->velocity.y += delta.y * unkTime;
                     if (deltaSquare < BALL_RADIUS_SQUARE) {
