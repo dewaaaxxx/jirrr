@@ -1,6 +1,6 @@
 #pragma once
 
-#include "8bp/inc/Prediction.fast.h"
+#include "8bp/inc/Prediction.h"
 
 #include <cmath>
 #include <algorithm>
