@@ -21,7 +21,7 @@
 inline Candidate g_CurrentCandidate = {-1, 0.0, 0.0, -1, 0.0, 0.0};
 inline Point2D lastFailedCuePos = {-1000.0, -1000.0};
 
-#include "../../PowerSlider.h"
+#include "PowerSlider.h"
 
 // --- Static Helpers ---
 static double CalculateTableClusterScore(const Prediction::SceneData& data) {
