@@ -6,21 +6,23 @@ extern struct Candidate;
 extern Candidate g_CurrentCandidate;
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
+// #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
 
 extern Point2D lastFailedCuePos;
+
+//extern bool IsShotValid();
 
 struct PowerSlider {
     bool Active = false;
     float ElapsedTime = 0.f, Duration = 0.f;
     float HoldTime = 0.f, HoldDuration = 0.f;
     ImVec2 StartPos;
-    ImVec2 EndPos;
-    ImVec2 TargetPos;
+    ImVec2 EndPos; // Max drag position
+    ImVec2 TargetPos; // Actual target based on power
     ImVec2 CurrentPos;
 
     float ShotPower = 666.0f;
-    int TouchIndex = 10;
-    int _correctionAttempts = 0; // FIX: counter untuk read-back correction
+    int TouchIndex = 10; // High touch index
 
     enum State {
         IDLE,
@@ -36,7 +38,7 @@ struct PowerSlider {
         this->CurrentPos = this->StartPos;
         this->ElapsedTime = 0.f;
         this->HoldTime = 0.f;
-        this->_correctionAttempts = 0;
+
         this->Active = true;
         this->state = STARTING;
     }
@@ -51,39 +53,36 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        this->_correctionAttempts = 0;
         g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
         LOGI("Canceling power slider at power %f", sharedGameManager.mVisualCue().getShotPower(true));
-        this->EndPos = this->CurrentPos;
-        this->TargetPos = this->StartPos;
+        // NativeTouchesMove(this->TouchIndex, this->StartPos.x, this->StartPos.y);
+        // this->End();
+        this->EndPos = this->CurrentPos; // Use EndPos as start of return animation
+        this->TargetPos = this->StartPos; // Return to origin
         this->ElapsedTime = 0.f;
         this->HoldTime = 0.f;
-        this->Duration = 0.3f;
+        this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
-        this->_correctionAttempts = 0;
+
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
+
     }
     
+    // DragTime is time to reach MAX power (666.0f)
     void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
         if (this->Active) return;
         
+       // ShotPower = 666.f;
         this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
-
-        // FIX BUG 1: Game 8BP mapping slider bisa non-linear.
-        // Dari observasi: game pakai mapping mendekati sqrt untuk power → posisi.
-        // powerRatio_visual = (targetPower / 666)^(1/curve) dimana curve ≈ 1.35
-        // Ini mengkompensasi game yang set power lebih tinggi dari posisi linear.
-        float linearRatio = std::min(this->ShotPower / 666.0f, 1.0f);
-        // Apply inverse curve: kalau game pakai p = ratio^1.35 * 666,
-        // maka ratio_drag = (p/666)^(1/1.35) = linearRatio^0.741
-        float powerRatio = powf(linearRatio, 0.741f);
+        float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
         
         Start(Rect);
         
+        // Calculate exact target position for the requested power
         this->TargetPos = ImVec2(
             this->StartPos.x + (this->EndPos.x - this->StartPos.x) * powerRatio,
             this->StartPos.y + (this->EndPos.y - this->StartPos.y) * powerRatio
@@ -111,67 +110,38 @@ struct PowerSlider {
             this->ElapsedTime += dt;
             
             if (this->ElapsedTime < this->Duration) {
+                // Calculate interpolated position
                 float t = this->ElapsedTime / this->Duration;
                 this->CurrentPos = ImVec2(
                     this->StartPos.x + (this->TargetPos.x - this->StartPos.x) * t,
                     this->StartPos.y + (this->TargetPos.y - this->StartPos.y) * t
                 );
+
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
+            //    return Cancel();
+                // Ensure we hit the target exactly
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
-                this->HoldTime = 0.f;
                 this->state = ENDING;
             }
 
             if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100));
-                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
+                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline
             }
         }
 
         if (this->state == ENDING) {
-            this->HoldTime += dt;
-            if (this->HoldTime >= this->HoldDuration) {
-                // ── FIX BUG 2: READ-BACK POWER VERIFICATION ────────────────
-                // Baca power aktual dari game setelah drag selesai.
-                // Kalau beda > tolerance → koreksi posisi slider, tunggu lagi.
-                // Max 5 koreksi supaya tidak infinite loop.
-                double actualPower = (double)sharedGameManager.mVisualCue().getShotPower(true);
-                double error       = actualPower - (double)this->ShotPower;
-                double tolerance   = 8.0; // world units ≈ 1.2% dari max power
-
-                if (std::abs(error) > tolerance && this->_correctionAttempts < 5) {
-                    // Koreksi proporsional: error positif = terlalu kuat → geser ke atas (Y berkurang)
-                    // error negatif = terlalu lemah → geser ke bawah (Y bertambah)
-                    float posRange = this->EndPos.y - this->StartPos.y;
-                    if (std::abs(posRange) > 1.0f) {
-                        // Delta posisi berdasarkan ratio error terhadap full range
-                        float correctionY = (float)(error / 666.0) * posRange * 0.85f;
-                        this->CurrentPos.y -= correctionY;
-                        // Clamp ke range valid slider
-                        float minY = std::min(this->StartPos.y, this->EndPos.y);
-                        float maxY = std::max(this->StartPos.y, this->EndPos.y);
-                        this->CurrentPos.y = std::max(minY, std::min(maxY, this->CurrentPos.y));
-                        NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
-                        this->HoldTime = 0.f; // reset, tunggu game update power
-                        this->_correctionAttempts++;
-                        LOGI("PowerSlider: correction %d actual=%.1f target=%.1f err=%.1f",
-                             this->_correctionAttempts, actualPower, this->ShotPower, error);
-                        return;
-                    }
-                }
-
-                LOGI("PowerSlider: END actual=%.1f target=%.1f attempts=%d",
-                     actualPower, this->ShotPower, this->_correctionAttempts);
-                this->_correctionAttempts = 0;
-                this->End();
-            }
-        }
-
+    this->HoldTime += dt;
+    if (this->HoldTime >= this->HoldDuration) {
+        this->End();
+    }
+}
         if (this->state == RETURNING) {
             this->ElapsedTime += dt;
+
             if (this->ElapsedTime < this->Duration) {
                 float t = this->ElapsedTime / this->Duration;
                 this->CurrentPos = ImVec2(
@@ -191,7 +161,9 @@ struct PowerSlider {
                 fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
             }
         }
+
     }
 };
 
 PowerSlider powerSlider;
+
