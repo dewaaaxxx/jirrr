@@ -1617,7 +1617,7 @@ for (int i = 12; i > 0; i--) {
 
     // ── Slider Height ──
     float sliderH = persistent_float["fPowerBarYEndPercent"];
-    if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.500f, "%.3f")) {
+    if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 100.0f, "%.3f")) {
         persistent_float["fPowerBarYEndPercent"] = sliderH;
         need_save = true;
     }
