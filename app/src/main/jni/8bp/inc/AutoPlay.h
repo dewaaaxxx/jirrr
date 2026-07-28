@@ -95,9 +95,9 @@ namespace AutoPlay {
         powerSlider.SimulateDrag(sliderRect, power, 0.85f, 0.40f);
     
         // 4. Tunggu slider selesai
-        while (powerSlider.Active) {
+      /*  while (powerSlider.Active) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
+        }*/
     
         // 5. JANGAN panggil mPower(...) dan M(...)
         // Game otomatis menembak dan membaca power dari slider.
