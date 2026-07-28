@@ -193,7 +193,7 @@ namespace AutoPlay {
             steps++;
 
             for (double power : powers) {
-                gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->determineShotResult(false, angle, power, sharedGameManager.getShotSpin());
                 
                 // === الحماية المضافة ===
                 if (!isCueBallSafe()) continue;
