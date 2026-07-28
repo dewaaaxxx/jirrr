@@ -167,7 +167,10 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
+        std::vector<double> powers = {
+            666.0, 600.0, 533.0, 466.0, 400.0,
+            333.0, 266.0, 200.0, 133.0, 100.0
+        };
         
         while (steps < 10 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
