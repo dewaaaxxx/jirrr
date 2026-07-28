@@ -7,6 +7,7 @@
 
 #include "ScreenTable.h"
 #include "ButtonClicker.h"
+#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -80,10 +81,26 @@ namespace AutoPlay {
     }
 
     void takeShot(double angle, double power) {
+        // 1. Set aim ke target (untuk garis)
         setAimAngle(angle);
+    
+        // 2. Simulasi untuk garis prediksi (power tetap dipakai)
         gPrediction->determineShotResult(false, angle, power);
-        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
-        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
+    
+        // 3. Tarik power slider (touch simulation)
+        float sX = Width * 0.080f;
+        float sYS = Height * 0.273f;
+        float sYE = Height * 0.872f;
+        ImVec4 sliderRect(sX - 15.0f, sYS, 30.0f, sYE - sYS);
+        powerSlider.SimulateDrag(sliderRect, power, 0.85f, 0.40f);
+    
+        // 4. Tunggu slider selesai
+        while (powerSlider.Active) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    
+        // 5. JANGAN panggil mPower(...) dan M(...)
+        // Game otomatis menembak dan membaca power dari slider.
     }
     
     void ClearState() {
@@ -163,6 +180,21 @@ namespace AutoPlay {
     }
     
     // ========== Slow Mode (مع إضافة الحماية) ==========
+    static double CalculateTableClusterScore(const Prediction::SceneData& data) {
+        double clusterScore = 0.0;
+        for (int i = 1; i < data.ballsCount; i++) {
+            if (!data.balls[i].onTable) continue;
+            for (int j = i + 1; j < data.ballsCount; j++) {
+                if (!data.balls[j].onTable) continue;
+                double distSq = (data.balls[i].initialPosition - data.balls[j].initialPosition).square();
+                if (distSq < (4.5 * BALL_RADIUS * 4.5 * BALL_RADIUS)) {
+                    clusterScore += 1.0;
+                }
+            }
+        }
+        return clusterScore;
+    }
+
     void ScanSlow(double angleStep = 0.01f) {
         LOGI("🐢 AutoPlay: SLOW mode");
         
@@ -185,14 +217,14 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        std::vector<double> powers = {666.0, 606.0, 546.0, 486.0, 426.0, 366.0, 306.0, 246.0, 186.0, 126.0};
-        while (steps < 20 && currentScanAngle < maxAngle) {
+        std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};   
+        while (steps < 25 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
             for (double power : powers) {
-                gPrediction->determineShotResult(false, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
                 // === الحماية المضافة ===
                 if (!isCueBallSafe()) continue;
@@ -378,7 +410,15 @@ namespace AutoPlay {
         
         std::sort(candidates.begin(), candidates.end());
 
+        // Simpan state meja sebelum simulasi untuk hitung cluster improvement
+        Prediction::SceneData savedGuiData = gPrediction->guiData;
+        double initialClusterScore = CalculateTableClusterScore(savedGuiData);
+
         bool foundShot = false;
+        Candidate bestClusterCand;
+        int bestClusterScore = INT_MIN;
+        bool hasBestCluster = false;
+
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
@@ -453,12 +493,26 @@ namespace AutoPlay {
             if (isAngleGood && isEightBallPotted && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
             
             if (isAngleGood) {
-                LOGI("AutoPlay: Found good angle %f with power %f", angle, cand.power);
-                g_CurrentCandidate = cand;
-                foundShot = true;
-                Shoot(angle, cand.power);
-                break;
+                double finalClusterScore = CalculateTableClusterScore(gPrediction->guiData);
+                double clusterImprovement = initialClusterScore - finalClusterScore;
+                int openingBonus = (clusterImprovement > 0) ? (int)(clusterImprovement * 50) : 0;
+                int totalScore = openingBonus;
+
+                if (!hasBestCluster || totalScore > bestClusterScore) {
+                    bestClusterScore = totalScore;
+                    bestClusterCand = cand;
+                    hasBestCluster = true;
+                }
+                // Tidak break — terus scan semua kandidat untuk cari yang terbaik
             }
+        }
+
+        if (hasBestCluster) {
+            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(bestClusterCand.angle));
+            LOGI("AutoPlay: Found best angle %f power %f clusterScore=%d", angle, bestClusterCand.power, bestClusterScore);
+            g_CurrentCandidate = bestClusterCand;
+            foundShot = true;
+            Shoot(angle, bestClusterCand.power);
         }
 
         if (!foundShot) {
@@ -467,6 +521,7 @@ namespace AutoPlay {
             scan = SLOW;
         }
     }
+
     void DrawToggleButton() {
         // تماماً كما في الكود الأصلي (لم أغير شيئاً)
         ImGuiIO& io = GetIO();
@@ -527,6 +582,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
+        powerSlider.Update();  // ← ini harus ada
 
         if (isAnimationActive()) return;
 
