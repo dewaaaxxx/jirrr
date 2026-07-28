@@ -350,7 +350,7 @@ namespace AutoPlay {
             for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
                 if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
 
-                Point2D pocket  = pockets[pIdx];
+                Point2D pocket  = pockets[pocketIdx];
                 Point2D toPock  = pocket - ball.initialPosition;
                 double  distTP  = sqrt(toPock.square());
                 if (distTP < 0.1) continue;
