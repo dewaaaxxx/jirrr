@@ -1,7 +1,7 @@
 // نفس الإضافات الأولية كما عندك، ولكن بدون أي تعديل في دوال التنفيذ الأساسية
 #pragma once
 
-#include "Prediction.fast.h"
+#include "Prediction_fast.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 
@@ -579,7 +579,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-        DrawToggleButton();
+        //DrawToggleButton();
 
         if (isAnimationActive()) return;
 
