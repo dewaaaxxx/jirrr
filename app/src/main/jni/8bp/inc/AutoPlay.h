@@ -1,7 +1,7 @@
 // نفس الإضافات الأولية كما عندك، ولكن بدون أي تعديل في دوال التنفيذ الأساسية
 #pragma once
 
-#include "Prediction_fast.h"
+#include "Prediction.fast.h"
 #include <imgui/imgui.h>
 #include <algorithm>
 
@@ -116,6 +116,24 @@ namespace AutoPlay {
         }
     }
     
+    static double calcAdaptivePower(double distCG, double totalDist) {
+        double rawPow = sqrt(2.0 * 196.0 * totalDist);
+        double mult   = 1.0;
+        if (distCG < 25.0) {
+            // Linear: short distance → lower power, prevents overshoot
+            mult = 0.62 + (distCG / 25.0) * 0.38;
+        } else if (totalDist > 160.0) {
+            // Long / over-rail shot: gentle power boost
+            double boost = ((totalDist - 160.0) / 100.0) * 0.18;
+            if (boost > 0.18) boost = 0.18;
+            mult = 1.0 + boost;
+        }
+        double power = rawPow * mult;
+        if (power > 480.0) power = 480.0;
+        if (power < 80.0)  power = 80.0;
+        return power;
+    }
+    
     // ================== التحقق مما إذا كانت الكرة الثامنة هي الوحيدة المتبقية ==================
     bool isOnlyEightBallRemaining() {
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
@@ -163,87 +181,23 @@ namespace AutoPlay {
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
-
-        // onlyEightBallLeft: deteksi kapan giliran tembak 8-ball
-        bool onlyEightBallLeft = false;
-        if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
-            bool found = false;
-            for (int k = 1; k < gPrediction->guiData.ballsCount; k++) {
-                if (k == 8) continue;
-                auto& b = gPrediction->guiData.balls[k];
-                if (b.classification == myclass && b.originalOnTable) { found = true; break; }
-            }
-            if (!found) onlyEightBallLeft = true;
-        } else if (myclass == Ball::Classification::EIGHT_BALL) {
-            onlyEightBallLeft = true;
-        }
         
         int steps = 0;
         bool foundShot = false;
         
-        while (steps < 10 && currentScanAngle < maxAngle) {
+        std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};    
+        while (steps < 16 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
-            // ── ADAPTIVE POWER LIST ──────────────────────────────────────────
-            // Daripada fixed values, hitung power berdasarkan jarak actual
-            // untuk setiap bola yang on table → cocok untuk direct DAN bank shot.
-            // Bank shot butuh power lebih (energy loss di cushion ~25-35%).
-            // Kita generate 3 tier: minimum (jarak direct), medium (+30%), max (+60%).
-            auto pockets = getPockets();
-            std::vector<double> powers;
-            {
-                std::set<double> powerSet;
-                // Fallback: selalu ada power sweep dasar kalau tidak ada bola valid
-                powerSet.insert(666.0);
-                powerSet.insert(480.0);
-                powerSet.insert(320.0);
-                powerSet.insert(180.0);
-
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.originalOnTable) continue;
-
-                    for (int pIdx = 0; pIdx < (int)pockets.size(); pIdx++) {
-                        if (nominatedPocket < 6 && pIdx != nominatedPocket) continue;
-                        Point2D pocket = pockets[pIdx];
-                        double distCueToBall = sqrt((ball.initialPosition - cueBall.initialPosition).square());
-                        double distBallToPocket = sqrt((pocket - ball.initialPosition).square());
-                        double totalDirect = distCueToBall + distBallToPocket;
-
-                        // Direct shot power
-                        double pDirect = sqrt(2.0 * 196.0 * totalDirect) * 1.05;
-                        // Bank shot needs ~30% more for 1-cushion, ~60% more for 2-cushion
-                        double pBank1  = pDirect * 1.30;
-                        double pBank2  = pDirect * 1.60;
-
-                        auto addClamped = [&](double p) {
-                            p = std::max(80.0, std::min(560.0, p));
-                            // Round ke nearest 10 supaya tidak terlalu banyak duplicate
-                            p = round(p / 10.0) * 10.0;
-                            powerSet.insert(p);
-                        };
-                        addClamped(pDirect);
-                        addClamped(pBank1);
-                        addClamped(pBank2);
-                    }
-                }
-                // Sort ascending: coba power terkecil yang cukup dulu
-                powers.assign(powerSet.begin(), powerSet.end());
-                std::sort(powers.begin(), powers.end());
-            }
-            // ── END ADAPTIVE POWER ──────────────────────────────────────────
-
             for (double power : powers) {
-                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-                gPrediction->forceFullSimulation = false;
                 
-                // === Safety checks ===
+                // === الحماية المضافة ===
                 if (!isCueBallSafe()) continue;
                 if (!isEightBallHitLegal()) continue;
-                // ====================
+                // ======================
                 
                 int targetIdx = -1;
 
@@ -297,9 +251,7 @@ namespace AutoPlay {
                     if (ball.originalOnTable && !ball.onTable) {
                         bool isValidTarget = false;
                         
-                        if (onlyEightBallLeft) {
-                            if (i == 8) isValidTarget = true;
-                        } else if (myclass == Ball::Classification::ANY) {
+                        if (myclass == Ball::Classification::ANY) {
                             if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
@@ -316,17 +268,12 @@ namespace AutoPlay {
 
                 if (targetIdx != -1) {
                     if (!gPrediction->guiData.balls[0].onTable) continue;
-                    // 8-ball premature: kalau 8-ball masuk tapi bukan giliran → foul
-                    if (!onlyEightBallLeft && myclass != Ball::Classification::EIGHT_BALL) {
-                        if (!gPrediction->guiData.balls[8].onTable) continue;
-                    }
+                    if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
 
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
                     
-                    if (onlyEightBallLeft) {
-                        if (firstHit->index != 8) continue;
-                    } else if (myclass == Ball::Classification::ANY) {
+                    if (myclass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
                     } else if (firstHit->classification != myclass) continue;
 
@@ -403,25 +350,27 @@ namespace AutoPlay {
             for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
                 if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
 
-                Point2D pocket = pockets[pocketIdx];
-                Point2D toPocket = pocket - ball.initialPosition;
-                double distTargetToPocket = sqrt(toPocket.square());
-                if (distTargetToPocket < 0.1) continue;
-                
-                Point2D direction = toPocket * (1.0 / distTargetToPocket);
-                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
-                Point2D shotLine = ghostBallPos - cueBall.initialPosition;
-                double distCueToTarget = sqrt(shotLine.square());
-                double angle = atan2(shotLine.y, shotLine.x);
-                
-                if (angle < 0) angle += 2 * M_PI;
-                
-                double score = distCueToTarget + distTargetToPocket;
-                constexpr double slidingDeceleration = 196.0;
-                double requiredVelocity = sqrt(2.0 * slidingDeceleration * score);
-                double power = requiredVelocity;
-                 
-                if (power > 666.0) power = 666.0;
+                Point2D pocket  = pockets[pIdx];
+                Point2D toPock  = pocket - ball.initialPosition;
+                double  distTP  = sqrt(toPock.square());
+                if (distTP < 0.1) continue;
+
+                Point2D dir   = toPock * (1.0 / distTP);
+                Point2D ghost = ball.initialPosition - dir * (2.0 * BALL_RADIUS);
+                Point2D sVec  = ghost - cueBall.initialPosition;
+                double  distCG = sqrt(sVec.square());
+                if (distCG < 0.01) continue;
+
+                double angle = atan2(sVec.y, sVec.x);
+                if (angle < 0) angle += 2.0 * M_PI;
+
+                // Cut-angle penalty: cosTheta=1 (full hit) = no penalty
+                //                    cosTheta=0 (90° cut) = +2×distCG penalty
+                double cosTheta = (sVec.x * dir.x + sVec.y * dir.y) / distCG;
+                double score    = distCG * (2.0 - cosTheta) + distTP;
+
+                // Auto-adaptive power: reduces near-ball overshoot, boosts long shots
+                double power = calcAdaptivePower(distCG, distCG + distTP);
                 
                 candidates.push_back({i, angle, score, pocketIdx, power});
             }
@@ -579,7 +528,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-        //DrawToggleButton();
+        DrawToggleButton();
 
         if (isAnimationActive()) return;
 
