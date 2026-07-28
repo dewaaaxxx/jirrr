@@ -163,27 +163,87 @@ namespace AutoPlay {
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         auto& cueBall = gPrediction->guiData.balls[0];
+
+        // onlyEightBallLeft: deteksi kapan giliran tembak 8-ball
+        bool onlyEightBallLeft = false;
+        if (myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) {
+            bool found = false;
+            for (int k = 1; k < gPrediction->guiData.ballsCount; k++) {
+                if (k == 8) continue;
+                auto& b = gPrediction->guiData.balls[k];
+                if (b.classification == myclass && b.originalOnTable) { found = true; break; }
+            }
+            if (!found) onlyEightBallLeft = true;
+        } else if (myclass == Ball::Classification::EIGHT_BALL) {
+            onlyEightBallLeft = true;
+        }
         
         int steps = 0;
         bool foundShot = false;
-        
-        std::vector<double> powers = {
-            666.0, 600.0, 533.0, 466.0, 400.0,
-            333.0, 266.0, 200.0, 133.0, 100.0
-        };
         
         while (steps < 10 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
+            // ── ADAPTIVE POWER LIST ──────────────────────────────────────────
+            // Daripada fixed values, hitung power berdasarkan jarak actual
+            // untuk setiap bola yang on table → cocok untuk direct DAN bank shot.
+            // Bank shot butuh power lebih (energy loss di cushion ~25-35%).
+            // Kita generate 3 tier: minimum (jarak direct), medium (+30%), max (+60%).
+            auto pockets = getPockets();
+            std::vector<double> powers;
+            {
+                std::set<double> powerSet;
+                // Fallback: selalu ada power sweep dasar kalau tidak ada bola valid
+                powerSet.insert(666.0);
+                powerSet.insert(480.0);
+                powerSet.insert(320.0);
+                powerSet.insert(180.0);
+
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (!ball.originalOnTable) continue;
+
+                    for (int pIdx = 0; pIdx < (int)pockets.size(); pIdx++) {
+                        if (nominatedPocket < 6 && pIdx != nominatedPocket) continue;
+                        Point2D pocket = pockets[pIdx];
+                        double distCueToBall = sqrt((ball.initialPosition - cueBall.initialPosition).square());
+                        double distBallToPocket = sqrt((pocket - ball.initialPosition).square());
+                        double totalDirect = distCueToBall + distBallToPocket;
+
+                        // Direct shot power
+                        double pDirect = sqrt(2.0 * 196.0 * totalDirect) * 1.05;
+                        // Bank shot needs ~30% more for 1-cushion, ~60% more for 2-cushion
+                        double pBank1  = pDirect * 1.30;
+                        double pBank2  = pDirect * 1.60;
+
+                        auto addClamped = [&](double p) {
+                            p = std::max(80.0, std::min(560.0, p));
+                            // Round ke nearest 10 supaya tidak terlalu banyak duplicate
+                            p = round(p / 10.0) * 10.0;
+                            powerSet.insert(p);
+                        };
+                        addClamped(pDirect);
+                        addClamped(pBank1);
+                        addClamped(pBank2);
+                    }
+                }
+                // Sort ascending: coba power terkecil yang cukup dulu
+                powers.assign(powerSet.begin(), powerSet.end());
+                std::sort(powers.begin(), powers.end());
+            }
+            // ── END ADAPTIVE POWER ──────────────────────────────────────────
+
             for (double power : powers) {
+                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->forceFullSimulation = false;
                 
-                // === الحماية المضافة ===
+                // === Safety checks ===
                 if (!isCueBallSafe()) continue;
                 if (!isEightBallHitLegal()) continue;
-                // ======================
+                // ====================
                 
                 int targetIdx = -1;
 
@@ -237,7 +297,9 @@ namespace AutoPlay {
                     if (ball.originalOnTable && !ball.onTable) {
                         bool isValidTarget = false;
                         
-                        if (myclass == Ball::Classification::ANY) {
+                        if (onlyEightBallLeft) {
+                            if (i == 8) isValidTarget = true;
+                        } else if (myclass == Ball::Classification::ANY) {
                             if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
@@ -254,12 +316,17 @@ namespace AutoPlay {
 
                 if (targetIdx != -1) {
                     if (!gPrediction->guiData.balls[0].onTable) continue;
-                    if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
+                    // 8-ball premature: kalau 8-ball masuk tapi bukan giliran → foul
+                    if (!onlyEightBallLeft && myclass != Ball::Classification::EIGHT_BALL) {
+                        if (!gPrediction->guiData.balls[8].onTable) continue;
+                    }
 
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit) continue;
                     
-                    if (myclass == Ball::Classification::ANY) {
+                    if (onlyEightBallLeft) {
+                        if (firstHit->index != 8) continue;
+                    } else if (myclass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
                     } else if (firstHit->classification != myclass) continue;
 
