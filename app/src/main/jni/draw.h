@@ -36,6 +36,38 @@ using namespace std;
 #include "on.h"
 #include "off.h"
 
+static inline float AddDashedLine(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 col, float thickness, float dash_len = 20.0f, float gap_len = 15.0f, float phase_offset = 0.0f) {
+    ImVec2 dir = ImVec2(p2.x - p1.x, p2.y - p1.y);
+    float dist = sqrtf(dir.x * dir.x + dir.y * dir.y);
+    if (dist < 1.0f) return phase_offset;
+    dir.x /= dist; dir.y /= dist;
+
+    float cycle = dash_len + gap_len;
+    float curr = -fmodf(phase_offset, cycle);
+    if (curr > 0.0f) curr -= cycle;
+    while (curr < dist) {
+        float dashStart = curr;
+        float dashEnd   = curr + dash_len;
+        float drawStart = ImMax(dashStart, 0.0f);
+        float drawEnd   = ImMin(dashEnd,   dist);
+        if (drawStart < drawEnd) {
+            dl->AddLine(
+                ImVec2(p1.x + dir.x * drawStart, p1.y + dir.y * drawStart),
+                ImVec2(p1.x + dir.x * drawEnd,   p1.y + dir.y * drawEnd),
+                col, thickness);
+        }
+        curr += cycle;
+    }
+    return fmodf(phase_offset + dist, cycle);
+}
+
+static ImU32 GetBallColor(int ballIndex) {
+    if (ballIndex >= 0 && ballIndex < 16) {
+        return ballColors[ballIndex];
+    }
+    return IM_COL32(255, 255, 255, 255);
+}
+
 static float g_sideBtnsY      = 0.0f;
 static bool g_GameReady = false; // Penanda game sudah siap
 static float g_sideBtnsX      = 0.0f;
