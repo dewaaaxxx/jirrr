@@ -7,7 +7,6 @@
 
 #include "ScreenTable.h"
 #include "ButtonClicker.h"
-#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -81,26 +80,10 @@ namespace AutoPlay {
     }
 
     void takeShot(double angle, double power) {
-        // 1. Set aim ke target (untuk garis)
         setAimAngle(angle);
-    
-        // 2. Simulasi untuk garis prediksi (power tetap dipakai)
         gPrediction->determineShotResult(false, angle, power);
-    
-        // 3. Tarik power slider (touch simulation)
-        float sX = Width * 0.080f;
-        float sYS = Height * 0.273f;
-        float sYE = Height * 0.872f;
-        ImVec4 sliderRect(sX - 15.0f, sYS, 30.0f, sYE - sYS);
-        powerSlider.SimulateDrag(sliderRect, power, 0.85f, 0.40f);
-    
-        // 4. Tunggu slider selesai
-      /*  while (powerSlider.Active) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }*/
-    
-        // 5. JANGAN panggil mPower(...) dan M(...)
-        // Game otomatis menembak dan membaca power dari slider.
+        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
+        M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
     
     void ClearState() {
@@ -202,8 +185,9 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};    
-        while (steps < 16 && currentScanAngle < maxAngle) {
+        std::vector<double> powers = {150.0, 220.0, 300.0, 380.0, 460.0, 540.0, 620.0, 666.0 };
+        
+        while (steps < 25 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
@@ -545,7 +529,6 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-        powerSlider.Update();  // ← ini harus ada
 
         if (isAnimationActive()) return;
 
