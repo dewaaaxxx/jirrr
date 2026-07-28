@@ -766,133 +766,95 @@ INLINE void DrawESP(ImDrawList* draw) {
             }
         }
 
-        float lineThick = persistent_float["fLineThick"];
+        int _tk = persistent_int["iLineThickness"];
+        if (_tk <= 0) _tk = 5;
+        int _al = persistent_int["iLineAlpha"];
+        if (_al <= 0) _al = 10;
+        float lineThick = (float)_tk * 2.0f;
+        float thickScale = (float)_tk / 5.0f;
+        float alphaScale = (float)_al / 10.0f;
+        auto MOD_A = [&](ImU32 c) -> ImU32 {
+            int a = (int)(((c >> 24) & 0xFF) * alphaScale);
+            if (a < 0) a = 0;
+            if (a > 255) a = 255;
+            return (c & 0x00FFFFFFu) | ((ImU32)a << 24);
+        };
+
+        int lineStyle = persistent_int["iLineStyle"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-        
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
-                    if (lineThick < 1.f) lineThick = 1.f;
-                    
-                    bool isStripe = (i >= 9 && i <= 15);
-                    
+                    ImU32 ballColor = MOD_A(GetBallColor(i));
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) {
-                            draw->AddLine(lastPos, point, colors[i], lineThick);
-                            if (isStripe && j % 2 == 0) {  // ← PUTUS-PUTUS
-                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 180), lineThick * 0.4f);
+                            if (lineStyle == 1) {
+                                // رسم خط متقطع حقيقي
+                                static float dashPhase = 0.0f;
+                                dashPhase = AddDashedLine(draw, lastPos, point, ballColor, lineThick, 20.0f, 15.0f, dashPhase);
+                            } else {
+                                draw->AddLine(lastPos, point, ballColor, lineThick);
                             }
                         }
                         lastPos = point;
                     }
                 }
             }
+
+            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (ball.initialPosition != ball.predictedPosition) {
+                    ImVec2 pos = WorldToScreen(ball.predictedPosition);
+                    ImVec2 startPos = WorldToScreen(ball.initialPosition);
+                    float ballSize = 20.0f * thickScale;
+                    if (ballSize < 10.0f) ballSize = 10.0f;
+                    if (ballSize > 40.0f) ballSize = 40.0f;
+                    ImU32 color = GetBallColor(i);
+                    
+                    // نقطة البداية (دائرة صغيرة)
+                    draw->AddCircle(startPos, 8.0f * thickScale, color, 0, 2.0f * thickScale);
+                    
+                    // رسم الكرة بالألوان
+                    draw->AddCircleFilled(pos, ballSize, color);
+                    
+                    // تأثير الإضاءة (ثلاثي الأبعاد)
+                    draw->AddCircleFilled(
+                        ImVec2(pos.x - ballSize * 0.15f, pos.y - ballSize * 0.15f),
+                        ballSize * 0.35f,
+                        IM_COL32(255, 255, 255, 60)
+                    );
+                    
+                    // إطار الكرة
+                    draw->AddCircle(pos, ballSize, IM_COL32(0, 0, 0, 80), 0, 1.5f);
+                    
+                    // رسم الرقم (للكرات 1-15)
+                    if (i > 0) {
+                        char buf[8];
+                        sprintf(buf, "%d", i);
+                        
+                        // خلفية بيضاء للرقم
+                        float innerR = ballSize * 0.55f;
+                        draw->AddCircleFilled(pos, innerR, IM_COL32(255, 255, 255, 255));
+                        draw->AddCircle(pos, innerR, IM_COL32(0, 0, 0, 50), 0, 1.0f);
+                        
+                        // الرقم باللون الأسود
+                        ImFont* font = ImGui::GetFont();
+                        float fontSize = ImGui::GetFontSize() * 0.55f;
+                        if (fontSize < 8.0f) fontSize = 8.0f;
+                        if (fontSize > 24.0f) fontSize = 24.0f;
+                        
+                        ImVec2 txtSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, buf);
+                        ImVec2 txtPos = pos - (txtSize * 0.5f);
+                        draw->AddText(font, fontSize, txtPos, IM_COL32(0, 0, 0, 255), buf);
+                    }
+                }
+            }
         }
-        
-        // ================================================================
-        // GAMBAR LINGKARAN PREDICTION (TETAP SAMA)
-        // ================================================================
-        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
-            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-        
-                if (ball.initialPosition != ball.predictedPosition) {
-                    float circleR = lineThick + 1.f;
-                    if (circleR < 2.f) circleR = 2.f;
-                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
-                }
-            }
-}
-
-        /*if (persistent_bool[O("bESP_DrawPredictionLine")]) {
-            float predA = persistent_float["fPredAlpha"];
-            if (predA < 0.01f) predA = 1.0f;
-            auto getCol = [&](int idx) -> ImU32 {
-                ImVec4 v = colors[idx].Value;
-                v.w = predA;
-                return ColorConvertFloat4ToU32(v);
-            };
-
-            // Helper: draw a dotted/dashed line between two points
-            auto AddDottedLine = [&](ImVec2 a, ImVec2 b, ImU32 col, float thickness, float dotLen = 8.f, float gapLen = 8.f) {
-                float dx = b.x - a.x;
-                float dy = b.y - a.y;
-                float dist = sqrtf(dx * dx + dy * dy);
-                if (dist < 0.1f) return;
-                float nx = dx / dist, ny = dy / dist;
-                float t = 0.f;
-                bool drawing = true;
-                while (t < dist) {
-                    float segLen = drawing ? dotLen : gapLen;
-                    float end = t + segLen;
-                    if (end > dist) end = dist;
-                    if (drawing) {
-                        draw->AddLine(
-                            ImVec2(a.x + nx * t,   a.y + ny * t),
-                            ImVec2(a.x + nx * end, a.y + ny * end),
-                            col, thickness
-                        );
-                    }
-                    t = end;
-                    drawing = !drawing;
-                }
-            };
-
-            float lineThick = persistent_float["fLineThick"];
-
-            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-                if (ball.initialPosition != ball.predictedPosition) {
-                    ImVec2 lastPos{};
-                    ImU32 col = getCol(i);
-                    // Stripe balls (index 9-15) use dotted line, solid/cue/8ball use solid line
-                    bool isDotted = (i >= 9 && i <= 15);
-                    for (int j = 1; j < (int)ball.positions.size(); j++) {
-                        auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) {
-                            if (isDotted)
-                                AddDottedLine(lastPos, point, col, lineThick);
-                            else
-                                draw->AddLine(lastPos, point, col, lineThick);
-                        }
-                        lastPos = point;
-                    }
-                }
-            }
-            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-                if (ball.initialPosition != ball.predictedPosition) {
-                    ImU32 col = getCol(i);
-                    bool isStripe = (i >= 9 && i <= 15);
-                    float circleR = 20.f;
-
-                    // Start circle (hollow)
-                    draw->AddCircle(WorldToScreen(ball.initialPosition), circleR, col, 0, 6.f);
-
-                    // End circle (filled)
-                    ImVec2 endPos = WorldToScreen(ball.predictedPosition);
-                    draw->AddCircleFilled(endPos, circleR, col);
-
-                    // Stripe balls: draw minus sign ( — ) inside end circle
-                    if (isStripe) {
-                        float minusHalfW = circleR * 0.55f;
-                        float minusThick = circleR * 0.28f;
-                        draw->AddLine(
-                            ImVec2(endPos.x - minusHalfW, endPos.y),
-                            ImVec2(endPos.x + minusHalfW, endPos.y),
-                            IM_COL32(255, 255, 255, 220),
-                            minusThick
-                        );
-                    }
-                }
-            }
-        }*/
     }
-}
+} // نهاية دالة DrawESP
 
 static void DrawToggleButton() {
     ImGuiIO& io = GetIO();
@@ -1064,9 +1026,34 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                     L("",""),
                                     &persistent_bool[O("bEnemyLine")]);
             Dummy(ImVec2(0,8));
+            TextColored(ImVec4(1.0f, 0.0f, 0.8f, 1.0f), "%s", L("Line Style", " ﻂﻴﻄﺨﻟﺍ ﻂﻤﻧ"));
+            Dummy(ImVec2(0, 8));
+            const char* items = " SOLID\0 STRIPE\0 COLORS\0";
+            const char* itemsAr = "✦ ﻞﺼﺘﻣ ✦\0✦ ﻊﻄﻘﺘﻣ ✦\0✦ ﻥﺍﻮﻟﺃ ✦\0";
+            need_save |= GoldCombo(L("", ""), L("", ""), &persistent_int["iLineStyle"],
+                                   persistent_int["iLang"] == 1 ? itemsAr : items);
+            Dummy(ImVec2(0, 8));
             
-            need_save |= GoldSliderFloat("Line Thickness", "", &persistent_float["fLineThick"], 0.5f, 8.0f, "%.1f px");
-            Dummy(ImVec2(0,8));
+            if (persistent_int["iLineThickness"] <= 0) persistent_int["iLineThickness"] = 5;
+            if (persistent_int["iLineAlpha"] <= 0) persistent_int["iLineAlpha"] = 10;
+            
+            {
+                float fv = (float)persistent_int["iLineThickness"];
+                if (GoldSliderFloat(L("Line Thickness", "✦ ﻂﺨﻟﺍ ﻚﻤﺳ"),
+                                    L("", ""), &fv, 1.0f, 15.0f, "%.0f")) {
+                    persistent_int["iLineThickness"] = (int)(fv + 0.5f);
+                    need_save = true;
+                }
+            }
+            Dummy(ImVec2(0, 4));
+            {
+                float fv = (float)persistent_int["iLineAlpha"];
+                if (GoldSliderFloat(L("Line Transparency", "✦ ﻂﺨﻟﺍ ﺔﻴﻓﺎﻔﺷ"),
+                                    L("", ""), &fv, 1.0f, 10.0f, "%.0f")) {
+                    persistent_int["iLineAlpha"] = (int)(fv + 0.5f);
+                    need_save = true;
+                }
+            }
             break;
         }
         case 1: {
