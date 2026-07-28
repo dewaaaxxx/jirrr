@@ -161,21 +161,6 @@ namespace AutoPlay {
         if (firstHit && firstHit->index == 8) return false;
         return true;
     }
-
-    static double CalculateTableClusterScore(const Prediction::SceneData& data) {
-        double clusterScore = 0.0;
-        for (int i = 1; i < data.ballsCount; i++) {
-            if (!data.balls[i].onTable) continue;
-            for (int j = i + 1; j < data.ballsCount; j++) {
-                if (!data.balls[j].onTable) continue;
-                double distSq = (data.balls[i].initialPosition - data.balls[j].initialPosition).square();
-                if (distSq < (4.5 * BALL_RADIUS * 4.5 * BALL_RADIUS)) {
-                    clusterScore += 1.0;
-                }
-            }
-        }
-        return clusterScore;
-    }
     
     // ========== Slow Mode (مع إضافة الحماية) ==========
     void ScanSlow(double angleStep = 0.01f) {
@@ -201,7 +186,7 @@ namespace AutoPlay {
         bool foundShot = false;
         
         std::vector<double> powers = {666.0, 606.0, 546.0, 486.0, 426.0, 366.0, 306.0, 246.0, 186.0, 126.0};
-        while (steps < 25 && currentScanAngle < maxAngle) {
+        while (steps < 20 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
@@ -393,15 +378,7 @@ namespace AutoPlay {
         
         std::sort(candidates.begin(), candidates.end());
 
-        // Simpan state meja sebelum simulasi untuk hitung cluster improvement
-        Prediction::SceneData savedGuiData = gPrediction->guiData;
-        double initialClusterScore = CalculateTableClusterScore(savedGuiData);
-
         bool foundShot = false;
-        Candidate bestClusterCand;
-        int bestClusterScore = INT_MIN;
-        bool hasBestCluster = false;
-
         for (const auto& cand : candidates) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
             gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
@@ -476,26 +453,12 @@ namespace AutoPlay {
             if (isAngleGood && isEightBallPotted && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
             
             if (isAngleGood) {
-                double finalClusterScore = CalculateTableClusterScore(gPrediction->guiData);
-                double clusterImprovement = initialClusterScore - finalClusterScore;
-                int openingBonus = (clusterImprovement > 0) ? (int)(clusterImprovement * 50) : 0;
-                int totalScore = openingBonus;
-
-                if (!hasBestCluster || totalScore > bestClusterScore) {
-                    bestClusterScore = totalScore;
-                    bestClusterCand = cand;
-                    hasBestCluster = true;
-                }
-                // Tidak break — terus scan semua kandidat untuk cari yang terbaik
+                LOGI("AutoPlay: Found good angle %f with power %f", angle, cand.power);
+                g_CurrentCandidate = cand;
+                foundShot = true;
+                Shoot(angle, cand.power);
+                break;
             }
-        }
-
-        if (hasBestCluster) {
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(bestClusterCand.angle));
-            LOGI("AutoPlay: Found best angle %f power %f clusterScore=%d", angle, bestClusterCand.power, bestClusterScore);
-            g_CurrentCandidate = bestClusterCand;
-            foundShot = true;
-            Shoot(angle, bestClusterCand.power);
         }
 
         if (!foundShot) {
