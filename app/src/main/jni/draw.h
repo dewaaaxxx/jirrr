@@ -61,6 +61,25 @@ static inline float AddDashedLine(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 co
     return fmodf(phase_offset + dist, cycle);
 }
 
+static ImU32 ballColors[] = {
+    IM_COL32(255, 255, 255, 255),
+    IM_COL32(255, 215, 0, 255),
+    IM_COL32(0, 0, 255, 255),
+    IM_COL32(255, 0, 0, 255),
+    IM_COL32(100, 0, 255, 255),    
+    IM_COL32(255, 128, 0, 255),
+    IM_COL32(0, 128, 0, 255),
+    IM_COL32(139, 0, 0, 255),
+    IM_COL32(0, 0, 0, 255),
+    IM_COL32(255, 215, 0, 255),
+    IM_COL32(0, 0, 255, 255),
+    IM_COL32(255, 0, 0, 255),
+    IM_COL32(100, 0, 255, 255),
+    IM_COL32(255, 128, 0, 255),
+    IM_COL32(0, 128, 0, 255),
+    IM_COL32(139, 0, 0, 255),
+};
+
 static ImU32 GetBallColor(int ballIndex) {
     if (ballIndex >= 0 && ballIndex < 16) {
         return ballColors[ballIndex];
