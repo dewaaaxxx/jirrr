@@ -161,6 +161,21 @@ namespace AutoPlay {
         if (firstHit && firstHit->index == 8) return false;
         return true;
     }
+
+    static double CalculateTableClusterScore(const Prediction::SceneData& data) {
+        double clusterScore = 0.0;
+        for (int i = 1; i < data.ballsCount; i++) {
+            if (!data.balls[i].onTable) continue;
+            for (int j = i + 1; j < data.ballsCount; j++) {
+                if (!data.balls[j].onTable) continue;
+                double distSq = (data.balls[i].initialPosition - data.balls[j].initialPosition).square();
+                if (distSq < (4.5 * BALL_RADIUS * 4.5 * BALL_RADIUS)) {
+                    clusterScore += 1.0;
+                }
+            }
+        }
+        return clusterScore;
+    }
     
     // ========== Slow Mode (مع إضافة الحماية) ==========
     void ScanSlow(double angleStep = 0.01f) {
