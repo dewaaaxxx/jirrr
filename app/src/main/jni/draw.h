@@ -1051,9 +1051,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
                                     L("",""),
                                     &persistent_bool[O("bEnemyLine")]);
             Dummy(ImVec2(0,8));
-            TextColored(ImVec4(1.0f, 0.0f, 0.8f, 1.0f), "%s", L("Line Style", " ﻂﻴﻄﺨﻟﺍ ﻂﻤﻧ"));
-            Dummy(ImVec2(0, 8));
-            
+                       
             if (persistent_float["iLineThickness"] <= 0) persistent_float["iLineThickness"] = 5;
                         
             {
