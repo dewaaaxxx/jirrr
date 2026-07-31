@@ -715,9 +715,19 @@ namespace AutoPlay {
     void Update() {
         buttonClicker.Update();
 
-        if (isAnimationActive()) return;
+        static int animStuckCounter = 0;
+        if (isAnimationActive()) {
+            animStuckCounter++;
+            if (animStuckCounter > 300) { // ~5 detik di 60fps
+                animStuckCounter = 0;
+                ClearState(); // reset candidate juga
+            }
+            return;
+        }
+        animStuckCounter = 0;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+            ClearState(); // tambah ini
             state = IDLE;
             return;
         }
@@ -734,6 +744,16 @@ namespace AutoPlay {
             if (nominationFrameCounter == 10) {
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
             }
+            
+            // TAMBAH INI — timeout paksa setelah 120 frame (~2 detik)
+            if (nominationFrameCounter > 120) {
+                buttonClicker.Active = false; // paksa reset
+                nominationFrameCounter = 0;
+                ClearState();
+                state = IDLE;
+                return;
+            }
+            
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
                 takeShot(pendingShotAngle, pendingShotPower);
                 ClearState();
