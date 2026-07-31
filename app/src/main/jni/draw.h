@@ -1662,14 +1662,17 @@ static void DrawWatermark(ImGuiIO& io) {
         ImVec2(0.0f, 1.0f)
     );
 
-    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
+    PushStyleColor(ImGuiCol_Border,   IM_COL32(60, 60, 80, 120));
+    PushStyleVar(ImGuiStyleVar_WindowRounding,  12.0f);
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding,   ImVec2(14.0f, 10.0f));
 
     if (Begin("##Watermark", nullptr,
               ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
               ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
               ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
-              ImGuiWindowFlags_AlwaysAutoResize |
-              ImGuiWindowFlags_NoBackground)) {
+              ImGuiWindowFlags_AlwaysAutoResize)) {
 
         ImDrawList* dl = GetWindowDrawList();
 
