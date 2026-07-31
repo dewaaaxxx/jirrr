@@ -867,7 +867,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                         
                         // الرقم باللون الأسود
                         ImFont* font = ImGui::GetFont();
-                        float fontSize = ImGui::GetFontSize() * 0.55f;
+                        float fontSize = ImGui::GetFontSize() * 0.45f;
                         if (fontSize < 8.0f) fontSize = 8.0f;
                         if (fontSize > 24.0f) fontSize = 24.0f;
                         
