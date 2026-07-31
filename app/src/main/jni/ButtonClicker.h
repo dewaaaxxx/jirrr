@@ -30,6 +30,7 @@ struct ButtonClicker {
         if (!this->Active) return;
         
         float dt = ImGui::GetIO().DeltaTime;
+        if (dt <= 0.f || dt > 0.5f) dt = 0.016f; // fallback kalau DeltaTime aneh
         
         if (this->state == PRESSING) {
             this->ElapsedTime += dt;
