@@ -818,35 +818,23 @@ INLINE void DrawESP(ImDrawList* draw) {
             }
         }
 
-        int _tk = persistent_int["iLineThickness"];
-        if (_tk <= 0) _tk = 5;
-        int _al = persistent_int["iLineAlpha"];
-        if (_al <= 0) _al = 10;
-        float lineThick = (float)_tk * 2.0f;
-        float thickScale = (float)_tk / 5.0f;
-        float alphaScale = (float)_al / 10.0f;
-        auto MOD_A = [&](ImU32 c) -> ImU32 {
-            int a = (int)(((c >> 24) & 0xFF) * alphaScale);
-            if (a < 0) a = 0;
-            if (a > 255) a = 255;
-            return (c & 0x00FFFFFFu) | ((ImU32)a << 24);
-        };
-
-        int lineStyle = persistent_int["iLineStyle"];
+        float lineThick = persistent_float["fLineThick"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
-            // ── Garis prediksi ──
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
+        
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
                     if (lineThick < 1.f) lineThick = 1.f;
+                    
                     bool isStripe = (i >= 9 && i <= 15);
+                    
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) {
                             draw->AddLine(lastPos, point, colors[i], lineThick);
-                            if (isStripe && j % 2 == 0) {
+                            if (isStripe && j % 2 == 0) {  // ← PUTUS-PUTUS
                                 draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 180), lineThick * 0.4f);
                             }
                         }
@@ -854,58 +842,38 @@ INLINE void DrawESP(ImDrawList* draw) {
                     }
                 }
             }
+        }
         
-            // ── Titik awal + akhir ──
+        // ================================================================
+        // GAMBAR LINGKARAN PREDICTION (TETAP SAMA)
+        // ================================================================
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
+        
                 if (ball.initialPosition != ball.predictedPosition) {
                     float circleR = lineThick + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
-                    ImVec2 startPos = WorldToScreen(ball.initialPosition);
-                    ImVec2 endPos = WorldToScreen(ball.predictedPosition);
-        
-                    // Titik awal (kecil)
-                    draw->AddCircleFilled(startPos, circleR, colors[i]);
-        
-                    // ── Titik akhir (dibedakan cue ball vs lainnya) ──
-                    if (i == 0) {
-                        // Cue ball: cukup lingkaran kecil biasa
-                        draw->AddCircleFilled(endPos, circleR, colors[i]);
-                    } else {
-                        // Bola lain: 2 lapisan + nomor
-                        float ballSize = 20.0f * thickScale;
-                        if (ballSize < 10.0f) ballSize = 10.0f;
-                        if (ballSize > 40.0f) ballSize = 40.0f;
-                        ImU32 color = colors[i];
-                        draw->AddCircleFilled(endPos, ballSize, color);
-        
-                        // Efek cahaya 3D
-                        draw->AddCircleFilled(
-                            ImVec2(endPos.x - ballSize * 0.15f, endPos.y - ballSize * 0.15f),
-                            ballSize * 0.35f,
-                            IM_COL32(255, 255, 255, 60)
-                        );
-        
-                        // Outline
-                        draw->AddCircle(endPos, ballSize, IM_COL32(0, 0, 0, 80), 0, 1.5f);
-        
-                        // Lingkaran putih (background nomor)
-                        float innerR = ballSize * 0.55f;
-                        draw->AddCircleFilled(endPos, innerR, IM_COL32(255, 255, 255, 255));
-                        draw->AddCircle(endPos, innerR, IM_COL32(0, 0, 0, 50), 0, 1.0f);
-        
-                        // Nomor bola
-                        if (i > 0) {
-                            char buf[8];
-                            sprintf(buf, "%d", i);
-                            ImFont* font = ImGui::GetFont();
-                            float fontSize = ImGui::GetFontSize() * 0.55f;
-                            if (fontSize < 8.0f) fontSize = 8.0f;
-                            if (fontSize > 24.0f) fontSize = 24.0f;
-                            ImVec2 txtSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, buf);
-                            ImVec2 txtPos = endPos - (txtSize * 0.5f);
-                            draw->AddText(font, fontSize, txtPos, IM_COL32(0, 0, 0, 255), buf);
-                        }
+                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
+                    if (i > 0) {
+                        char buf[8];
+                        sprintf(buf, "%d", i);
+                        
+                        // خلفية بيضاء للرقم
+                        float innerR = 16 * 0.55f;
+                        draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), innerR, IM_COL32(255, 255, 255, 255));
+                        draw->AddCircle(WorldToScreen(ball.predictedPosition), innerR, IM_COL32(0, 0, 0, 50), 0, 1.0f);
+                        
+                        // الرقم باللون الأسود
+                        ImFont* font = ImGui::GetFont();
+                        float fontSize = ImGui::GetFontSize() * 0.55f;
+                        if (fontSize < 8.0f) fontSize = 8.0f;
+                        if (fontSize > 24.0f) fontSize = 24.0f;
+                        
+                        ImVec2 txtSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, buf);
+                        ImVec2 txtPos = WorldToScreen(ball.predictedPosition) - (txtSize * 0.5f);
+                        draw->AddText(font, fontSize, txtPos, IM_COL32(0, 0, 0, 255), buf);
                     }
                 }
             }
