@@ -812,13 +812,13 @@ INLINE void DrawESP(ImDrawList* draw) {
             for (int i = 0; i < 6; i++) {
                 if (Prediction::pocketStatus[i]) {
                     auto sp = WorldToScreen(pockets[i]);
-                    draw->AddCircle(ImVec2(sp.x, sp.y), 40, IM_COL32(0, 255, 100, 255), 0, 5.f);
-                    draw->AddCircle(ImVec2(sp.x, sp.y), 55, IM_COL32(0, 255, 100, 60), 0, 2.0f);
+                    draw->AddCircle(ImVec2(sp.x, sp.y), 30, IM_COL32(0, 255, 100, 255), 0, 5.f);
+                    draw->AddCircle(ImVec2(sp.x, sp.y), 45, IM_COL32(0, 255, 100, 60), 0, 2.0f);
                 }
             }
         }
 
-        float lineThick = persistent_float["fLineThickness"];
+        float lineThick = persistent_float["iLineThickness"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
