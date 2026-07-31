@@ -1652,6 +1652,39 @@ INLINE void SetupImgui() {
     bImguiSetup = true;
 }
 
+static void DrawWatermark(ImGuiIO& io) {
+    const float padH  = 20.0f;
+    const float padV  = 20.0f;
+
+    SetNextWindowPos(
+        ImVec2(padH, io.DisplaySize.y - padV),
+        ImGuiCond_Always,
+        ImVec2(0.0f, 1.0f)
+    );
+
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    if (Begin("##Watermark", nullptr,
+              ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
+              ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
+              ImGuiWindowFlags_AlwaysAutoResize |
+              ImGuiWindowFlags_NoBackground)) {
+
+        ImDrawList* dl = GetWindowDrawList();
+
+        SetWindowFontScale(1.2f);
+        ImU32 textCol = IM_COL32(255, 255, 255, 180);
+
+        // Efek bayangan (opsional)
+        // dl->AddText(ImVec2(0, 0), IM_COL32(0, 0, 0, 100), "@frustashitx");
+        TextColored(ImGui::ColorConvertU32ToFloat4(textCol), "@frustashitx");
+
+        SetWindowFontScale(1.0f);
+    }
+    End();
+    PopStyleVar(1);
+}
 
 DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
     eglQuerySurface(dpy, surface, EGL_WIDTH,  &Width);
@@ -1676,25 +1709,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
         //DrawLiveStatusOverlay(io);
-        SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-        Begin(O("##PoweredBy"), nullptr,
-              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-              ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
-              ImGuiWindowFlags_NoInputs);
-        
-        // --- GANTI TEKS DI SINI ---
-        const char* title = O("@Cmengine"); 
-        
-        // 1. Ambil posisi cursor
-        ImVec2 cursorPos = GetCursorScreenPos();
-        
-        // 2. Panggil fungsi DrawBoldText 
-        //    (Pakai IM_COL32, BUKAN ImColor)
-        DrawBoldText(GetWindowDrawList(), cursorPos, IM_COL32(0, 255, 0, 255), title);
-        
-        // 3. Beri tahu ImGui ukuran teksnya
-        Dummy(CalcTextSize(title));
+        DrawWatermark(io);
     } else {
         DrawLogin(io);
     }
