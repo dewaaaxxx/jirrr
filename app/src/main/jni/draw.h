@@ -834,71 +834,74 @@ INLINE void DrawESP(ImDrawList* draw) {
         int lineStyle = persistent_int["iLineStyle"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            // ── Gambar garis prediksi ──
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
-                    ImU32 ballColor = MOD_A(GetBallColor(i));
+                    if (lineThick < 1.f) lineThick = 1.f;
+                    
+                    bool isStripe = (i >= 9 && i <= 15);
+                    
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) {
-                            if (lineStyle == 1) {
-                                // رسم خط متقطع حقيقي
-                                static float dashPhase = 0.0f;
-                                dashPhase = AddDashedLine(draw, lastPos, point, ballColor, lineThick, 20.0f, 15.0f, dashPhase);
-                            } else {
-                                draw->AddLine(lastPos, point, ballColor, lineThick);
+                            draw->AddLine(lastPos, point, colors[i], lineThick);
+                            if (isStripe && j % 2 == 0) {
+                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 180), lineThick * 0.4f);
                             }
                         }
                         lastPos = point;
                     }
                 }
             }
-
+        
+            // ── Gambar titik awal + titik akhir (dengan 2 lingkaran) ──
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
                 if (ball.initialPosition != ball.predictedPosition) {
-                    ImVec2 pos = WorldToScreen(ball.predictedPosition);
+                    float circleR = lineThick + 1.f;
+                    if (circleR < 2.f) circleR = 2.f;
                     ImVec2 startPos = WorldToScreen(ball.initialPosition);
+                    ImVec2 endPos = WorldToScreen(ball.predictedPosition);
+        
+                    // Lingkaran awal (kecil)
+                    draw->AddCircleFilled(startPos, circleR, colors[i]);
+        
+                    // ── Lingkaran akhir (warna bola) ──
                     float ballSize = 20.0f * thickScale;
                     if (ballSize < 10.0f) ballSize = 10.0f;
                     if (ballSize > 40.0f) ballSize = 40.0f;
-                    ImU32 color = GetBallColor(i);
-                    
-                    // نقطة البداية (دائرة صغيرة)
-                    draw->AddCircle(startPos, 8.0f * thickScale, color, 0, 2.0f * thickScale);
-                    
-                    // رسم الكرة بالألوان
-                    draw->AddCircleFilled(pos, ballSize, color);
-                    
-                    // تأثير الإضاءة (ثلاثي الأبعاد)
+                    ImU32 color = colors[i];
+                    draw->AddCircleFilled(endPos, ballSize, color);
+        
+                    // Efek cahaya 3D
                     draw->AddCircleFilled(
-                        ImVec2(pos.x - ballSize * 0.15f, pos.y - ballSize * 0.15f),
+                        ImVec2(endPos.x - ballSize * 0.15f, endPos.y - ballSize * 0.15f),
                         ballSize * 0.35f,
                         IM_COL32(255, 255, 255, 60)
                     );
-                    
-                    // إطار الكرة
-                    draw->AddCircle(pos, ballSize, IM_COL32(0, 0, 0, 80), 0, 1.5f);
-                    
-                    // رسم الرقم (للكرات 1-15)
+        
+                    // Outline bola
+                    draw->AddCircle(endPos, ballSize, IM_COL32(0, 0, 0, 80), 0, 1.5f);
+        
+                    // ── Lingkaran putih di dalam (background nomor) ──
+                    float innerR = ballSize * 0.55f;
+                    draw->AddCircleFilled(endPos, innerR, IM_COL32(255, 255, 255, 255));
+                    draw->AddCircle(endPos, innerR, IM_COL32(0, 0, 0, 50), 0, 1.0f);
+        
+                    // ── Nomor bola ──
                     if (i > 0) {
                         char buf[8];
                         sprintf(buf, "%d", i);
                         
-                        // خلفية بيضاء للرقم
-                        float innerR = ballSize * 0.55f;
-                        draw->AddCircleFilled(pos, innerR, IM_COL32(255, 255, 255, 255));
-                        draw->AddCircle(pos, innerR, IM_COL32(0, 0, 0, 50), 0, 1.0f);
-                        
-                        // الرقم باللون الأسود
                         ImFont* font = ImGui::GetFont();
                         float fontSize = ImGui::GetFontSize() * 0.55f;
                         if (fontSize < 8.0f) fontSize = 8.0f;
                         if (fontSize > 24.0f) fontSize = 24.0f;
                         
                         ImVec2 txtSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, buf);
-                        ImVec2 txtPos = pos - (txtSize * 0.5f);
+                        ImVec2 txtPos = endPos - (txtSize * 0.5f);
                         draw->AddText(font, fontSize, txtPos, IM_COL32(0, 0, 0, 255), buf);
                     }
                 }
