@@ -818,7 +818,7 @@ INLINE void DrawESP(ImDrawList* draw) {
             }
         }
 
-        float lineThick = persistent_float["fLineThick"];
+        float lineThick = persistent_float["fLineThickness"];
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
