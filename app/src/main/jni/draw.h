@@ -1053,69 +1053,24 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,8));
             TextColored(ImVec4(1.0f, 0.0f, 0.8f, 1.0f), "%s", L("Line Style", " ﻂﻴﻄﺨﻟﺍ ﻂﻤﻧ"));
             Dummy(ImVec2(0, 8));
-            const char* items = " SOLID\0 STRIPE\0 COLORS\0";
-            const char* itemsAr = "✦ ﻞﺼﺘﻣ ✦\0✦ ﻊﻄﻘﺘﻣ ✦\0✦ ﻥﺍﻮﻟﺃ ✦\0";
-            need_save |= GoldCombo(L("", ""), L("", ""), &persistent_int["iLineStyle"],
-                                   persistent_int["iLang"] == 1 ? itemsAr : items);
-            Dummy(ImVec2(0, 8));
             
-            if (persistent_int["iLineThickness"] <= 0) persistent_int["iLineThickness"] = 5;
-            if (persistent_int["iLineAlpha"] <= 0) persistent_int["iLineAlpha"] = 10;
-            
+            if (persistent_float["iLineThickness"] <= 0) persistent_float["iLineThickness"] = 5;
+                        
             {
-                float fv = (float)persistent_int["iLineThickness"];
+                float fv = (float)persistent_float["iLineThickness"];
                 if (GoldSliderFloat(L("Line Thickness", "✦ ﻂﺨﻟﺍ ﻚﻤﺳ"),
-                                    L("", ""), &fv, 1.0f, 15.0f, "%.0f")) {
-                    persistent_int["iLineThickness"] = (int)(fv + 0.5f);
+                                    L("", ""), &fv, 1.0f, 8.0f, "%.0f")) {
+                    persistent_float["iLineThickness"] = (float)(fv + 0.5f);
                     need_save = true;
                 }
             }
             Dummy(ImVec2(0, 4));
-            {
-                float fv = (float)persistent_int["iLineAlpha"];
-                if (GoldSliderFloat(L("Line Transparency", "✦ ﻂﺨﻟﺍ ﺔﻴﻓﺎﻔﺷ"),
-                                    L("", ""), &fv, 1.0f, 10.0f, "%.0f")) {
-                    persistent_int["iLineAlpha"] = (int)(fv + 0.5f);
-                    need_save = true;
-                }
-            }
             break;
         }
         case 1: {
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
-           /* TextColored(ImVec4(0.95f, 0.82f, 0.36f, 1.0f), "%s", L("Auto Play Style","ﻲﺋﺎﻘﻠﺘﻟﺍ ﺐﻌﻠﻟﺍ ﻊﻀﻭ"));
-            Dummy(ImVec2(0, 8));
-            
-            int curMode = persistent_int["iAutoPlayMode"];
-            // Sync ke AutoPlay setiap frame
-            AutoPlay::automationSpeed = (AutoPlay::AutomationSpeed)curMode;
-            
-            const char* modeNames[2] = {
-                L("Fast", "ﻊﻳﺮﺳ"),
-                L("Human", "ﺔﻗﺩﺎﺑ")
-            };
-            float bwMode = (GetContentRegionAvail().x - 8) / 2.0f; // 2 mode, bukan 3
-            
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            for (int i = 0; i < 2; i++) {
-                if (i) SameLine();
-                bool sel = (curMode == i);
-                PushStyleColor(ImGuiCol_Button,        sel ? (ImVec4)ImColor(COL_GOLD_DEEP) : ImVec4(0.10f, 0.14f, 0.22f, 1.0f));
-                PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.26f, 0.36f, 1.0f));
-                PushStyleColor(ImGuiCol_Text,          sel ? ImVec4(1, 1, 1, 1) : ImVec4(0.75f, 0.80f, 0.90f, 1));
-            
-                if (Button(modeNames[i], ImVec2(bwMode, 44))) {
-                    persistent_int["iAutoPlayMode"] = i;
-                    curMode = i;
-                    AutoPlay::automationSpeed = (AutoPlay::AutomationSpeed)i;
-                    need_save = true;
-                }
-            
-                PopStyleColor(3);
-            }
-            PopStyleVar();*/
             break;
         }
         case 2: { 
