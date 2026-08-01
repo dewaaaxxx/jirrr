@@ -98,15 +98,20 @@ struct PowerSlider {
         float dt = ImGui::GetIO().DeltaTime;
         
         if (this->state == STARTING) {
-            this->HoldTime += dt;
-            if (this->HoldTime >= this->HoldDuration * 2.f) {
-                NativeTouchesBegin(this->TouchIndex, this->StartPos.x, this->StartPos.y);
-                this->state = MOVING;
-                this->HoldTime = 0.f;
-            }
+    this->HoldTime += dt;
+    
+    // Set power setiap frame selama STARTING biar ga ke-reset game
+    sharedGameManager.mVisualCue().mPower(ShotPowerToPower(this->ShotPower));
+    
+    if (this->HoldTime >= this->HoldDuration * 2.f) {
+        NativeTouchesBegin(this->TouchIndex, this->StartPos.x, this->StartPos.y);
+        this->state = MOVING;
+        this->HoldTime = 0.f;
+    }
         }
         
         if (this->state == MOVING) {
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(this->ShotPower));
             this->ElapsedTime += dt;
             
             if (this->ElapsedTime < this->Duration) {
