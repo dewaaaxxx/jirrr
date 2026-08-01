@@ -6,6 +6,7 @@
 #include <cmath>
 #include "ScreenTable.h"
 #include "ButtonClicker.h"
+#include "PowerSlider.h"
 
 using namespace ImGui;
 
