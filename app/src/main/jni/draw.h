@@ -1069,7 +1069,7 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
-            need_save |= ToggleSwitch(O("Preview Power Slider"), &persistent_bool[O("bPSliderPreview")]);
+            need_save |= GoldToggle(O("Preview Power Slider"), &persistent_bool[O("bPSliderPreview")]);
         
             // ── Power Slider Position ──
             Dummy(ImVec2(0, 10));
