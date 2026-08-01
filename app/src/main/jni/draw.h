@@ -1069,67 +1069,51 @@ static void DrawContentArea(float sidebarW, float winW, float winH, ImVec2 winPo
             Dummy(ImVec2(0,4));
             need_save |= GoldToggle("Enable Auto Play", "", &persistent_bool[O("bAutoPlay")]);
             Dummy(ImVec2(0,8));
-            need_save |= GoldToggle(O("Preview Power Slider"), &persistent_bool[O("bPSliderPreview")]);
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Power Slider Position"));
+            Dummy(ImVec2(0, 8));
         
-            // ── Power Slider Position ──
-            Dummy(ImVec2(0, 10));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), "Power Slider Position");
+            // ── Slider X ──
+            float sliderX = persistent_float["fPowerBarXPercent"];
+            if (GoldSliderFloat("X Position", "Horizontal", &sliderX, 0.00f, 0.50f, "%.3f")) {
+            persistent_float["fPowerBarXPercent"] = sliderX;
+            need_save = true;
+            }
             Dummy(ImVec2(0, 4));
-
-            // ── Power Slider Position ──
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), "Power Slider Position");
-            Dummy(ImVec2(0, 4));
-            
-            float x = persistent_float[O("fPowerBarXPercent")];
-            if (SliderFloat("X Position", &x, 0.00f, 0.50f, "%.3f")) {
-                persistent_float[O("fPowerBarXPercent")] = x;
+        
+            // ── Slider Top ──
+            float sliderTop = persistent_float["fPowerBarYStartPercent"];
+            if (GoldSliderFloat(O("Top Position"), O("Vertical start"), &sliderTop, 0.05f, 0.50f, "%.3f")) {
+                persistent_float["fPowerBarYStartPercent"] = sliderTop;
                 need_save = true;
             }
             Dummy(ImVec2(0, 4));
-            
-            float top = persistent_float[O("fPowerBarYStartPercent")];
-            if (SliderFloat("Top Position", &top, 0.05f, 0.50f, "%.3f")) {
-                persistent_float[O("fPowerBarYStartPercent")] = top;
-                need_save = true;
-            }
-            Dummy(ImVec2(0, 4));
-            
-            float h = persistent_float[O("fPowerBarYEndPercent")];
-            if (SliderFloat("Height", &h, 0.30f, 0.90f, "%.3f")) {
-                persistent_float[O("fPowerBarYEndPercent")] = h;
+        
+            // ── Slider Height ──
+            float sliderH = persistent_float["fPowerBarYEndPercent"];
+            if (GoldSliderFloat(O("Height"), O("Slider height"), &sliderH, 0.30f, 0.90f, "%.3f")) {
+                persistent_float["fPowerBarYEndPercent"] = sliderH;
                 need_save = true;
             }
             Dummy(ImVec2(0, 10));
-
+        
+            // ── GoldToggle Preview ──
+            need_save |= GoldToggle(O("Preview Power Slider"), O("Show guide line on screen"), &persistent_bool["bPSliderPreview"]);
+            Dummy(ImVec2(0, 10));
+        
+            // ── PREVIEW GAMBAR ──
             if (persistent_bool["bPSliderPreview"]) {
                 ImDrawList* fgdl = GetForegroundDrawList();
                 if (fgdl) {
                     ImGuiIO& io = GetIO();
-                    float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
-                    float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
-                    float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
-            
-                    // ── Garis slider ──
+                    float px = io.DisplaySize.x * persistent_float["fPowerBarXPercent"];
+                    float pt = io.DisplaySize.y * persistent_float["fPowerBarYStartPercent"];
+                    float ph = io.DisplaySize.y * persistent_float["fPowerBarYEndPercent"];
+        
                     fgdl->AddLine(ImVec2(px, pt), ImVec2(px, pt + ph), IM_COL32(255, 80, 80, 220), 3.5f);
-                    
-                    // ── Titik atas & bawah ──
                     fgdl->AddCircleFilled(ImVec2(px, pt), 7.f, IM_COL32(80, 255, 80, 240));
                     fgdl->AddCircleFilled(ImVec2(px, pt + ph), 7.f, IM_COL32(80, 255, 80, 240));
-            
-                    // ── Label nilai ──
-                    char buf[64];
-                    snprintf(buf, sizeof(buf), "X: %.2f%%", persistent_float[O("fPowerBarXPercent")] * 100.f);
-                    fgdl->AddText(ImVec2(px + 12, pt - 10), IM_COL32(255, 255, 255, 255), buf);
-            
-                    snprintf(buf, sizeof(buf), "Top: %.2f%%", persistent_float[O("fPowerBarYStartPercent")] * 100.f);
-                    fgdl->AddText(ImVec2(px + 12, pt + 10), IM_COL32(255, 255, 255, 255), buf);
-            
-                    snprintf(buf, sizeof(buf), "H: %.2f%%", (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]) * 100.f);
-                    fgdl->AddText(ImVec2(px + 12, pt + 30), IM_COL32(255, 255, 255, 255), buf);
                 }
             }
-        
-            // ── PREVIEW ──
         
             Dummy(ImVec2(0, 20));
             TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("Auto play will automatically"));
