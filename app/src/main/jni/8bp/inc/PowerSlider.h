@@ -74,22 +74,20 @@ struct PowerSlider {
     
     // DragTime is time to reach MAX power (666.0f)
     void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
-        if (this->Active) return;
-        
-       // ShotPower = 666.f;
-        this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
-        float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
-        
-        Start(Rect);
-        
-        // Calculate exact target position for the requested power
-        this->TargetPos = ImVec2(
-            this->StartPos.x + (this->EndPos.x - this->StartPos.x) * powerRatio,
-            this->StartPos.y + (this->EndPos.y - this->StartPos.y) * powerRatio
-        );
-        
-        this->Duration = DragTime * powerRatio;
-        this->HoldDuration = HoldTime;
+    if (this->Active) return;
+    
+    this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
+    float powerRatio = ShotPowerToDragRatio(this->ShotPower); // ← ganti ini
+    
+    Start(Rect);
+    
+    this->TargetPos = ImVec2(
+        this->StartPos.x + (this->EndPos.x - this->StartPos.x) * powerRatio,
+        this->StartPos.y + (this->EndPos.y - this->StartPos.y) * powerRatio
+    );
+    
+    this->Duration = DragTime * powerRatio;
+    this->HoldDuration = HoldTime;
     }
 
     void Update() {
