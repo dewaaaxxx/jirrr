@@ -82,9 +82,13 @@ namespace NumberUtils {
     inline double calcAngle(Vec2d source, Vec2d Destination) { return calcAngle(source - Destination); }
 }
 
-double ShotPowerToPower(double shotPower) {
+float ShotPowerToDragRatio(float shotPower) {
     auto maxPower = CUE_PROPERTIES_MAX_POWER;
     double ratio = 1.0 - (shotPower / maxPower);
-    double power = 1.0 - ratio * ratio;
-    return NumberUtils::normalizeDoublePrecision(power);
+    double gamePower = 1.0 - ratio * ratio; // ini yang game terima
+    // inverse: cari drag position yang ngasih gamePower yang sama
+    // gamePower = 1 - (1 - dragT)²
+    // dragT = 1 - sqrt(1 - gamePower)
+    double dragT = 1.0 - sqrt(1.0 - gamePower);
+    return (float)std::min(std::max(dragT, 0.0), 1.0);
 }
