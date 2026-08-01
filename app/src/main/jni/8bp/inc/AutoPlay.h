@@ -306,6 +306,11 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
+            ImGuiIO& io = ImGui::GetIO();
+            float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
+            float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
+            float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
+            ImVec4 sliderRect = ImVec4(px, pt, 0.f, ph);
             powerSlider.SimulateDrag(sliderRect, (float)power, 0.7f, 0.35f);
             state = POWER_SLIDING;
         }
@@ -773,9 +778,13 @@ namespace AutoPlay {
             }
             
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-                // ganti takeShot langsung jadi power sliding
                 setAimAngle(pendingShotAngle);
                 gPrediction->determineShotResult(false, pendingShotAngle, pendingShotPower);
+                ImGuiIO& io = ImGui::GetIO();
+                float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
+                float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
+                float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
+                ImVec4 sliderRect = ImVec4(px, pt, 0.f, ph);
                 powerSlider.SimulateDrag(sliderRect, (float)pendingShotPower, 0.7f, 0.35f);
                 state = POWER_SLIDING;
                 nominationFrameCounter = 0;
