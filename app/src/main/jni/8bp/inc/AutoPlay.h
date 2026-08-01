@@ -310,14 +310,10 @@ namespace AutoPlay {
     }
     
     void ScanPrecision(double angleStep = 0.005f) {
-        /**
-         * LUXURY PRECISION MODE: Ultra-fine-grained analysis
-         * Scans with precision-grade angle steps and advanced physics evaluation
-         */
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
-
+    
         if (g_CurrentCandidate.idx != -1) return;
         
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
@@ -325,7 +321,7 @@ namespace AutoPlay {
             isScanning = true;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
         }
-
+    
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         double spinMagnitude = ExtractSpinMagnitude(sharedGameManager.getShotSpin());
@@ -333,20 +329,20 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         double bestQualityScore = -1.0;
-        Candidate bestCandidate = { -1 };
+        Candidate bestCandidate = {-1};
         
         while (steps < 15 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
-
+    
             std::vector<double> powers = {666.0, 555.0, 444.0, 333.0, 222.0, 111.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
                 int targetIdx = -1;
                 bool isNineBallGame = myclass == Ball::Classification::NINE_BALL_RULE;
-
+    
                 if (isNineBallGame) {
                     int iFoundLowestNumberedBall = -1;
                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
@@ -355,11 +351,11 @@ namespace AutoPlay {
                             break;
                         }
                     }
-
+    
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit || firstHit->index != iFoundLowestNumberedBall) continue;
                     if (!gPrediction->guiData.balls[0].onTable) continue;
-
+    
                     int bestPottedIdx = -1;
                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                         auto& ball = gPrediction->guiData.balls[i];
@@ -369,30 +365,50 @@ namespace AutoPlay {
                             if (bestPottedIdx == -1 || i == firstHit->index) bestPottedIdx = i;
                         }
                     }
-
+    
                     if (bestPottedIdx == -1) continue;
+    
+                    // Binary search power optimal
+                    double bestPower = power;
+                    double lo = (power - 100.0 < 50.0) ? 50.0 : power - 100.0;
+                    double hi = (power + 100.0 > 700.0) ? 700.0 : power + 100.0;
+                    for (int r = 0; r < 8; r++) {
+                        double mid = (lo + hi) / 2.0;
+                        gPrediction->determineShotResult(true, angle, mid, sharedGameManager.getShotSpin());
+                        bool stillValid = false;
+                        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                            auto& b = gPrediction->guiData.balls[i];
+                            if (b.originalOnTable && !b.onTable && b.index == bestPottedIdx) {
+                                stillValid = true;
+                                break;
+                            }
+                        }
+                        if (!stillValid) break;
+                        bestPower = mid;
+                        hi = mid;
+                    }
                     
                     double qualityScore = CalculateShotQualityScore(
-                        sqrt(power),
-                        1.0,
-                        0.0,
-                        spinMagnitude,
-                        true,
+                        sqrt(bestPower), 1.0, 0.0, spinMagnitude, true,
                         gPrediction->guiData.ballsCount - 1
                     );
                     
                     if (qualityScore > bestQualityScore) {
                         bestQualityScore = qualityScore;
-                        bestCandidate = {bestPottedIdx, angle, (double)power, (uint)gPrediction->guiData.balls[bestPottedIdx].pocketIndex};
+                        bestCandidate = {bestPottedIdx, angle, bestPower,
+                                        (uint)gPrediction->guiData.balls[bestPottedIdx].pocketIndex};
                     }
+                    continue;
                 }
-
+    
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (ball.originalOnTable && !ball.onTable) {
                         bool isValidTarget = false;
                         if (myclass == Ball::Classification::ANY) {
-                            if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                            if (ball.classification != Ball::Classification::CUE_BALL &&
+                                ball.classification != Ball::Classification::EIGHT_BALL)
+                                isValidTarget = true;
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
                         }
@@ -400,7 +416,7 @@ namespace AutoPlay {
                         if (isValidTarget) { targetIdx = i; break; }
                     }
                 }
-
+    
                 if (targetIdx != -1) {
                     if (!gPrediction->guiData.balls[0].onTable) continue;
                     if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
@@ -409,31 +425,48 @@ namespace AutoPlay {
                     if (myclass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
                     } else if (firstHit->classification != myclass) continue;
-
+    
+                    // Binary search power optimal
+                    double bestPower = power;
+                    double lo = (power - 100.0 < 50.0) ? 50.0 : power - 100.0;
+                    double hi = (power + 100.0 > 700.0) ? 700.0 : power + 100.0;
+                    for (int r = 0; r < 8; r++) {
+                        double mid = (lo + hi) / 2.0;
+                        gPrediction->determineShotResult(true, angle, mid, sharedGameManager.getShotSpin());
+                        bool stillValid = false;
+                        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                            auto& b = gPrediction->guiData.balls[i];
+                            if (b.originalOnTable && !b.onTable && b.index == targetIdx) {
+                                stillValid = true;
+                                break;
+                            }
+                        }
+                        if (!stillValid) break;
+                        bestPower = mid;
+                        hi = mid;
+                    }
+                    
                     double qualityScore = CalculateShotQualityScore(
-                        sqrt(power),
-                        1.0,
-                        0.0,
-                        spinMagnitude,
-                        true,
+                        sqrt(bestPower), 1.0, 0.0, spinMagnitude, true,
                         gPrediction->guiData.ballsCount - 1
                     );
                     
                     if (qualityScore > bestQualityScore) {
                         bestQualityScore = qualityScore;
-                        bestCandidate = {targetIdx, angle, (double)power, (uint)gPrediction->guiData.balls[targetIdx].pocketIndex};
+                        bestCandidate = {targetIdx, angle, bestPower,
+                                        (uint)gPrediction->guiData.balls[targetIdx].pocketIndex};
                     }
                 }
             }
         }
-
+    
         if (bestCandidate.idx != -1) {
             g_CurrentCandidate = bestCandidate;
             g_AutoPlayMetrics.averageQualityScore = bestQualityScore;
             Shoot(bestCandidate.angle, bestCandidate.power);
             foundShot = true;
         }
-
+    
         if (!foundShot && currentScanAngle >= maxAngle) {
             isScanning = false;
             currentScanAngle = 0.0;
@@ -445,7 +478,7 @@ namespace AutoPlay {
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
-
+    
         if (g_CurrentCandidate.idx != -1) return;
         
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
@@ -453,26 +486,27 @@ namespace AutoPlay {
             isScanning = true;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
         }
-
+    
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
         
         int steps = 0;
         bool foundShot = false;
-        
+        Candidate bestCandidate = {-1};
+        double bestScore = -1.0;
+    
         while (steps < 15 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
-
+    
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
-                bool isPotentiallyValid = false;
                 int targetIdx = -1;
                 bool isNineBallGame = myclass == Ball::Classification::NINE_BALL_RULE;
-
+    
                 if (isNineBallGame) {
                     int iFoundLowestNumberedBall = -1;
                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
@@ -481,11 +515,11 @@ namespace AutoPlay {
                             break;
                         }
                     }
-
+    
                     auto firstHit = gPrediction->guiData.collision.firstHitBall;
                     if (!firstHit || firstHit->index != iFoundLowestNumberedBall) continue;
                     if (!gPrediction->guiData.balls[0].onTable) continue;
-
+    
                     int bestPottedIdx = -1;
                     for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                         auto& ball = gPrediction->guiData.balls[i];
@@ -495,24 +529,46 @@ namespace AutoPlay {
                             if (bestPottedIdx == -1 || i == firstHit->index) bestPottedIdx = i;
                         }
                     }
-
+    
                     if (bestPottedIdx == -1) continue;
-                    g_CurrentCandidate.idx = bestPottedIdx;
-                    g_CurrentCandidate.angle = angle;
-                    g_CurrentCandidate.power = power;
-                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
-
-                    foundShot = true;
-                    Shoot(angle, power);
-                    break;
+    
+                    // Binary search power optimal
+                    double bestPower = power;
+                    double lo = (power - 100.0 < 50.0) ? 50.0 : power - 100.0;
+                    double hi = (power + 100.0 > 700.0) ? 700.0 : power + 100.0;
+                    for (int r = 0; r < 8; r++) {
+                        double mid = (lo + hi) / 2.0;
+                        gPrediction->determineShotResult(true, angle, mid, sharedGameManager.getShotSpin());
+                        bool stillValid = false;
+                        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                            auto& b = gPrediction->guiData.balls[i];
+                            if (b.originalOnTable && !b.onTable && b.index == bestPottedIdx) {
+                                stillValid = true;
+                                break;
+                            }
+                        }
+                        if (!stillValid) break;
+                        bestPower = mid;
+                        hi = mid;
+                    }
+    
+                    double score = 1000.0 - bestPower; // prefer power rendah
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestCandidate = {bestPottedIdx, angle, bestPower,
+                                        (uint)gPrediction->guiData.balls[bestPottedIdx].pocketIndex};
+                    }
+                    continue;
                 }
-
+    
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (ball.originalOnTable && !ball.onTable) {
                         bool isValidTarget = false;
                         if (myclass == Ball::Classification::ANY) {
-                            if (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) isValidTarget = true;
+                            if (ball.classification != Ball::Classification::CUE_BALL &&
+                                ball.classification != Ball::Classification::EIGHT_BALL)
+                                isValidTarget = true;
                         } else {
                             if (ball.classification == myclass) isValidTarget = true;
                         }
@@ -520,7 +576,7 @@ namespace AutoPlay {
                         if (isValidTarget) { targetIdx = i; break; }
                     }
                 }
-
+    
                 if (targetIdx != -1) {
                     if (!gPrediction->guiData.balls[0].onTable) continue;
                     if (!gPrediction->guiData.balls[8].onTable && myclass != Ball::Classification::EIGHT_BALL) continue;
@@ -529,23 +585,43 @@ namespace AutoPlay {
                     if (myclass == Ball::Classification::ANY) {
                         if (firstHit->classification == Ball::Classification::EIGHT_BALL) continue;
                     } else if (firstHit->classification != myclass) continue;
-
-                    isPotentiallyValid = true;
-                    g_CurrentCandidate.idx = targetIdx;
-                    g_CurrentCandidate.angle = angle;
-                    g_CurrentCandidate.power = power;
-                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[targetIdx].pocketIndex;
-                }
-
-                if (isPotentiallyValid) {
-                    foundShot = true;
-                    Shoot(angle, power);
-                    break;
+    
+                    // Binary search power optimal
+                    double bestPower = power;
+                    double lo = (power - 100.0 < 50.0) ? 50.0 : power - 100.0;
+                    double hi = (power + 100.0 > 700.0) ? 700.0 : power + 100.0;
+                    for (int r = 0; r < 8; r++) {
+                        double mid = (lo + hi) / 2.0;
+                        gPrediction->determineShotResult(true, angle, mid, sharedGameManager.getShotSpin());
+                        bool stillValid = false;
+                        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                            auto& b = gPrediction->guiData.balls[i];
+                            if (b.originalOnTable && !b.onTable && b.index == targetIdx) {
+                                stillValid = true;
+                                break;
+                            }
+                        }
+                        if (!stillValid) break;
+                        bestPower = mid;
+                        hi = mid;
+                    }
+    
+                    double score = 1000.0 - bestPower;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestCandidate = {targetIdx, angle, bestPower,
+                                        (uint)gPrediction->guiData.balls[targetIdx].pocketIndex};
+                    }
                 }
             }
-            if (foundShot) break;
         }
-
+    
+        if (bestCandidate.idx != -1) {
+            g_CurrentCandidate = bestCandidate;
+            Shoot(bestCandidate.angle, bestCandidate.power);
+            foundShot = true;
+        }
+    
         if (!foundShot && currentScanAngle >= maxAngle) {
             isScanning = false;
             currentScanAngle = 0.0;
