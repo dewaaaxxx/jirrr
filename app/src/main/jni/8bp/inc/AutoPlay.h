@@ -213,7 +213,7 @@ namespace AutoPlay {
         IDLE,
         SCANNING,
         NOMINATING,
-        EXECUTING,
+        POWER_SLIDING  // ← baru
     } state = IDLE;
     
     double pendingShotPower = 0.f;
@@ -287,25 +287,26 @@ namespace AutoPlay {
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
         gPrediction->determineShotResult(false, angle, power);
-
+    
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
         auto myclass = sharedGameManager.getPlayerClassification();
-        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) ||
+            (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
+            if (g_CurrentCandidate.idx != -1 &&
+                sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
                 nominating = true;
             }
         }
-
+    
         if (nominating) {
             pendingShotPower = power;
             pendingShotAngle = angle;
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
-            takeShot(angle, power);
-            ClearState();
-            state = IDLE;
+            powerSlider.SimulateDrag(sliderRect, (float)power, 0.7f, 0.35f);
+            state = POWER_SLIDING;
         }
     }
     
@@ -729,6 +730,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
+        powerSlider.Update();
 
         static int animStuckCounter = 0;
         if (isAnimationActive()) {
@@ -770,8 +772,30 @@ namespace AutoPlay {
             }
             
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-                takeShot(pendingShotAngle, pendingShotPower);
+                // ganti takeShot langsung jadi power sliding
+                setAimAngle(pendingShotAngle);
+                gPrediction->determineShotResult(false, pendingShotAngle, pendingShotPower);
+                powerSlider.SimulateDrag(sliderRect, (float)pendingShotPower, 0.7f, 0.35f);
+                state = POWER_SLIDING;
+                nominationFrameCounter = 0;
+            }
+        } else if (state == POWER_SLIDING) {        
+            // timeout paksa ~3 detik
+            static int slideFrameCounter = 0;
+            slideFrameCounter++;
+            if (slideFrameCounter > 180) {
+                slideFrameCounter = 0;
+                powerSlider.Cancel();
                 ClearState();
+                state = IDLE;
+                return;
+            }
+        
+            if (!powerSlider.Active) {
+                slideFrameCounter = 0;
+                // g_CurrentCandidate.idx sudah di-reset oleh powerSlider.End()
+                // tinggal reset sisanya
+                g_AutoPlayMetrics.totalShotsAttempted++;
                 state = IDLE;
             }
         }
