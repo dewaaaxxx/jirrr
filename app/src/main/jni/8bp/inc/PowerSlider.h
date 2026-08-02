@@ -11,7 +11,14 @@ extern Candidate g_CurrentCandidate;
 
 extern Point2D lastFailedCuePos;
 
-extern bool IsShotValid();
+// Forward-declare AutoPlay flags (fix compile when AutoPlay namespace isn't visible)
+namespace AutoPlay {
+    extern bool bAutoPlaying;
+    extern bool didSetAngle;
+    extern double lastSetAngle;
+}
+
+//extern bool IsShotValid();
 
 struct PowerSlider {
     bool Active = false;
@@ -168,14 +175,12 @@ struct PowerSlider {
 
             if (this->ElapsedTime < this->Duration) {
                 float t = this->ElapsedTime / this->Duration;
-                // Interpolate from EndPos (captured CurrentPos) to TargetPos (StartPos)
                 this->CurrentPos = ImVec2(
                     this->EndPos.x + (this->TargetPos.x - this->EndPos.x) * t,
                     this->EndPos.y + (this->TargetPos.y - this->EndPos.y) * t
                 );
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
-                // Finished returning
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
                 End();
