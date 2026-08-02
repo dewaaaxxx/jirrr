@@ -1066,5 +1066,5 @@ namespace AutoPlay {
                 }
             }
         }
-    }
-};
+}
+
