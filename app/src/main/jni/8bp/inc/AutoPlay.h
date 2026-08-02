@@ -35,7 +35,7 @@ constexpr double IMPACT_FORCE_THRESHOLD = 2.0;          // Detect dynamic collis
 // ============================================================================
 // ADVANCED PHYSICS CALCULATION FUNCTIONS
 // ============================================================================
-static std::uniform_real_distribution<> humanOvershootDist(0.5, 1.5);
+
 /**
  * Revolutionary physics engine: Calculates optimal power with exponential curve
  * based on distance, friction, and spin dynamics.
@@ -259,11 +259,25 @@ namespace AutoPlay {
     static inline bool humanNeedsNomination = false;
     static inline int humanNominationPocket = -1;
     static inline SpinPreset spinPreset = SPIN_CENTER;
-    static inline bool bAutoSpin = true;
+    static inline bool bAutoSpin = false;
+    // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
+    // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
+    // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
+    // Solusi: lock spin pada saat scan dimulai, gunakan spin yang sama untuk semua
+    // determineShotResult call (scan, display, tembak) sampai shot selesai.
+    static inline Vec2d lockedShotSpin = {0.0, 0.0};
+    static inline bool spinIsLocked = false;
+    // FIX POWER: Power yang dipakai scan harus sama persis dengan yang ditembak.
+    // confirmedPower dari scan disimpan di g_CurrentCandidate.power dan di targetPower.
+    // Konversi ke mPower() via ShotPowerToPower() sudah benar — tidak perlu diubah.
+    // Yang penting: power sweep di scan harus cover range yang realistis
+    // berdasarkan getShotPower() (skala simulasi), bukan mPower() (skala 0-1).
     static bool g_postShotLock = false;
     static double g_postShotAngle = 0.0;
     static double g_postShotPower = 0.0;
     static int g_postShotFrames = 0;
+    static inline float powerMin = 100.0f;
+    static inline float powerMax = 666.0f;
     
     // ── Random engine ──
     static std::random_device rd;
@@ -290,9 +304,7 @@ namespace AutoPlay {
     sharedGameManager.mVisualEnglishControl().mEnglish(spin);
     }
 
-    bool shouldAutoPlay() { 
-        return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); 
-    }
+    bool shouldAutoPlay() { return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); }
 
     void setAimAngle(double angle) {
         if (!sharedGameManager) return;
@@ -303,11 +315,12 @@ namespace AutoPlay {
         lastSetCuePos = gPrediction->guiData.balls[0].initialPosition;
         vg.mAimAngle(angle);
     }
-    
+
     void takeShot(double angle, double power) {
         targetAngle = angle;
         targetPower = power;
         startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+   //     setAimAngle(angle);
         stateStartTime = nowSec();
         humanState = HUM_THINKING;
     }
@@ -328,7 +341,38 @@ namespace AutoPlay {
         lastFailedCuePos = { -1000.0, -1000.0 };
         state = IDLE;
         humanState = HUM_IDLE;
+        spinIsLocked = false; // Unlock spin supaya scan berikutnya lock spin fresh
     }
+    
+    void Shoot(double angle, double power = 0.f) {
+        if (!spinIsLocked) {
+            lockedShotSpin = sharedGameManager.getShotSpin();
+            spinIsLocked = true;
+        }
+        gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
+
+        bool nominating = false;
+        int nominationMode = sharedGameManager.getPocketNominationMode();
+        auto myclass = sharedGameManager.getPlayerClassification();
+        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
+            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+                nominating = true;
+            }
+        }
+
+        if (nominating) {
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            state = NOMINATING;
+            nominationFrameCounter = 0;
+        } else {
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            takeShot(angle, power);
+        }
+    }
+
+    
     
     static double calcAdaptivePower(double distCG, double totalDist) {
         double rawPow = sqrt(2.0 * 196.0 * totalDist);
@@ -361,32 +405,6 @@ namespace AutoPlay {
             }
         }
         return clusterScore;
-    }
-    
-    
-    void Shoot(double angle, double power = 0.f) {
-       // setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
-
-        bool nominating = false;
-        int nominationMode = sharedGameManager.getPocketNominationMode();
-        auto myclass = sharedGameManager.getPlayerClassification();
-        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
-                nominating = true;
-            }
-        }
-
-        if (nominating) {
-            pendingShotPower = power;
-            pendingShotAngle = angle;
-            state = NOMINATING;
-            nominationFrameCounter = 0;
-        } else {
-            takeShot(angle, power);
-            ClearState();
-            state = IDLE;
-        }
     }
     
     void ScanPrecision(double angleStep = 0.002f) {
@@ -809,8 +827,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-        powerSlider.Update();
-
+        
         static int animStuckCounter = 0;
         if (isAnimationActive()) {
             animStuckCounter++;
@@ -823,248 +840,296 @@ namespace AutoPlay {
         animStuckCounter = 0;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            ClearState(); // tambah ini
+            if (humanState != HUM_IDLE) return;
+            if (state == EXECUTING) return;
+            g_CurrentCandidate.idx = -1;
+            lastFailedCuePos = { -1000.0, -1000.0 };
+            spinIsLocked = false;
             state = IDLE;
+            scan = FAST;
+            NativeTouchesEnd(5, 0, 0);
+            ClearState();
             return;
         }
 
         if (state == IDLE) {
-            state = SCANNING;
-            scan = FAST;
+            if (humanState == HUM_IDLE) {
+                state = SCANNING;
+                scan = FAST;
+            }
         } else if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
             else if (scan == PRECISION) ScanPrecision(0.005f);
         } else if (state == NOMINATING) {
-                nominationFrameCounter++;
-                if (nominationFrameCounter == 10) {
-                    buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
-                }
-                if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-                    uint nominatedPocket = sharedGameManager.getNominatedPocket();
-                    if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
-                        // Nominasi confirmed — re-validasi shot dengan full simulation
-                        
-                        gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
-                                                         sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                        
-    
-                        // Scratch check setelah nominasi
-                        if (!gPrediction->guiData.balls[0].onTable) {
-                            LOGI("[AUTOPLAY] Post-nomination scratch detected, cancelling");
+            nominationFrameCounter++;
+            if (nominationFrameCounter == 10) {
+                buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
+            }
+            
+            // TAMBAH INI — timeout paksa setelah 120 frame (~2 detik)
+            if (nominationFrameCounter > 120) {
+                buttonClicker.Active = false; // paksa reset
+                nominationFrameCounter = 0;
+                ClearState();
+                state = IDLE;
+                return;
+            }
+            
+            if (nominationFrameCounter > 20 && !buttonClicker.Active) {
+                uint nominatedPocket = sharedGameManager.getNominatedPocket();
+                if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
+                    // Nominasi confirmed — re-validasi shot dengan full simulation
+                    
+                    gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
+                                                     lockedShotSpin, g_CurrentCandidate);
+                    
+
+                    // Scratch check setelah nominasi
+                    if (!gPrediction->guiData.balls[0].onTable) {
+                        LOGI("[AUTOPLAY] Post-nomination scratch detected, cancelling");
+                        ClearState();
+                        return;
+                    }
+
+                    // Update pocketIndex dari simulasi fresh
+                    if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
+                        int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
+                        if (freshPocket >= 0 && freshPocket < 6) {
+                            g_CurrentCandidate.pocketIndex = freshPocket;
+                        }
+                    }
+
+                    // Cek bola target masih valid ke pocket yang dinominasi
+                    if (g_CurrentCandidate.pocketIndex != (int)nominatedPocket) {
+                        LOGI("[AUTOPLAY] Target pocket mismatch after nomination, cancelling");
+                        ClearState();
+                        return;
+                    }
+
+                    // Start human state machine
+                    applyAutoSpin();
+                    startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+                    targetAngle = pendingShotAngle;
+                    targetPower = pendingShotPower;
+                    humanShotLocked = true;
+                    humanState = HUM_THINKING;
+                    stateStartTime = nowSec() + 0.3;
+                    state = EXECUTING; // EXECUTING biar tidak di-reset oleh isPlayerTurn check
+                } else {
+                    // Retry setiap 30 frame, timeout 150 frame
+                    if (nominationFrameCounter % 30 == 0) {
+                        if (nominationFrameCounter > 150) {
+                            LOGI("[AUTOPLAY] Nomination timeout, resetting");
                             ClearState();
-                            return;
-                        }
-    
-                        // Update pocketIndex dari simulasi fresh
-                        if (g_CurrentCandidate.idx >= 0 && g_CurrentCandidate.idx < gPrediction->guiData.ballsCount) {
-                            int freshPocket = gPrediction->guiData.balls[g_CurrentCandidate.idx].pocketIndex;
-                            if (freshPocket >= 0 && freshPocket < 6) {
-                                g_CurrentCandidate.pocketIndex = freshPocket;
-                            }
-                        }
-    
-                        // Cek bola target masih valid ke pocket yang dinominasi
-                        if (g_CurrentCandidate.pocketIndex != (int)nominatedPocket) {
-                            LOGI("[AUTOPLAY] Target pocket mismatch after nomination, cancelling");
-                            ClearState();
-                            return;
-                        }
-    
-                        // Start human state machine
-                        
-                        startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-                        targetAngle = pendingShotAngle;
-                        targetPower = pendingShotPower;
-                        humanShotLocked = true;
-                        humanState = HUM_THINKING;
-                        stateStartTime = nowSec() + 0.3;
-                        state = EXECUTING; // EXECUTING biar tidak di-reset oleh isPlayerTurn check
-                    } else {
-                        // Retry setiap 30 frame, timeout 150 frame
-                        if (nominationFrameCounter % 30 == 0) {
-                            if (nominationFrameCounter > 150) {
-                                LOGI("[AUTOPLAY] Nomination timeout, resetting");
-                                ClearState();
-                                lastFailedCuePos = gPrediction->guiData.balls[0].initialPosition;
-                            } else {
-                                LOGI("[AUTOPLAY] Nomination retry #%d", nominationFrameCounter / 30);
-                                buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
-                            }
+                            lastFailedCuePos = gPrediction->guiData.balls[0].initialPosition;
+                        } else {
+                            LOGI("[AUTOPLAY] Nomination retry #%d", nominationFrameCounter / 30);
+                            buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
                         }
                     }
                 }
             }
-                // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
-            // ─── HIDE PREDICTION LINES DURING HUMAN STATE ──────────────────────────
-            if (humanState != HUM_IDLE) {
-            double now = nowSec();
+        }
+            // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
+        // ─── HIDE PREDICTION LINES DURING HUMAN STATE ──────────────────────────
+        if (humanState != HUM_IDLE) {
+        double now = nowSec();
+
+        auto UpdateJoystickVisuals = [&](double angle) {
+            float jX = Width * 0.83f;
+            float jY = Height * 0.82f;
+            float jR = 65.0f;
+            float tX = jX + cos(angle) * jR;
+            float tY = jY + sin(angle) * jR;
+            NativeTouchesMove(5, tX, tY);
+
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+    if (fg) {
+        fg->AddCircleFilled(ImVec2(tX, tY), 10.0f, IM_COL32(255, 255, 255, 100));
+        fg->AddCircle(ImVec2(tX, tY), 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+    }
+        };
     
-            auto UpdateJoystickVisuals = [&](double angle) {
+        // 1. HUM_THINKING (0.5s pause)
+        if (humanState == HUM_THINKING) {
+            if (now >= stateStartTime) {
+                overshootOffset = (gen() % 2 == 0 ? 1 : -1) * 0.058;
+                currentOvershootTarget = targetAngle + overshootOffset;
+                stateStartTime = now;
+                humanState = HUM_OVERSHOOTING;
+                NativeTouchesBegin(5, Width * 0.83f, Height * 0.82f);
+            }
+            return;
+        }
+
+        // 2. ROTATION (1.1s smooth sweep to overshoot)
+        if (humanState == HUM_OVERSHOOTING) {
+            double t = (now - stateStartTime) / 1.1;
+            if (t >= 1.0) {
+                setAimAngle(currentOvershootTarget);
+                UpdateJoystickVisuals(currentOvershootTarget);
+                stateStartTime = now;
+                humanState = HUM_CORRECTING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double normalizedStart = normalizeAngle(startAngle);
+                double normalizedTarget = normalizeAngle(currentOvershootTarget);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, lockedShotSpin, g_CurrentCandidate);
+            return;
+        }
+
+        // 3. ELASTIC SNAP BACK (0.35s)
+        if (humanState == HUM_CORRECTING) {
+            double t = (now - stateStartTime) / 0.35;
+            double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
+            double nudgeAngle = targetAngle + dirSign * (1.5 * M_PI / 180.0);
+            
+            if (t >= 1.0) {
+                setAimAngle(nudgeAngle);
+                UpdateJoystickVisuals(nudgeAngle);
+                stateStartTime = now;
+                humanState = HUM_HOLDING;
+            } else {
+                double ease = EaseInOutCubic(t);
+                double normalizedStart = normalizeAngle(currentOvershootTarget);
+                double normalizedTarget = normalizeAngle(nudgeAngle);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
+            }
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, lockedShotSpin, g_CurrentCandidate);
+            return;
+        }
+
+        // 3b. HOLD TOUCH AT TARGET (0.40s slow nudge/adjustment to exact target + hold)
+        if (humanState == HUM_HOLDING) {
+            double t = (now - stateStartTime) / 0.40;
+            double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
+            double nudgeAngle = targetAngle + dirSign * (1.5 * M_PI / 180.0);
+            
+            if (t >= 1.0) {
+                setAimAngle(targetAngle);
+                UpdateJoystickVisuals(targetAngle);
+                
                 float jX = Width * 0.83f;
                 float jY = Height * 0.82f;
                 float jR = 65.0f;
-                float tX = jX + cos(angle) * jR;
-                float tY = jY + sin(angle) * jR;
-                NativeTouchesMove(5, tX, tY);
-    
-                ImDrawList* fg = ImGui::GetForegroundDrawList();
-        if (fg) {
-            fg->AddCircleFilled(ImVec2(tX, tY), 10.0f, IM_COL32(255, 255, 255, 100));
-            fg->AddCircle(ImVec2(tX, tY), 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
-        }
-            };
-        
-            // 1. HUM_THINKING (0.5s pause)
-            if (humanState == HUM_THINKING) {
-                    if (now >= stateStartTime + humanDelayDist(gen)) {
-                        double overshootDeg = humanOvershootDist(gen);
-                        overshootOffset = (gen() % 2 == 0 ? 1.0 : -1.0) * (overshootDeg * PI / 180.0);
-                        currentOvershootTarget = targetAngle + overshootOffset;
-                        stateStartTime = now;
-                        humanState = HUM_OVERSHOOTING;
-                        NativeTouchesBegin(5, Width * 0.83f, Height * 0.82f);
-                    }
-                    return;
-                }
-        
-                // EXPERT OVERSHOOTING PHASE
-                if (humanState == HUM_OVERSHOOTING) {
-                    double t = (now - stateStartTime) / 0.4;
-                    if (t >= 1.0) {
-                        setAimAngle(currentOvershootTarget);
-                        UpdateJoystickVisuals(currentOvershootTarget);
-                        stateStartTime = now;
-                        humanState = HUM_CORRECTING;
-                    } else {
-                        double ease = EaseInOutCubic(t);
-                        double normalizedStart = normalizeAngle(startAngle);
-                        double normalizedTarget = normalizeAngle(currentOvershootTarget);
-                        double delta = normalizedTarget - normalizedStart;
-                        if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
-                        double curAngle = normalizedStart + delta * ease;
-                        setAimAngle(curAngle);
-                        UpdateJoystickVisuals(curAngle);
-                    }
-                    return;
-                }
-        
-                // EXPERT CORRECTING PHASE
-                if (humanState == HUM_CORRECTING) {
-                    double t = (now - stateStartTime) / 0.25;
-                    double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
-                    double nudgeAngle = targetAngle - dirSign * (0.3 * PI / 180.0);
-                    
-                    if (t >= 1.0) {
-                        setAimAngle(nudgeAngle);
-                        UpdateJoystickVisuals(nudgeAngle);
-                        stateStartTime = now;
-                        humanState = HUM_HOLDING;
-                    } else {
-                        double ease = EaseInOutCubic(t);
-                        double normalizedStart = normalizeAngle(currentOvershootTarget);
-                        double normalizedTarget = normalizeAngle(nudgeAngle);
-                        double delta = normalizedTarget - normalizedStart;
-                        if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
-                        double curAngle = normalizedStart + delta * ease;
-                        setAimAngle(curAngle);
-                        UpdateJoystickVisuals(curAngle);
-                    }
-                    return;
-                }
-        
-                // EXPERT HOLDING PHASE (subtle jitter)
-                if (humanState == HUM_HOLDING) {
-                    double t = (now - stateStartTime) / 0.2;
-                    double dirSign = (overshootOffset > 0) ? 1.0 : -1.0;
-                    double nudgeAngle = targetAngle - dirSign * (0.3 * PI / 180.0);
-                    
-                    if (t >= 1.0) {
-                        setAimAngle(targetAngle);
-                        UpdateJoystickVisuals(targetAngle);
-                        float jX = Width * 0.83f;
-                        float jY = Height * 0.82f;
-                        float jR = 65.0f;
-                        NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
-                                             jY + (float)sin(targetAngle) * jR);
-                        stateStartTime = now;
-                        humanState = HUM_STABILIZING;
-                    } else {
-                        double ease = sin(t * M_PI_2);
-                        double normalizedStart = normalizeAngle(nudgeAngle);
-                        double normalizedTarget = normalizeAngle(targetAngle);
-                        double delta = normalizedTarget - normalizedStart;
-                        if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
-                        // Subtle micro-jitter (almost invisible)
-                        double jitter = 0.0;
-                        if (t > 0.3) {
-                            jitter = ((gen() % 100) / 100.0 - 0.5) * (0.15 * PI / 180.0);
-                        }
-                        double curAngle = normalizedStart + delta * ease + jitter;
-                        setAimAngle(curAngle);
-                        UpdateJoystickVisuals(curAngle);
-                    }
-                    return;
-                }
-        
-                // EXPERT STABILIZING PHASE
-                if (humanState == HUM_STABILIZING) {
-                    // Lock angle ke engine setiap frame
-                    setAimAngle(targetAngle);
-                    sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
-                    NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
-                                         Height * 0.82f + sin(targetAngle) * 65.0f);
-        
-                    if (now - stateStartTime >= 0.4) {
-                        NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
-                                            Height * 0.82f + sin(targetAngle) * 65.0f);
-                        // Set angle + power di memory sebelum pindah state
-                        setAimAngle(targetAngle);
-                        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
-                        stateStartTime = now;
-                        humanState = HUM_PULLING;
-                    }
-                    return;
-                }
-        
-                // EXPERT PULLING PHASE
-                if (humanState == HUM_PULLING) {
-                    setAimAngle(targetAngle);
-                    if (!powerSlider.Active) {
-                        float sliderXPercent = persistent_float[O("fPowerBarXPercent")];
-                        float sliderX = Width * sliderXPercent;
-                        if (persistent_int[O("iPowerBarSide")] == 1) {
-                            sliderX = Width * (1.0f - sliderXPercent);
-                        }
-                        float sliderYStart = Height * persistent_float[O("fPowerBarYStartPercent")];
-                        float sliderYEnd = Height * persistent_float[O("fPowerBarYEndPercent")];
-                        ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
-                        powerSlider.SimulateDrag(sliderRect, targetPower, 0.35f, 0.5f);
-                    }
-        
-                    if (powerSlider.Active) return;
-        
-                    gPrediction->forceFullSimulation = true;
-                    gPrediction->determineShotResult(true, targetAngle, targetPower,
-                                                     sharedGameManager.getShotSpin(), g_CurrentCandidate);
-                    gPrediction->forceFullSimulation = false;
-        
-                    stateStartTime = now;
-                    humanState = HUM_DELAY_BEFORE_SHOT;
-                    return;
-                }
-        
-                // EXPERT DELAY BEFORE SHOT
-                if (humanState == HUM_DELAY_BEFORE_SHOT) {
-                    setAimAngle(targetAngle);
-                    if (now - stateStartTime >= 0.1) {
-                        humanShotLocked = false;
-                        ClearState();
-                        state = IDLE; humanState = HUM_IDLE;
-                    }
-                    return;
-                }
+                // Keep joystick held at target - DO NOT release yet!
+                // Releasing here causes 0.4s+0.85s gap with no joystick touch,
+                // during which the game resets aim direction → wrong angle on shot.
+                NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
+                                     jY + (float)sin(targetAngle) * jR);
+                stateStartTime = now;
+                humanState = HUM_STABILIZING;
+            } else {
+                double ease = sin(t * M_PI_2); // Ease-out to slow down at target
+                double normalizedStart = normalizeAngle(nudgeAngle);
+                double normalizedTarget = normalizeAngle(targetAngle);
+                double delta = normalizedTarget - normalizedStart;
+                if (delta > M_PI) delta -= 2.0 * M_PI; if (delta < -M_PI) delta += 2.0 * M_PI;
+                double curAngle = normalizedStart + delta * ease;
+                setAimAngle(curAngle);
+                UpdateJoystickVisuals(curAngle);
             }
+            gPrediction->determineShotResult(true, targetAngle, pendingShotPower, lockedShotSpin, g_CurrentCandidate);
+            return;
         }
-}
 
+        // 4. STABILIZE & LOCK (0.4s) - joystick still held from HUM_HOLDING
+        if (humanState == HUM_STABILIZING) {
+            // Lock angle ke engine setiap frame
+            setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                 Height * 0.82f + sin(targetAngle) * 65.0f);
+
+            if (now - stateStartTime >= 0.4) {
+                NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                    Height * 0.82f + sin(targetAngle) * 65.0f);
+                // Set angle + power di memory sebelum pindah state
+                setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+                stateStartTime = now;
+                humanState = HUM_PULLING;
+            }
+            return;
+        }
+
+        // 5. POWER PULL — set angle+power lagi biar engine tidak drift, lalu lanjut delay
+        if (humanState == HUM_PULLING) {
+            setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+
+            gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                             lockedShotSpin, g_CurrentCandidate);
+
+            stateStartTime = now;
+            humanState = HUM_DELAY_BEFORE_SHOT;
+            return;
+        }
+
+        // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
+        if (humanState == HUM_DELAY_BEFORE_SHOT) {
+            // Terus lock angle + power setiap frame biar engine tidak drift
+            setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+
+            if (now - stateStartTime >= 0.4) {
+                // Final set sebelum fire
+                setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+                // FIRE SHOT
+                triggerShot();
+                humanShotLocked = false;
+                ClearState();
+                state = IDLE; humanState = HUM_IDLE;
+            }
+            return;
+        }
+    }
+    bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
+    if (isPlayerTurn && bAutoSpin) applyAutoSpin();
+
+    // PREDICTION LINES:
+    // Di Prediction ini, lines digambar berdasarkan parameter `isAuto` di determineShotResult:
+    //   isAuto=false → fastCalc=false → positions di-track → lines TAMPIL
+    //   isAuto=true  → fastCalc=true  → positions tidak di-track → lines HILANG
+    //
+    // - Saat humanState aktif (lagi aiming/pulling): panggil isAuto=true → lines hilang
+    // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
+    if (humanState != HUM_IDLE) {
+        // Lines hilang selama human state machine jalan.
+        gPrediction->determineShotResult(true, targetAngle, targetPower, lockedShotSpin);
+    } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
+        spinIsLocked = false;
+        if (gPrediction && sharedGameManager) {
+            double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+            double curPower = sharedGameManager.mVisualCue().getShotPower();
+            if (curPower < 10.0) curPower = 400.0;
+            gPrediction->determineShotResult(false, curAngle, curPower, lockedShotSpin);
+        }
+    } else if (isPlayerTurn && g_CurrentCandidate.idx != -1) {
+        // FIX PREDICTION LINES: Tampilkan simulasi dengan angle+power YANG SAMA
+        // dengan yang akan ditembak (confirmedAngle/confirmedPower dari scan).
+        // Sebelumnya display pakai getShotPower() dari visual cue yang bisa beda
+        // dengan confirmedPower dari scan → lines keliatan masuk tapi shot nyatanya miss.
+        gPrediction->determineShotResult(false,
+            g_CurrentCandidate.angle,
+            g_CurrentCandidate.power,
+            lockedShotSpin,
+            g_CurrentCandidate);
+    }
+    }
+};
