@@ -50,7 +50,7 @@ private:
     float  m_targetY      = 0.0f;
     int    m_frameCounter = 0;
 };
-// ─── Implementation (header-only) ───────────────────────────
+// ─── Implementation (header-only) ─────────────────────────
 
 inline void PowerSlider::SimulateDrag(ImVec4 sliderRect, double targetPower,
                                       float dragSpeed, float releaseZone)
@@ -96,3 +96,6 @@ inline void PowerSlider::Update()
         state  = IDLE;
     }
 }
+
+// Provide a single-definition global instance for linkage.
+inline PowerSlider powerSlider;
