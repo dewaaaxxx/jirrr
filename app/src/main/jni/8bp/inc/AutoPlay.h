@@ -31,6 +31,7 @@ constexpr double PRECISION_ANGLE_TOLERANCE = 0.001;     // Sub-degree accuracy
 // Explosive algorithm parameters
 constexpr int SIMULATION_SUBSTEPS = 8;                  // High-precision simulation
 constexpr double IMPACT_FORCE_THRESHOLD = 2.0;          // Detect dynamic collisions
+static std::uniform_real_distribution<> humanOvershootDist(0.5, 1.5);
 
 // ============================================================================
 // ADVANCED PHYSICS CALCULATION FUNCTIONS
