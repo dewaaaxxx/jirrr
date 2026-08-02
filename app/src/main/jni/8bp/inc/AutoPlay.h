@@ -35,6 +35,9 @@ constexpr double IMPACT_FORCE_THRESHOLD = 2.0;          // Detect dynamic collis
 // ============================================================================
 // ADVANCED PHYSICS CALCULATION FUNCTIONS
 // ============================================================================
+static double EaseInOutCubic(double t) {
+    return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+}
 
 /**
  * Revolutionary physics engine: Calculates optimal power with exponential curve
@@ -956,33 +959,20 @@ namespace AutoPlay {
 
         // EXPERT STABILIZING PHASE
         if (humanState == HUM_STABILIZING) {
-            float jX = Width * 0.83f;
-            float jY = Height * 0.82f;
-            float jR = 65.0f;
-            NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
-                                 jY + (float)sin(targetAngle) * jR);
+            // Lock angle ke engine setiap frame
             setAimAngle(targetAngle);
-            if (now - stateStartTime >= 0.2) {
-                if (currentMode == MODE_AUTO_PLAY) {
-                    setAimAngle(targetAngle);
-                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
-                                        jY + (float)sin(targetAngle) * jR);
-                    setAimAngle(targetAngle);
-                    stateStartTime = now;
-                    startPower = getCurrentPower();
-                    targetPower = pendingShotPower;
-                    humanState = HUM_PULLING;
-                } else {
-                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
-                                        jY + (float)sin(targetAngle) * jR);
-                    bAimedThisTurn = true;
-                    lastCuePosWhenAimed = gPrediction->guiData.balls[0].initialPosition;
-                    g_postAimLock = true;
-                    g_postAimAngle = targetAngle;
-                    g_postAimPower = pendingShotPower;
-                    g_postAimFrames = 20;
-                    state = IDLE; humanState = HUM_IDLE;
-                }
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                 Height * 0.82f + sin(targetAngle) * 65.0f);
+
+            if (now - stateStartTime >= 0.4) {
+                NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                    Height * 0.82f + sin(targetAngle) * 65.0f);
+                // Set angle + power di memory sebelum pindah state
+                setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+                stateStartTime = now;
+                humanState = HUM_PULLING;
             }
             return;
         }
