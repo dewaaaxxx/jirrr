@@ -1,7 +1,6 @@
 #pragma once
 
 #include "include/input.h"
-#include "AutoPlay.h" // agar bisa mematikan AutoPlay saat simulate drag
 
 extern struct Candidate;
 extern Candidate g_CurrentCandidate;
@@ -11,17 +10,12 @@ extern Candidate g_CurrentCandidate;
 
 extern Point2D lastFailedCuePos;
 
-// Forward-declare AutoPlay flags (fix compile when AutoPlay namespace isn't visible)
-namespace AutoPlay {
-    extern bool bAutoPlaying;
-    extern bool didSetAngle;
-    extern double lastSetAngle;
-}
-
-//extern bool IsShotValid();
+extern bool IsShotValid();
 
 struct PowerSlider {
     bool Active = false;
+    float TargetPower = 0.5f;
+    float CurrentPower = 0.0f;
     float ElapsedTime = 0.f, Duration = 0.f;
     float HoldTime = 0.f, HoldDuration = 0.f;
     ImVec2 StartPos;
@@ -30,7 +24,7 @@ struct PowerSlider {
     ImVec2 CurrentPos;
 
     float ShotPower = 666.0f;
-    int TouchIndex = 10; // High touch index
+    int TouchIndex = 8; // High touch index
 
     enum State {
         IDLE,
@@ -57,23 +51,17 @@ struct PowerSlider {
     }
 
     void End() {
-        // pastikan power final dipaksa ke nilai yang diinginkan
-        sharedGameManager.mVisualCue().mPower(ShotPowerToPower(this->ShotPower));
-        // final move untuk memastikan posisi & event touch terakhir diterima
-        NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         LOGI("ending at power %f", sharedGameManager.mVisualCue().getShotPower(true));
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
-
         this->Active = false;
         this->state = IDLE;
         g_CurrentCandidate.idx = -1;
-
-        // jangan otomatis resume AutoPlay di sini; biarkan keputusan di caller jika perlu
     }
 
     void Cancel() {
         LOGI("Canceling power slider at power %f", sharedGameManager.mVisualCue().getShotPower(true));
-        // Start return animation from current pos back to start
+        // NativeTouchesMove(this->TouchIndex, this->StartPos.x, this->StartPos.y);
+        // this->End();
         this->EndPos = this->CurrentPos; // Use EndPos as start of return animation
         this->TargetPos = this->StartPos; // Return to origin
         this->ElapsedTime = 0.f;
@@ -83,22 +71,18 @@ struct PowerSlider {
 
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
+
     }
     
     // DragTime is time to reach MAX power (666.0f)
-    void SimulateDrag(ImVec4 Rect, float ShotPowerParam = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
+    void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
         if (this->Active) return;
         
-        // gunakan ShotPower yang diberikan, atau 666 jika 0
-        this->ShotPower = (ShotPowerParam > 0.f) ? ShotPowerParam : 666.0f;
+       // ShotPower = 666.f;
+        this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
         float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
         
         Start(Rect);
-
-        // MATIKAN AutoPlay supaya tidak saling berebut input
-        AutoPlay::bAutoPlaying = false;
-        AutoPlay::didSetAngle = true;
-        AutoPlay::lastSetAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         
         // Calculate exact target position for the requested power
         this->TargetPos = ImVec2(
@@ -106,8 +90,7 @@ struct PowerSlider {
             this->StartPos.y + (this->EndPos.y - this->StartPos.y) * powerRatio
         );
         
-        // duration skala dengan ratio sehingga drag pendek untuk small power
-        this->Duration = std::max(0.01f, DragTime * powerRatio);
+        this->Duration = DragTime * powerRatio;
         this->HoldDuration = HoldTime;
     }
 
@@ -118,8 +101,6 @@ struct PowerSlider {
         
         if (this->state == STARTING) {
             this->HoldTime += dt;
-            // force set power tiap frame supaya game UI tidak mereset power
-            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(this->ShotPower));
             if (this->HoldTime >= this->HoldDuration * 2.f) {
                 NativeTouchesBegin(this->TouchIndex, this->StartPos.x, this->StartPos.y);
                 this->state = MOVING;
@@ -128,9 +109,6 @@ struct PowerSlider {
         }
         
         if (this->state == MOVING) {
-            // Force set power tiap frame
-            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(this->ShotPower));
-
             this->ElapsedTime += dt;
             
             if (this->ElapsedTime < this->Duration) {
@@ -143,19 +121,22 @@ struct PowerSlider {
 
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
-                // Pastikan kita mencapai target persis (jangan langsung cancel)
+               // return Cancel();
+                // Ensure we hit the target exactly
                 this->CurrentPos = this->TargetPos;
-                // paksa nilai power exact
-                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(this->ShotPower));
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
                 this->state = ENDING;
             }
 
-            if (dynamic_bool["DebugTouch"]) {
+            ImDrawList* fg = ImGui::GetForegroundDrawList();
+                fg->AddCircleFilled(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
+                fg->AddCircle(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline*/
+
+           /* if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
                 fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100)); // Semi-transparent white circle
                 fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f); // White outline
-            }
+            }*/
         }
 
         if (this->state == ENDING) {
@@ -164,8 +145,8 @@ struct PowerSlider {
                 if (IsShotValid()) {
                     this->End();
                 } else {
-                    LOGI("Shot invalid before release. Canceling.");
-                    this->Cancel();
+                   LOGI("Shot invalid before release. Canceling.");
+                   this->Cancel();
                 }
             }
         }
@@ -175,22 +156,24 @@ struct PowerSlider {
 
             if (this->ElapsedTime < this->Duration) {
                 float t = this->ElapsedTime / this->Duration;
+                // Interpolate from EndPos (captured CurrentPos) to TargetPos (StartPos)
                 this->CurrentPos = ImVec2(
                     this->EndPos.x + (this->TargetPos.x - this->EndPos.x) * t,
                     this->EndPos.y + (this->TargetPos.y - this->EndPos.y) * t
                 );
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
+                // Finished returning
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
                 End();
             }
 
-            if (dynamic_bool["DebugTouch"]) {
+           // if (dynamic_bool["DebugTouch"]) {
                 ImDrawList* fg = ImGui::GetForegroundDrawList();
-                fg->AddCircleFilled(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 100));
-                fg->AddCircle(this->CurrentPos, 15.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
-            }
+                fg->AddCircleFilled(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 100));
+                fg->AddCircle(this->CurrentPos, 10.0f, IM_COL32(255, 255, 255, 200), 0.0f, 2.0f);
+         //   }
         }
 
     }
