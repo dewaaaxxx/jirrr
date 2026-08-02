@@ -830,6 +830,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
+        powerSlider.Update();
         
         static int animStuckCounter = 0;
         if (isAnimationActive()) {
