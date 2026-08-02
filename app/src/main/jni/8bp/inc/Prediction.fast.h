@@ -22,6 +22,8 @@ struct Prediction {
     Prediction() = default;
     ~Prediction() = default;
 
+    static bool forceFullSimulation;
+
     bool determineShotResult(bool isAuto, double shotAngle = sharedGameManager.mVisualCue().getShotAngle(), double shotPower = sharedGameManager.mVisualCue().getShotPower(), Vec2d shotSpin = sharedGameManager.getShotSpin(), Candidate cand = {-1});
     bool mockPredictShotResult();
 
