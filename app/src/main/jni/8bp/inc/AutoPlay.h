@@ -6,7 +6,6 @@
 #include <cmath>
 #include "ScreenTable.h"
 #include "ButtonClicker.h"
-#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -211,16 +210,11 @@ namespace AutoPlay {
     double luxuryPrecisionModifier = 1.0;  // Adjustable precision for luxury mode
 
     enum State {
-    IDLE,
-    SCANNING,
-    NOMINATING,
-    SHOT_READY,    // ← baru: kandidat udah ada, tunggu frame bersih
-    POWER_SLIDING
-} state = IDLE;
-
-double pendingSliderPower = 0.0;
-double pendingSliderAngle = 0.0;
-int shotReadyFrames = 0;
+        IDLE,
+        SCANNING,
+        NOMINATING,
+        EXECUTING,
+    } state = IDLE;
     
     double pendingShotPower = 0.f;
     double pendingShotAngle = 0.f;
@@ -291,34 +285,31 @@ int shotReadyFrames = 0;
     }
     
     void Shoot(double angle, double power = 0.f) {
-    setAimAngle(angle);
-    gPrediction->determineShotResult(false, angle, power);
+        setAimAngle(angle);
+        gPrediction->determineShotResult(false, angle, power);
 
-    bool nominating = false;
-    int nominationMode = sharedGameManager.getPocketNominationMode();
-    auto myclass = sharedGameManager.getPlayerClassification();
-    if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) ||
-        (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
-        if (g_CurrentCandidate.idx != -1 &&
-            sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
-            nominating = true;
+        bool nominating = false;
+        int nominationMode = sharedGameManager.getPocketNominationMode();
+        auto myclass = sharedGameManager.getPlayerClassification();
+        if ((nominationMode == 1 && myclass == Ball::Classification::EIGHT_BALL) || (nominationMode == 2 && myclass != Ball::Classification::ANY)) {
+            if (g_CurrentCandidate.idx != -1 && sharedGameManager.getNominatedPocket() != g_CurrentCandidate.pocketIndex) {
+                nominating = true;
+            }
+        }
+
+        if (nominating) {
+            pendingShotPower = power;
+            pendingShotAngle = angle;
+            state = NOMINATING;
+            nominationFrameCounter = 0;
+        } else {
+            takeShot(angle, power);
+            ClearState();
+            state = IDLE;
         }
     }
-
-    if (nominating) {
-        pendingShotPower = power;
-        pendingShotAngle = angle;
-        state = NOMINATING;
-        nominationFrameCounter = 0;
-    } else {
-        pendingSliderAngle = angle;
-        pendingSliderPower = power;
-        shotReadyFrames = 0;
-        state = SHOT_READY; // ← tahan dulu
-    }
-    }
     
-    void ScanPrecision(double angleStep = 0.005f) {
+    void ScanPrecision(double angleStep = 0.002f) {
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
@@ -465,7 +456,7 @@ int shotReadyFrames = 0;
         }
     }
     
-    void ScanSlow(double angleStep = 0.01f) {
+    void ScanSlow(double angleStep = 0.005f) {
         static double currentScanAngle = 0.0;
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
@@ -738,7 +729,6 @@ int shotReadyFrames = 0;
     
     void Update() {
         buttonClicker.Update();
-        powerSlider.Update();
 
         static int animStuckCounter = 0;
         if (isAnimationActive()) {
@@ -780,53 +770,10 @@ int shotReadyFrames = 0;
             }
             
             if (nominationFrameCounter > 20 && !buttonClicker.Active) {
-                setAimAngle(pendingShotAngle);
-                gPrediction->determineShotResult(false, pendingShotAngle, pendingShotPower);
-                ImGuiIO& io = ImGui::GetIO();
-                float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
-                float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
-                float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
-                ImVec4 sliderRect = ImVec4(px, pt, 0.f, ph);
-                powerSlider.SimulateDrag(sliderRect, (float)pendingShotPower, 0.7f, 0.35f);
-                state = POWER_SLIDING;
-                nominationFrameCounter = 0;
-            }
-        } else if (state == POWER_SLIDING) {        
-            // timeout paksa ~3 detik
-            static int slideFrameCounter = 0;
-            slideFrameCounter++;
-            if (slideFrameCounter > 180) {
-                slideFrameCounter = 0;
-                powerSlider.Cancel();
+                takeShot(pendingShotAngle, pendingShotPower);
                 ClearState();
                 state = IDLE;
-                return;
             }
-        
-            if (!powerSlider.Active) {
-                slideFrameCounter = 0;
-                // g_CurrentCandidate.idx sudah di-reset oleh powerSlider.End()
-                // tinggal reset sisanya
-                g_AutoPlayMetrics.totalShotsAttempted++;
-                state = IDLE;
-            }
-        } else if (state == SHOT_READY) {
-    shotReadyFrames++;
-    
-    // Set aim dan power tiap frame selama nunggu
-    setAimAngle(pendingSliderAngle);
-    sharedGameManager.mVisualCue().mPower(ShotPowerToPower((float)pendingSliderPower));
-    
-    if (shotReadyFrames >= 3) { // 3 frame cukup buat scan selesai
-        ImGuiIO& io = ImGui::GetIO();
-        float px = io.DisplaySize.x * persistent_float[O("fPowerBarXPercent")];
-        float pt = io.DisplaySize.y * persistent_float[O("fPowerBarYStartPercent")];
-        float ph = io.DisplaySize.y * (persistent_float[O("fPowerBarYEndPercent")] - persistent_float[O("fPowerBarYStartPercent")]);
-        ImVec4 sliderRect = ImVec4(px, pt, 0.f, ph);
-        powerSlider.SimulateDrag(sliderRect, (float)pendingSliderPower, 0.7f, 0.35f);
-        shotReadyFrames = 0;
-        state = POWER_SLIDING;
-    }
         }
     }
 };
