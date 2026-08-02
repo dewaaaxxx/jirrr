@@ -1005,7 +1005,7 @@ namespace AutoPlay {
         } else if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
-            else if (scan == PRECISION) ScanPrecision(0.005f);
+         //   else if (scan == PRECISION) ScanPrecision(0.005f);
         } else if (state == NOMINATING) {
             nominationFrameCounter++;
             if (nominationFrameCounter == 10) {
