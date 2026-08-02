@@ -585,7 +585,7 @@ namespace AutoPlay {
         double bestQualityScore = -1.0;
         Candidate bestCandidate = { -1 };
         
-        while (steps < 15 && currentScanAngle < maxAngle) {
+        while (steps < 20 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
@@ -733,7 +733,7 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
 
-        while (steps < 10 && currentScanAngle < maxAngle) {
+        while (steps < 20 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
