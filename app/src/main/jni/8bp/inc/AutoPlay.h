@@ -35,7 +35,7 @@ constexpr double IMPACT_FORCE_THRESHOLD = 2.0;          // Detect dynamic collis
 // ============================================================================
 // ADVANCED PHYSICS CALCULATION FUNCTIONS
 // ============================================================================
-
+static std::uniform_real_distribution<> humanOvershootDist(0.5, 1.5);
 /**
  * Revolutionary physics engine: Calculates optimal power with exponential curve
  * based on distance, friction, and spin dynamics.
