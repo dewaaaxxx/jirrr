@@ -385,7 +385,7 @@ namespace AutoPlay {
     enum ScanMode {
         FAST,
         SLOW,
-        PRECISION,  // New luxury precision mode
+//        PRECISION,  // New luxury precision mode
     } scan = FAST;
 
     enum HumanState {
