@@ -7,6 +7,7 @@
 #include "ScreenTable.h"
 #include "ButtonClicker.h"
 #include "PowerSlider.h"
+extern PowerSlider powerSlider;
 #include <random>
 using namespace ImGui;
 
