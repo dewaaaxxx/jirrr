@@ -112,6 +112,7 @@ Prediction *gPrediction = &prediction;
 
 bool Prediction::pocketStatus[] = {};
 float Prediction::shotResult[MAX_SHOT_RESULT_SIZE];
+inline bool Prediction::forceFullSimulation = false;
 
 static double prevAngle = 0.0;
 static double prevPower = 0.0;
@@ -124,7 +125,7 @@ static bool prevIsAuto = false;   // ← adaugă asta
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-        if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin && isAuto == prevIsAuto)
+        if (!forceFullSimulation && shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin && isAuto == prevIsAuto)
         return false;  // ← include isAuto în comparație
 
     prevAngle = shotAngle;
@@ -248,12 +249,12 @@ void Prediction::determineBallsPositions() {
 void Prediction::handleCollision() {
     Ball &ballA = *(this->guiData.collision.ballA);
     Ball &ballB = *(this->guiData.collision.ballB);
-    if (!fastCalc) ballA.positions.push_back(ballA.predictedPosition);
+    if (!fastCalc || forceFullSimulation) ballA.positions.push_back(ballA.predictedPosition);
     
     switch (this->guiData.collision.type) {
         case Collision::Type::BALL:
             this->handleBallBallCollision();
-            if (!fastCalc) ballB.positions.push_back(ballB.predictedPosition);
+            if (!fastCalc || forceFullSimulation) ballB.positions.push_back(ballB.predictedPosition);
             if (this->guiData.collision.firstHitBall == nullptr) this->guiData.collision.firstHitBall = &ballB;
             break;
         case Collision::Type::LINE:
@@ -534,7 +535,7 @@ void Prediction::Ball::move(const double &time) {
         this->predictedPosition.x += this->velocity.x * time;
         this->predictedPosition.y += this->velocity.y * time;
         
-        if (!fastCalc) {
+        if (!fastCalc || forceFullSimulation) {
             auto lastIndex = this->positions.size() - 1;
             if (lastIndex > 1) {
                 auto &a = this->positions[lastIndex - 1];
