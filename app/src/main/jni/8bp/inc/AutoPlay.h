@@ -203,6 +203,7 @@ bool IsShotValid() {
 }
 
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
+Point2D lastSetCuePos = { -1000.0, -1000.0 };
 
 namespace AutoPlay {
     double lastSetAngle = 0.f;
@@ -226,10 +227,6 @@ namespace AutoPlay {
         SLOW,
         PRECISION,  // New luxury precision mode
     } scan = FAST;
-
-    bool shouldAutoPlay() { 
-        return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); 
-    }
 
     enum HumanState {
         HUM_IDLE,
@@ -854,6 +851,8 @@ namespace AutoPlay {
                 state = IDLE;
             }
         }
+        double now = nowSec();
+
         auto UpdateJoystickVisuals = [&](double angle) {
             float jX = Width * 0.83f;
             float jY = Height * 0.82f;
