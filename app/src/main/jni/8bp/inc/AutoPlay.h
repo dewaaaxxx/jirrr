@@ -6,6 +6,7 @@
 #include <cmath>
 #include "ScreenTable.h"
 #include "ButtonClicker.h"
+#include "PowerSlider.h"
 
 using namespace ImGui;
 
@@ -216,6 +217,10 @@ namespace AutoPlay {
         SHOT_READY,
         POWER_SLIDING  // ← baru
     } state = IDLE;
+
+    double pendingSliderPower = 0.0;
+    double pendingSliderAngle = 0.0;
+    int shotReadyFrames = 0;
     
     double pendingShotPower = 0.f;
     double pendingShotAngle = 0.f;
