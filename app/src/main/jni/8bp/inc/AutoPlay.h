@@ -355,29 +355,6 @@ static int CountPocketedBalls(Ball::Classification myclass, uint nominatedPocket
     return count;
 }
 
-static bool IsBreakShot() {
-    int ballsOnTable = 0;
-    for (int i = 1; i < gPrediction->guiData.ballsCount; i++)
-        if (gPrediction->guiData.balls[i].originalOnTable) ballsOnTable++;
-    return (ballsOnTable >= 14);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ── Break Shot Scanner ──
-// ═══════════════════════════════════════════════════════════════
-static double breakScanAngle = 0.0;
-static bool breakScanActive = false;
-static Point2D breakScanCuePos = { -1000.0, -1000.0 };
-struct BreakCandidateData { double angle; double power; int pocketedCount; bool eightBallPocketed; double score; };
-static std::vector<BreakCandidateData> breakBestCandidates;
-
-static void ResetBreakScan() {
-    breakScanAngle = 0.0;
-    breakScanActive = false;
-    breakScanCuePos = { -1000.0, -1000.0 };
-    breakBestCandidates.clear();
-}
-
 static double CalculateRequiredPower(double totalDist) {
     double p = sqrt(totalDist * 2.0 * 196.0);
     if (p < 220.0) p = 220.0;
@@ -521,7 +498,6 @@ namespace AutoPlay {
         humanState = HUM_IDLE;
         spinIsLocked = false;
         humanShotLocked = false;
-        ResetBreakScan();
     }
     
     void Shoot(double angle, double power = 0.f) {
@@ -833,193 +809,6 @@ namespace AutoPlay {
             state = IDLE;
         }
     }
-    
-    // ═══════════════════════════════════════════════════════════════
-    // ── ScanBreakShot ──
-    // ═══════════════════════════════════════════════════════════════
-    void ScanBreakShot() {
-        if (g_CurrentCandidate.idx != -1) return;
-        if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
-
-        auto& cueBall = gPrediction->guiData.balls[0];
-
-        if (!breakScanActive || cueBall.initialPosition != breakScanCuePos) {
-            breakScanAngle = 0.0;
-            breakScanActive = true;
-            breakScanCuePos = cueBall.initialPosition;
-            breakBestCandidates.clear();
-        }
-
-        constexpr int BATCH_SIZE = 30;
-        double coarseStep = 0.05;
-        int stepsThisFrame = 0;
-
-        while (stepsThisFrame < BATCH_SIZE && breakScanAngle < maxAngle) {
-            double rawAngle = breakScanAngle;
-            breakScanAngle += coarseStep;
-            stepsThisFrame++;
-
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(rawAngle));
-            gPrediction->determineShotResult(true, angle, 666.0, sharedGameManager.getShotSpin());
-            if (!gPrediction->guiData.balls[0].onTable) continue;
-
-            int pocketed = 0;
-            bool eightBallPocketed = false;
-            bool anyGood = false;
-            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-                if (ball.originalOnTable && !ball.onTable) {
-                    if (ball.classification == Ball::Classification::EIGHT_BALL) eightBallPocketed = true;
-                    else if (ball.classification != Ball::Classification::CUE_BALL) { pocketed++; anyGood = true; }
-                }
-            }
-            if (anyGood && !eightBallPocketed)
-                breakBestCandidates.push_back({angle, 666.0, pocketed, false, -((double)pocketed * 1000.0)});
-        }
-
-        if (breakScanAngle >= maxAngle && breakBestCandidates.empty()) {
-            // Fallback: aim ke rack center
-            Point2D rackCenter = {0.0, 0.0};
-            int rackBalls = 0;
-            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                if (gPrediction->guiData.balls[i].originalOnTable) {
-                    rackCenter = rackCenter + gPrediction->guiData.balls[i].initialPosition;
-                    rackBalls++;
-                }
-            }
-            if (rackBalls > 0) rackCenter = rackCenter * (1.0 / rackBalls);
-            double breakBaseAngle = atan2(rackCenter.y - cueBall.initialPosition.y,
-                                          rackCenter.x - cueBall.initialPosition.x);
-            if (breakBaseAngle < 0) breakBaseAngle += 2.0 * M_PI;
-
-            double offsets[] = {0.0, 0.08, -0.08, 0.15, -0.15, 0.22, -0.22, 0.04, -0.04, 0.30, -0.30};
-            for (double off : offsets) {
-                double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(breakBaseAngle + off));
-                gPrediction->determineShotResult(true, angle, 666.0, sharedGameManager.getShotSpin());
-                if (!gPrediction->guiData.balls[0].onTable) continue;
-                bool eightBallSafe = true;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    if (gPrediction->guiData.balls[i].originalOnTable && !gPrediction->guiData.balls[i].onTable &&
-                        gPrediction->guiData.balls[i].classification == Ball::Classification::EIGHT_BALL) {
-                        eightBallSafe = false; break;
-                    }
-                }
-                if (eightBallSafe) {
-                    int firstPocketed = -1;
-                    for (int bi = 1; bi < gPrediction->guiData.ballsCount; bi++) {
-                        if (gPrediction->guiData.balls[bi].originalOnTable && !gPrediction->guiData.balls[bi].onTable &&
-                            gPrediction->guiData.balls[bi].classification != Ball::Classification::EIGHT_BALL) {
-                            firstPocketed = bi; break;
-                        }
-                    }
-                    g_CurrentCandidate.idx = (firstPocketed != -1) ? firstPocketed : 1;
-                    g_CurrentCandidate.angle = angle;
-                    g_CurrentCandidate.power = 666.0;
-                    g_CurrentCandidate.pocketIndex = (firstPocketed != -1) ? gPrediction->guiData.balls[firstPocketed].pocketIndex : 0;
-                    Shoot(angle, 666.0);
-                    ResetBreakScan();
-                    return;
-                }
-            }
-            // Last resort: tembak langsung ke rack
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(breakBaseAngle));
-            g_CurrentCandidate.idx = 1;
-            g_CurrentCandidate.angle = angle;
-            g_CurrentCandidate.power = 666.0;
-            g_CurrentCandidate.pocketIndex = 0;
-            Shoot(angle, 666.0);
-            lastFailedCuePos = cueBall.initialPosition;
-            ResetBreakScan();
-            return;
-        }
-
-        if (breakScanAngle >= maxAngle && !breakBestCandidates.empty()) {
-            std::sort(breakBestCandidates.begin(), breakBestCandidates.end(),
-                [](const BreakCandidateData& a, const BreakCandidateData& b) { return a.score < b.score; });
-
-            int refineCount = std::min((int)breakBestCandidates.size(), 5);
-            BreakCandidateData overallBest = breakBestCandidates[0];
-
-            // Level 1
-            for (int r = 0; r < refineCount; r++) {
-                double centerAngle = breakBestCandidates[r].angle;
-                for (double offset = -0.05; offset <= 0.05; offset += 0.005) {
-                    double testAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(centerAngle + offset));
-                    gPrediction->determineShotResult(true, testAngle, 666.0, sharedGameManager.getShotSpin());
-                    if (!gPrediction->guiData.balls[0].onTable) continue;
-                    int pocketed = 0; bool eightBallPocketed = false;
-                    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                        auto& ball = gPrediction->guiData.balls[i];
-                        if (ball.originalOnTable && !ball.onTable) {
-                            if (ball.classification == Ball::Classification::EIGHT_BALL) eightBallPocketed = true;
-                            else if (ball.classification != Ball::Classification::CUE_BALL) pocketed++;
-                        }
-                    }
-                    if (pocketed > 0 && !eightBallPocketed) {
-                        double score = -((double)pocketed * 1000.0);
-                        if (score < overallBest.score) overallBest = {testAngle, 666.0, pocketed, false, score};
-                    }
-                }
-            }
-
-            // Level 2
-            for (double offset = -0.01; offset <= 0.01; offset += 0.001) {
-                double testAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(overallBest.angle + offset));
-                gPrediction->determineShotResult(true, testAngle, 666.0, sharedGameManager.getShotSpin());
-                if (!gPrediction->guiData.balls[0].onTable) continue;
-                int pocketed = 0; bool eightBallPocketed = false;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (ball.originalOnTable && !ball.onTable) {
-                        if (ball.classification == Ball::Classification::EIGHT_BALL) eightBallPocketed = true;
-                        else if (ball.classification != Ball::Classification::CUE_BALL) pocketed++;
-                    }
-                }
-                if (pocketed > 0 && !eightBallPocketed) {
-                    double score = -((double)pocketed * 1000.0);
-                    if (score < overallBest.score) overallBest = {testAngle, 666.0, pocketed, false, score};
-                }
-            }
-
-            // Level 3
-            for (double offset = -0.002; offset <= 0.002; offset += 0.0002) {
-                double testAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(overallBest.angle + offset));
-                gPrediction->determineShotResult(true, testAngle, 666.0, sharedGameManager.getShotSpin());
-                if (!gPrediction->guiData.balls[0].onTable) continue;
-                int pocketed = 0; bool eightBallPocketed = false;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (ball.originalOnTable && !ball.onTable) {
-                        if (ball.classification == Ball::Classification::EIGHT_BALL) eightBallPocketed = true;
-                        else if (ball.classification != Ball::Classification::CUE_BALL) pocketed++;
-                    }
-                }
-                if (pocketed > 0 && !eightBallPocketed) {
-                    double score = -((double)pocketed * 1000.0);
-                    if (score < overallBest.score) overallBest = {testAngle, 666.0, pocketed, false, score};
-                }
-            }
-
-            gPrediction->determineShotResult(true, overallBest.angle, overallBest.power, sharedGameManager.getShotSpin());
-            if (overallBest.pocketedCount > 0 && gPrediction->guiData.balls[0].onTable) {
-                int firstPocketed = -1;
-                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                    if (gPrediction->guiData.balls[i].originalOnTable && !gPrediction->guiData.balls[i].onTable &&
-                        gPrediction->guiData.balls[i].classification != Ball::Classification::EIGHT_BALL) {
-                        firstPocketed = i; break;
-                    }
-                }
-                if (firstPocketed != -1) {
-                    g_CurrentCandidate.idx = firstPocketed;
-                    g_CurrentCandidate.angle = overallBest.angle;
-                    g_CurrentCandidate.power = overallBest.power;
-                    g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[firstPocketed].pocketIndex;
-                    Shoot(overallBest.angle, overallBest.power);
-                }
-            }
-            ResetBreakScan();
-        }
-    }
 
     void ScanFast(double angleStep = 0.1f) {
         /**
@@ -1214,7 +1003,6 @@ namespace AutoPlay {
                 scan = FAST;
             }
         } else if (state == SCANNING) {
-            if (IsBreakShot()) { ScanBreakShot(); return; }
             if (scan == FAST) ScanFast();
             else if (scan == SLOW) ScanSlow(0.003f);
             else if (scan == PRECISION) ScanPrecision(0.005f);
