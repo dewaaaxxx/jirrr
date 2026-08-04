@@ -126,6 +126,17 @@ public:
     static void ScanFast(double angleStep = 0.1f);
     static bool IsAnimationActive();
     static void Update();
+    static void OpenPowerHandle();
+    static void AutoPlaceCueBall();
+
+    struct FastScanState
+    {
+        std::vector<Candidate> raw;       ///< Geometry-filtered raw candidates
+        std::vector<Candidate> evals;     ///< Evaluated (simulated) candidates
+        int        evalIndex  = 0;        ///< Next index to evaluate
+        Point2D    scanCuePos = {-1000.0,-1000.0}; ///< Cue-ball position at scan start
+        bool       isInitiated = false;   ///< True after the first initiation
+    };
 
     // Helpers
     static double nowSec() {
