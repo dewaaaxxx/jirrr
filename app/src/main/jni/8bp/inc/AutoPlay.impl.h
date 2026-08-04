@@ -10,6 +10,14 @@ extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
 
+ImVec2 WorldToScreen(Vec2d worldPos) {
+    double positionX = worldPos.x + TABLE_HALF_WIDTH;
+    double positionY = -(worldPos.y + TABLE_HALF_HEIGHT);
+    double scrX = TABLE_LEFT + positionX * TABLE_SCALE;
+    double scrY = TABLE_BOTTOM + positionY * TABLE_SCALE;
+    return ImVec2(scrX, scrY);
+}
+
 // --- Static Helpers ---
 static double CalculateTableClusterScore(const Prediction::SceneData& data) {
     double clusterScore = 0.0;
