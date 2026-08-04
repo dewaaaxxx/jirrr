@@ -9,6 +9,7 @@ extern ButtonClicker buttonClicker;
 extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
+#include "ScreenTable.h"
 
 ImVec2 WorldToScreen(Vec2d worldPos) {
     double positionX = worldPos.x + TABLE_HALF_WIDTH;
