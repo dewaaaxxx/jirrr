@@ -19,6 +19,14 @@ inline double TABLE_RIGHT = 0.0;
 inline double TABLE_BOTTOM = 0.0;
 inline double TABLE_SCALE = 1.0;
 
+ImVec2 WorldToScreen(Vec2d worldPos) {
+    double positionX = worldPos.x + TABLE_HALF_WIDTH;
+    double positionY = -(worldPos.y + TABLE_HALF_HEIGHT);
+    double scrX = TABLE_LEFT + positionX * TABLE_SCALE;
+    double scrY = TABLE_BOTTOM + positionY * TABLE_SCALE;
+    return ImVec2(scrX, scrY);
+}
+
 void UpdateScreenTable() {
     // Calculate scale based on screen height (matches Java implementation)
     double heightScale = Height / REF_HEIGHT;
