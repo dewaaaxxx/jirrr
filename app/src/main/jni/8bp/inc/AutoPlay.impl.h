@@ -696,30 +696,36 @@ static void ScanBreakShot() {
     }
 }
 void AutoPlay::OpenPowerHandle() {
-    ImVec2 ballScreenPos = WorldToScreen(gPrediction->guiData.balls[0].initialPosition);
+    // 1. الضغط على زر الطاقة لفتح الدائرة
+    float btnX = Width * 0.90f;
+    float btnY = Height * 0.08f;
+    buttonClicker.Click(ImVec2(btnX, btnY), 0.15f);
 
+    // 2. انتظر وقت كافي حتى تظهر الدائرة وتستقر تماماً
+    std::this_thread::sleep_for(std::chrono::milliseconds(700));
+
+    // 3. الحصول على مكان الكرة البيضاء
+    ImVec2 ballScreenPos = WorldToScreen(gPrediction->guiData.balls[0].initialPosition);
+    
+    // 4. اختيار اتجاه ثابت وعشوائي (فوق، تحت، يسار، يمين)
     float spinX = ballScreenPos.x;
     float spinY = ballScreenPos.y;
-    float radius = 55.0f;
+    float radius = 55.0f; // زدنا القيمة شوية لضمان الحركة
 
-    if (bAutoSpin) {
-        switch (spinPreset) {
-            case SPIN_TOP:    spinY = ballScreenPos.y - radius; break;
-            case SPIN_BOTTOM: spinY = ballScreenPos.y + radius; break;
-            case SPIN_LEFT:   spinX = ballScreenPos.x - radius; break;
-            case SPIN_RIGHT:  spinX = ballScreenPos.x + radius; break;
-            case SPIN_CENTER: break;
-        }
-    } else {
-        return;
+    int direction = rand() % 4;
+    switch (direction) {
+        case 0: spinY = ballScreenPos.y - radius; break; // فوق
+        case 1: spinY = ballScreenPos.y + radius; break; // تحت
+        case 2: spinX = ballScreenPos.x - radius; break; // يسار
+        case 3: spinX = ballScreenPos.x + radius; break; // يمين
     }
 
-    // إصبع 6 منفصل عن الجويستيك (5) — هذا هو الإصلاح الأساسي
-    NativeTouchesBegin(6, ballScreenPos.x, ballScreenPos.y);
-    std::this_thread::sleep_for(std::chrono::milliseconds(120));
-    NativeTouchesMove(6, spinX, spinY);
-    std::this_thread::sleep_for(std::chrono::milliseconds(80));
-    NativeTouchesEnd(6, spinX, spinY);
+    // 5. الآن نبدأ لمسة جديدة من الصفر لتحريك الإسبن
+    NativeTouchesBegin(5, ballScreenPos.x, ballScreenPos.y);
+    std::this_thread::sleep_for(std::chrono::milliseconds(300)); // نعطي وقت لتظهر النقطة
+    NativeTouchesMove(5, spinX, spinY);                          // نسحب للمكان الجديد
+    std::this_thread::sleep_for(std::chrono::milliseconds(200)); // نثبت
+    NativeTouchesEnd(5, spinX, spinY);                           // نرفع الاصبع
 }
 // ═══════════════════════════════════════════════════════════════
 // ── ScanSlow ──
@@ -1356,7 +1362,32 @@ void AutoPlay::Shoot(double angle, double power) {
     // AUTO AIM MODE
     if (currentMode == MODE_AUTO_AIM) {
         if (playStyle == STYLE_INSTANT) {
-            if (bAutoSpin) OpenPowerHandle();
+            // ------- I M P O R T A N T : SPIN WHEEL ADJUSTMENT -------
+            // 1. نلمس الكرة البيضاء عشان تظهر دائرة الإسبن
+            ImVec2 ballScreenPos = WorldToScreen(gPrediction->guiData.balls[0].initialPosition);
+            NativeTouchesBegin(5, ballScreenPos.x, ballScreenPos.y);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // انتظر ثانية عشان تظهر الدائرة
+            
+            // 2. حساب مكان النقطة الحمراء حسب الإسبن المختار
+            float spinX = ballScreenPos.x;
+            float spinY = ballScreenPos.y;
+            
+            // لو الإسبن مفعل، نحرك النقطة حسب الإعداد
+            if (bAutoSpin) {
+                float radius = 50.0f; // نصف قطر دائرة الإسبن
+                switch (spinPreset) {
+                    case SPIN_TOP:    spinY = ballScreenPos.y - radius; break;
+                    case SPIN_BOTTOM: spinY = ballScreenPos.y + radius; break;
+                    case SPIN_LEFT:   spinX = ballScreenPos.x - radius; break;
+                    case SPIN_RIGHT:  spinX = ballScreenPos.x + radius; break;
+                    case SPIN_CENTER: break; // في المنتصف ما نحركها
+                }
+            }
+
+            // 3. نسحب النقطة الحمراء للمكان الصحيح
+            NativeTouchesMove(5, spinX, spinY);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // ------- E N D -------
 
             setAimAngle(angle);
             setPower(power);
@@ -1396,7 +1427,28 @@ void AutoPlay::Shoot(double angle, double power) {
         gPrediction->forceFullSimulation = false;
 
         if (playStyle == STYLE_INSTANT) {
-            if (bAutoSpin) OpenPowerHandle();
+            // ------- I M P O R T A N T : SPIN WHEEL ADJUSTMENT -------
+            ImVec2 ballScreenPos = WorldToScreen(gPrediction->guiData.balls[0].initialPosition);
+            NativeTouchesBegin(5, ballScreenPos.x, ballScreenPos.y);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            
+            float spinX = ballScreenPos.x;
+            float spinY = ballScreenPos.y;
+            
+            if (bAutoSpin) {
+                float radius = 50.0f;
+                switch (spinPreset) {
+                    case SPIN_TOP:    spinY = ballScreenPos.y - radius; break;
+                    case SPIN_BOTTOM: spinY = ballScreenPos.y + radius; break;
+                    case SPIN_LEFT:   spinX = ballScreenPos.x - radius; break;
+                    case SPIN_RIGHT:  spinX = ballScreenPos.x + radius; break;
+                    case SPIN_CENTER: break;
+                }
+            }
+
+            NativeTouchesMove(5, spinX, spinY);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // ------- E N D -------
 
             takeShot(angle, power);
             state = EXECUTING;
