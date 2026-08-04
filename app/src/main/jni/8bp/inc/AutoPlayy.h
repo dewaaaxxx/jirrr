@@ -81,14 +81,13 @@ public:
     static inline bool bAutoAimSwitch = false;
     static inline bool bCueBallIsMovingOrDragging = false;
 
-    struct FastScanState {
-        std::vector<Candidate> raw;
-        struct Eval { Candidate c; int tot, own; bool p9; };
-        std::vector<Eval> evals;
-        int evalIndex = 0;
-        int prepPhase = 0;
-        Point2D scanCuePos = {-1000, -1000};
-        bool isInitiated = false;
+    struct FastScanState
+    {
+        std::vector<Candidate> raw;       ///< Geometry-filtered raw candidates
+        std::vector<Candidate> evals;     ///< Evaluated (simulated) candidates
+        int        evalIndex  = 0;        ///< Next index to evaluate
+        Point2D    scanCuePos = {-1000.0,-1000.0}; ///< Cue-ball position at scan start
+        bool       isInitiated = false;   ///< True after the first initiation
     };
 
     // ✅ التهيئة الصحيحة حسب تعريف Candidate في GameConstants.h (5 عناصر)
