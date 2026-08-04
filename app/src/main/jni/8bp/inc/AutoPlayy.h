@@ -128,8 +128,6 @@ public:
     static void OpenPowerHandle();
     static void AutoPlaceCueBall();
 
-    static bool AllGroupBallsPocketed();
-
     // Helpers
     static double nowSec() {
         auto now = std::chrono::steady_clock::now();
@@ -139,3 +137,5 @@ public:
     static double getCurrentPower();
     static bool AreBallsMoving();
 };
+
+static bool AllGroupBallsPocketed();
