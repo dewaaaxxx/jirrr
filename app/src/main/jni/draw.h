@@ -516,6 +516,137 @@ static bool GoldSliderFloat(const char* label, const char* sub, float* v, float 
     return changed;
 }
 
+static void DrawAutoPlayStatusOverlay(ImGuiIO& io) {
+    if (!AutoPlay::bAutoPlaying) return;
+
+    const char* stateText = "READY";
+    ImU32 stateColor = IM_COL32(0, 255, 100, 255); // default hijau
+
+    if (!sharedGameManager.mStateManager().isPlayerTurn()) {
+        stateText = "WAITING TURN";
+        stateColor = IM_COL32(200, 200, 200, 255);
+    } else if (AutoPlay::state == AutoPlay::SCANNING) {
+        if (AutoPlay::scan == AutoPlay::FAST) {
+            stateText = "SCANNING (FAST)";
+            stateColor = IM_COL32(100, 200, 255, 255);
+        } else if (AutoPlay::scan == AutoPlay::PRECISION) {
+            stateText = "SCANNING (PRECISION 360°)";
+            stateColor = IM_COL32(255, 200, 100, 255);
+        } else if (AutoPlay::scan == AutoPlay::SLOW) {
+            stateText = "SCANNING (SLOW 360°)";
+            stateColor = IM_COL32(255, 100, 100, 255);
+        }
+    } else if (AutoPlay::state == AutoPlay::NOMINATING) {
+        stateText = "NOMINATING...";
+        stateColor = IM_COL32(255, 220, 80, 255);
+    } else if (AutoPlay::humanState != AutoPlay::HUM_IDLE) {
+        switch (AutoPlay::humanState) {
+            case AutoPlay::HUM_THINKING:    stateText = "THINKING";         stateColor = IM_COL32(100, 150, 255, 255); break;
+            case AutoPlay::HUM_OVERSHOOTING: stateText = "AIMING";           stateColor = IM_COL32(255, 200, 100, 255); break;
+            case AutoPlay::HUM_CORRECTING:  stateText = "CORRECTING";        stateColor = IM_COL32(255, 200, 150, 255); break;
+            case AutoPlay::HUM_HOLDING:     stateText = "HOLDING";           stateColor = IM_COL32(150, 220, 255, 255); break;
+            case AutoPlay::HUM_STABILIZING: stateText = "STABILIZING";       stateColor = IM_COL32(150, 220, 255, 255); break;
+            case AutoPlay::HUM_PULLING:     stateText = "PULLING";           stateColor = IM_COL32(255, 180, 80, 255); break;
+            case AutoPlay::HUM_DELAY_BEFORE_SHOT: stateText = "DELAY BEFORE SHOOT"; stateColor = IM_COL32(255, 180, 80, 255); break;
+            default: stateText = "READY"; stateColor = IM_COL32(0, 255, 100, 255); break;
+        }
+    }
+
+    const float padX = 20.0f;
+    const float padY = 20.0f;
+
+    SetNextWindowPos(
+        ImVec2(padX, io.DisplaySize.y - padY),
+        ImGuiCond_Always,
+        ImVec2(0.0f, 1.0f)
+    );
+    SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
+
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+    if (Begin("##AutoPlayStatus", nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground |
+              ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        SetWindowFontScale(1.2f);
+
+        // ── AUTOPLAY : tetap putih ──
+        TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "AUTOPLAY : ");
+
+        // ── State berubah warna ──
+        SameLine(0, 0);
+        TextColored(ImGui::ColorConvertU32ToFloat4(stateColor), "%s", stateText);
+
+        SetWindowFontScale(1.0f);
+    }
+    End();
+    PopStyleVar(2);
+    PopStyleColor(1);
+}
+
+static void DrawShotFoundOverlay(ImGuiIO& io) {
+    if (!AutoPlay::bAutoPlaying) return;
+    if (AutoPlay::g_CurrentCandidate.idx == -1) return;
+
+    static double foundTime = 0.0;
+    static bool wasFound = false;
+
+    bool isFoundNow = (AutoPlay::g_CurrentCandidate.idx != -1);
+
+    if (isFoundNow && !wasFound) {
+        foundTime = ImGui::GetTime();
+        wasFound = true;
+    }
+
+    if (!isFoundNow) {
+        wasFound = false;
+        return;
+    }
+
+    double elapsed = ImGui::GetTime() - foundTime;
+    if (elapsed > 2.5) { // muncul selama 2.5 detik
+        return;
+    }
+
+    // ── Fade out perlahan di detik terakhir ──
+    float alpha = 1.0f;
+    if (elapsed > 1.5) {
+        alpha = 1.0f - ((elapsed - 1.5f) / 1.0f);
+        if (alpha < 0.0f) alpha = 0.0f;
+    }
+
+    const float padX = 20.0f;
+    const float padY = 20.0f + 42.0f; // 42px di atas status overlay
+
+    SetNextWindowPos(
+        ImVec2(padX, io.DisplaySize.y - padY),
+        ImGuiCond_Always,
+        ImVec2(0.0f, 1.0f)
+    );
+    SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
+
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    PushStyleVar(ImGuiStyleVar_Alpha, alpha);
+
+    if (Begin("##ShotFound", nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground |
+              ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        SetWindowFontScale(1.1f);
+        ImU32 textColor = IM_COL32(0, 255, 100, 255); // hijau cerah
+        TextColored(ImGui::ColorConvertU32ToFloat4(textColor), "Shot Found!");
+        SetWindowFontScale(1.0f);
+    }
+    End();
+    PopStyleVar(3);
+    PopStyleColor(1);
+}
 
 static bool GoldCombo(const char* label, const char* sub, int* val, const char* items_z){
     ImGuiWindow* window = GetCurrentWindow();
@@ -1761,7 +1892,8 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
         DrawMenu(io);
         DrawShotApprovalPrompt(io);
         //DrawLiveStatusOverlay(io);
-        DrawWatermark(io);
+        DrawAutoPlayStatusOverlay(io);
+        DrawShotFoundOverlay(io);  // ← tambahkan ini
     } else {
         DrawLogin(io);
     }
