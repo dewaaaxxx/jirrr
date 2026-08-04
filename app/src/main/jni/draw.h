@@ -589,7 +589,7 @@ static void DrawAutoPlayStatusOverlay(ImGuiIO& io) {
 
 static void DrawShotFoundOverlay(ImGuiIO& io) {
     if (!AutoPlay::bAutoPlaying) return;
-    if (AutoPlay::g_CurrentCandidate.idx == -1) return;
+    if (g_CurrentCandidate.idx == -1) return;
 
     static double foundTime = 0.0;
     static bool wasFound = false;
