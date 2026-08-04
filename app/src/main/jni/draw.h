@@ -594,7 +594,7 @@ static void DrawShotFoundOverlay(ImGuiIO& io) {
     static double foundTime = 0.0;
     static bool wasFound = false;
 
-    bool isFoundNow = (AutoPlay::g_CurrentCandidate.idx != -1);
+    bool isFoundNow = (g_CurrentCandidate.idx != -1);
 
     if (isFoundNow && !wasFound) {
         foundTime = ImGui::GetTime();
@@ -607,7 +607,7 @@ static void DrawShotFoundOverlay(ImGuiIO& io) {
     }
 
     double elapsed = ImGui::GetTime() - foundTime;
-    if (elapsed > 2.5) { // muncul selama 2.5 detik
+    if (elapsed > 1.0) { // muncul selama 2.5 detik
         return;
     }
 
