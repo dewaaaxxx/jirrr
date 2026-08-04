@@ -2,7 +2,7 @@
 
 #include "AutoPlayy.h"
 #include "8bp/GameManager.h"
-#include "Prediction.h"
+#include "Prediction.fastt.h"
 #include "ButtonClicker.h"
 extern ButtonClicker buttonClicker;
 #include "PowerSlider.h"
