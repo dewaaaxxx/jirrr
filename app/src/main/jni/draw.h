@@ -516,11 +516,71 @@ static bool GoldSliderFloat(const char* label, const char* sub, float* v, float 
     return changed;
 }
 
+static void DrawShotFoundOverlay(ImGuiIO& io) {
+    if (!AutoPlay::bAutoPlaying) return;
+    if (g_CurrentCandidate.idx == -1) return;
+
+    static double foundTime = 0.0;
+    static bool wasFound = false;
+
+    bool isFoundNow = (g_CurrentCandidate.idx != -1);
+
+    if (isFoundNow && !wasFound) {
+        foundTime = ImGui::GetTime();
+        wasFound = true;
+    }
+
+    if (!isFoundNow) {
+        wasFound = false;
+        return;
+    }
+
+    double elapsed = ImGui::GetTime() - foundTime;
+    if (elapsed > 2.5) { // muncul 2.5 detik
+        return;
+    }
+
+    float alpha = 1.0f;
+    if (elapsed > 1.5) {
+        alpha = 1.0f - ((elapsed - 1.5f) / 1.0f);
+        if (alpha < 0.0f) alpha = 0.0f;
+    }
+
+    const float padX = 20.0f;
+    const float padY = 20.0f + 42.0f; // di atas status
+
+    SetNextWindowPos(
+        ImVec2(padX, io.DisplaySize.y - padY),
+        ImGuiCond_Always,
+        ImVec2(0.0f, 1.0f)
+    );
+    SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
+
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(10, 10, 12, 200)); // background
+    PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 6.0f));
+    PushStyleVar(ImGuiStyleVar_Alpha, alpha);
+
+    if (Begin("##ShotFound", nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+              ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        SetWindowFontScale(0.9f);
+        ImU32 textColor = IM_COL32(0, 255, 100, 255); // hijau
+        TextColored(ImGui::ColorConvertU32ToFloat4(textColor), "Shot Found!");
+        SetWindowFontScale(1.0f);
+    }
+    End();
+    PopStyleVar(3);
+    PopStyleColor(1);
+}
+
 static void DrawAutoPlayStatusOverlay(ImGuiIO& io) {
     if (!AutoPlay::bAutoPlaying) return;
 
     const char* stateText = "READY";
-    ImU32 stateColor = IM_COL32(0, 255, 100, 255); // default hijau
+    ImU32 stateColor = IM_COL32(0, 255, 100, 255);
 
     if (!sharedGameManager.mStateManager().isPlayerTurn()) {
         stateText = "WAITING TURN";
@@ -562,21 +622,19 @@ static void DrawAutoPlayStatusOverlay(ImGuiIO& io) {
     );
     SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
 
-    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
-    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    // ── Background transparan ──
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(10, 10, 12, 200));
+    PushStyleVar(ImGuiStyleVar_WindowRounding, 6.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 6.0f));
 
     if (Begin("##AutoPlayStatus", nullptr,
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground |
-              ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+              ImGuiWindowFlags_AlwaysAutoResize)) {
 
-        SetWindowFontScale(1.2f);
+        SetWindowFontScale(0.9f);  // ← diperkecil
 
-        // ── AUTOPLAY : tetap putih ──
         TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "AUTOPLAY : ");
-
-        // ── State berubah warna ──
         SameLine(0, 0);
         TextColored(ImGui::ColorConvertU32ToFloat4(stateColor), "%s", stateText);
 
@@ -584,67 +642,6 @@ static void DrawAutoPlayStatusOverlay(ImGuiIO& io) {
     }
     End();
     PopStyleVar(2);
-    PopStyleColor(1);
-}
-
-static void DrawShotFoundOverlay(ImGuiIO& io) {
-    if (!AutoPlay::bAutoPlaying) return;
-    if (g_CurrentCandidate.idx == -1) return;
-
-    static double foundTime = 0.0;
-    static bool wasFound = false;
-
-    bool isFoundNow = (g_CurrentCandidate.idx != -1);
-
-    if (isFoundNow && !wasFound) {
-        foundTime = ImGui::GetTime();
-        wasFound = true;
-    }
-
-    if (!isFoundNow) {
-        wasFound = false;
-        return;
-    }
-
-    double elapsed = ImGui::GetTime() - foundTime;
-    if (elapsed > 1.0) { // muncul selama 2.5 detik
-        return;
-    }
-
-    // ── Fade out perlahan di detik terakhir ──
-    float alpha = 1.0f;
-    if (elapsed > 1.5) {
-        alpha = 1.0f - ((elapsed - 1.5f) / 1.0f);
-        if (alpha < 0.0f) alpha = 0.0f;
-    }
-
-    const float padX = 20.0f;
-    const float padY = 20.0f + 42.0f; // 42px di atas status overlay
-
-    SetNextWindowPos(
-        ImVec2(padX, io.DisplaySize.y - padY),
-        ImGuiCond_Always,
-        ImVec2(0.0f, 1.0f)
-    );
-    SetNextWindowSize(ImVec2(0, 0), ImGuiCond_Always);
-
-    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
-    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    PushStyleVar(ImGuiStyleVar_Alpha, alpha);
-
-    if (Begin("##ShotFound", nullptr,
-              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground |
-              ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize)) {
-
-        SetWindowFontScale(1.1f);
-        ImU32 textColor = IM_COL32(0, 255, 100, 255); // hijau cerah
-        TextColored(ImGui::ColorConvertU32ToFloat4(textColor), "Shot Found!");
-        SetWindowFontScale(1.0f);
-    }
-    End();
-    PopStyleVar(3);
     PopStyleColor(1);
 }
 
