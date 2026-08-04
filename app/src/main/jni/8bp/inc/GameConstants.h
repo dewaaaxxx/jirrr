@@ -51,14 +51,16 @@ inline constexpr double PI_1_5 = PI * 1.5;
 inline constexpr double MAX_ANGLE_RADIANS = 360.0 / (180.0 / PI);
 inline constexpr double MIN_ANGLE_STEP_RADIANS = 0.0174;
 
-struct Candidate {
-    int idx;
-    double angle;
-    double score;
-    int pocketIndex;
-    double power;
-    double geomScore;
-    bool operator<(const Candidate& other) const {
-        return score < other.score;
-    }
+struct Candidate
+{
+    int    idx         = -1;   ///< Index of the target ball in SceneData::balls[]
+    double angle       = 0.0;  ///< Shot angle in radians
+    double score       = 1e18; ///< Lower is better (distance + penalties)
+    int    pocketIndex = -1;   ///< Intended pocket (0–5)
+    double power       = 0.0;  ///< Required shot power (internal units)
+    double distTotal   = 0.0;  ///< Total path length (cue → ball → pocket)
+    bool   isBandShot  = false;///< True for bank / combo shots
+    double cutAngleCos = 0.0;  ///< cos(cut angle); higher = thinner cut
+
+    bool operator<(const Candidate& o) const { return score < o.score; }
 };
