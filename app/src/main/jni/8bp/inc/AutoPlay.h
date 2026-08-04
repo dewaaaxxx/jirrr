@@ -210,108 +210,6 @@ bool IsShotValid() {
     return true;
 }
 
-
-// ═══════════════════════════════════════════════════════════════
-// ── Helpers from impl ──
-// ═══════════════════════════════════════════════════════════════
-static bool AllGroupBallsPocketed() {
-    if (!gPrediction) return false;
-    Ball::Classification myclass = sharedGameManager.getPlayerClassification();
-    if (myclass == Ball::Classification::EIGHT_BALL) {
-        bool solidsAllPocketed = true, stripesAllPocketed = true;
-        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-            auto& ball = gPrediction->guiData.balls[i];
-            if (ball.classification == Ball::Classification::EIGHT_BALL) continue;
-            if (ball.classification == Ball::Classification::CUE_BALL) continue;
-            if (ball.classification == Ball::Classification::ANY) continue;
-            if (ball.classification == Ball::Classification::NINE_BALL_RULE) continue;
-            if (ball.originalOnTable && ball.onTable) {
-                if (ball.classification == Ball::Classification::SOLID) solidsAllPocketed = false;
-                if (ball.classification == Ball::Classification::STRIPE) stripesAllPocketed = false;
-            }
-        }
-        return solidsAllPocketed || stripesAllPocketed;
-    }
-    if (myclass == Ball::Classification::ANY) return false;
-    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-        auto& ball = gPrediction->guiData.balls[i];
-        if (ball.classification != myclass) continue;
-        if (ball.originalOnTable && ball.onTable) return false;
-    }
-    return true;
-}
-
-static bool IsBreakShot() {
-    int ballsOnTable = 0;
-    for (int i = 1; i < gPrediction->guiData.ballsCount; i++)
-        if (gPrediction->guiData.balls[i].originalOnTable) ballsOnTable++;
-    return (ballsOnTable >= 14);
-}
-
-struct ShotValidationResult { bool valid; int targetIdx; int pocketIndex; int pocketedCount; double score; };
-
-static ShotValidationResult ValidateShotSimulation(
-    Ball::Classification myclass, uint nominatedPocket, bool isNineBallGame, int candidateIdx
-) {
-    ShotValidationResult result = {false, -1, -1, 0, 1e18};
-    if (!gPrediction->guiData.balls[0].onTable) return result;
-    if (isNineBallGame) {
-        int iFoundLowest = -1;
-        for (int i = 1; i < gPrediction->guiData.ballsCount; i++)
-            if (gPrediction->guiData.balls[i].originalOnTable) { iFoundLowest = i; break; }
-        auto firstHit = gPrediction->guiData.collision.firstHitBall;
-        if (!firstHit || firstHit->index != iFoundLowest) return result;
-        int bestPotted = -1;
-        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-            auto& ball = gPrediction->guiData.balls[i];
-            if (ball.originalOnTable && !ball.onTable) {
-                if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
-                if (i == 9) { bestPotted = 9; break; }
-                if (bestPotted == -1 || i == candidateIdx) bestPotted = i;
-            }
-        }
-        if (bestPotted == -1) return result;
-        result.valid = true; result.targetIdx = bestPotted;
-        result.pocketIndex = gPrediction->guiData.balls[bestPotted].pocketIndex;
-        for (int i = 1; i < gPrediction->guiData.ballsCount; i++)
-            if (gPrediction->guiData.balls[i].originalOnTable && !gPrediction->guiData.balls[i].onTable) result.pocketedCount++;
-        result.score = -(result.pocketedCount * 10000.0);
-        return result;
-    }
-    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-        auto& ball = gPrediction->guiData.balls[i];
-        if (ball.classification == Ball::Classification::EIGHT_BALL)
-            if (ball.originalOnTable && !ball.onTable)
-                if (!AllGroupBallsPocketed()) return result;
-    }
-    auto firstHit = gPrediction->guiData.collision.firstHitBall;
-    if (firstHit) {
-        if (myclass == Ball::Classification::ANY) { if (firstHit->classification == Ball::Classification::EIGHT_BALL) return result; }
-        else if (firstHit->classification != myclass) return result;
-    }
-    auto& eb = gPrediction->guiData.balls[8];
-    if (eb.originalOnTable && !eb.onTable) if (!AllGroupBallsPocketed()) return result;
-    int pocketed = 0, bestTarget = -1, bestPocket = -1;
-    for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-        auto& ball = gPrediction->guiData.balls[i];
-        if (!ball.originalOnTable || ball.onTable) continue;
-        if (ball.classification == Ball::Classification::CUE_BALL) continue;
-        bool isLegal = false;
-        if (myclass == Ball::Classification::ANY) isLegal = (ball.classification != Ball::Classification::EIGHT_BALL);
-        else if (myclass == Ball::Classification::EIGHT_BALL) isLegal = (ball.classification == Ball::Classification::EIGHT_BALL && AllGroupBallsPocketed());
-        else isLegal = (ball.classification == myclass);
-        if (!isLegal) continue;
-        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
-        pocketed++;
-        if (i == candidateIdx) { bestTarget = i; bestPocket = ball.pocketIndex; }
-        if (bestTarget == -1) { bestTarget = i; bestPocket = ball.pocketIndex; }
-    }
-    if (pocketed == 0) return result;
-    result.valid = true; result.targetIdx = bestTarget; result.pocketIndex = bestPocket;
-    result.pocketedCount = pocketed; result.score = -(pocketed * 10000.0);
-    return result;
-}
-
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
 Point2D lastSetCuePos = { -1000.0, -1000.0 };
 
@@ -365,7 +263,6 @@ namespace AutoPlay {
     static inline int humanNominationPocket = -1;
     static inline SpinPreset spinPreset = SPIN_CENTER;
     static inline bool bAutoSpin = false;
-    static inline bool bCushionShot = true; // enable bank shots in ScanFast
     // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
     // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
     // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
@@ -774,173 +671,69 @@ namespace AutoPlay {
     }
     
     void ScanFast(double angleStep = 0.1f) {
+        /**
+         * EXPLOSIVE FAST SCAN: Dynamic multi-candidate ranking algorithm
+         * Uses advanced physics-based scoring to identify explosive shot combinations
+         */
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
 
-        struct RawCandidate {
-            int idx; double angle; double score; int pocketIdx;
-            double power; double totalDist; bool isBandShot; double cutAngleCos;
-            bool operator<(const RawCandidate& o) const { return score < o.score; }
-        };
-
+        double startingAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
-        if ((myclass == Ball::Classification::SOLID || myclass == Ball::Classification::STRIPE) && AllGroupBallsPocketed())
-            myclass = Ball::Classification::EIGHT_BALL;
-
         uint nominatedPocket = sharedGameManager.getNominatedPocket();
+        std::vector<Candidate> candidates;
         auto pockets = getPockets();
         auto& cueBall = gPrediction->guiData.balls[0];
-        bool isNineBallGame = (myclass == Ball::Classification::NINE_BALL_RULE);
-        bool isBreak = IsBreakShot();
-        bool canTargetEight = (myclass == Ball::Classification::EIGHT_BALL);
-        constexpr double slidingDeceleration = 196.0;
-
-        std::vector<RawCandidate> rawCandidates;
-        bool bFoundLowest = false;
+        double spinMagnitude = ExtractSpinMagnitude(sharedGameManager.getShotSpin());
+        
+        bool bFoundLowestNumberedBall = false;
+        int iFoundLowestNumberedBall = -1;
+        bool isNineBallGame = myclass == Ball::Classification::NINE_BALL_RULE;
+        int ballsRemaining = gPrediction->guiData.ballsCount;
 
         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-            if (isNineBallGame && bFoundLowest) break;
+            if (isNineBallGame && bFoundLowestNumberedBall) break;
             auto& ball = gPrediction->guiData.balls[i];
             if (!ball.originalOnTable) continue;
-            if (!bFoundLowest) bFoundLowest = true;
+            if (!bFoundLowestNumberedBall) { bFoundLowestNumberedBall = true; iFoundLowestNumberedBall = i; }
 
             if (!isNineBallGame) {
-                bool isCandidate = false;
-                if (canTargetEight && ball.classification == Ball::Classification::EIGHT_BALL) isCandidate = true;
-                else if (myclass == Ball::Classification::ANY) isCandidate = (ball.classification != Ball::Classification::EIGHT_BALL);
-                else isCandidate = (ball.classification == myclass);
-                if (!isCandidate) continue;
+                bool isACandidate = myclass == Ball::Classification::ANY ? ball.classification != Ball::Classification::EIGHT_BALL : ball.classification == myclass;
+                if (!isACandidate) continue;
             }
 
-            for (int pocketIdx = 0; pocketIdx < (int)pockets.size(); pocketIdx++) {
-                if (nominatedPocket < 6 && pocketIdx != (int)nominatedPocket) continue;
+            for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
+                if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
 
-                Point2D pocket = pockets[pocketIdx];
-                Point2D toPocket = pocket - ball.initialPosition;
-                double distTP = sqrt(toPocket.square());
+                Point2D pocket  = pockets[pocketIdx];
+                Point2D toPock  = pocket - ball.initialPosition;
+                double  distTP  = sqrt(toPock.square());
                 if (distTP < 0.1) continue;
 
-                Point2D direction = toPocket * (1.0 / distTP);
-                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
+                Point2D dir   = toPock * (1.0 / distTP);
+                Point2D ghost = ball.initialPosition - dir * (2.0 * BALL_RADIUS);
+                Point2D sVec  = ghost - cueBall.initialPosition;
+                double  distCG = sqrt(sVec.square());
+                if (distCG < 0.01) continue;
 
-                // Obstacle detection
-                {
-                    Point2D shotDir = ghostBallPos - cueBall.initialPosition;
-                    double shotLenSq = shotDir.square();
-                    if (shotLenSq > 0.01) {
-                        bool obstructed = false;
-                        for (int k = 1; k < gPrediction->guiData.ballsCount; k++) {
-                            if (k == i) continue;
-                            auto& ob = gPrediction->guiData.balls[k];
-                            if (!ob.originalOnTable) continue;
-                            Point2D toObst = ob.initialPosition - cueBall.initialPosition;
-                            double proj = (toObst.x * shotDir.x + toObst.y * shotDir.y) / shotLenSq;
-                            if (proj < 0.05 || proj > 0.95) continue;
-                            Point2D closest = cueBall.initialPosition + shotDir * proj;
-                            if ((ob.initialPosition - closest).square() < (2.0*BALL_RADIUS)*(2.0*BALL_RADIUS)) { obstructed = true; break; }
-                        }
-                        if (obstructed) continue;
-                    }
-                }
+                double angle = atan2(sVec.y, sVec.x);
+                if (angle < 0) angle += 2.0 * M_PI;
 
-                Point2D shotLine = ghostBallPos - cueBall.initialPosition;
-                double distCG = sqrt(shotLine.square());
-                if (distCG < 0.1) continue;
-                double angle = atan2(shotLine.y, shotLine.x);
-                if (angle < 0) angle += 2 * M_PI;
+                // Cut-angle penalty: cosTheta=1 (full hit) = no penalty
+                //                    cosTheta=0 (90° cut) = +2×distCG penalty
+                double cosTheta = (sVec.x * dir.x + sVec.y * dir.y) / distCG;
+                double score    = distCG * (2.0 - cosTheta) + distTP;
 
-                Point2D cueToBall = ball.initialPosition - cueBall.initialPosition;
-                double distCueToBall = sqrt(cueToBall.square());
-                double cutAngleCos = 0.0;
-                if (distCueToBall > 0.1 && distCG > 0.1) {
-                    cutAngleCos = (shotLine.x*cueToBall.x + shotLine.y*cueToBall.y) / (distCG*distCueToBall);
-                    if (cutAngleCos > 1.0) cutAngleCos = 1.0;
-                    if (cutAngleCos < -1.0) cutAngleCos = -1.0;
-                }
-                if (cutAngleCos < 0.342) continue;
-
-                double totalDist = distCG + distTP;
-                double power = sqrt(2.0 * slidingDeceleration * totalDist);
-                double powerShortfall = 0.0;
-                if (power > 666.0) { powerShortfall = (power - 666.0) * 2.0; power = 666.0; }
-                double score = totalDist + (1.0 - cutAngleCos)*50.0 + powerShortfall;
-
-                bool isEightBall = (ball.classification == Ball::Classification::EIGHT_BALL);
-                if (!isEightBall || canTargetEight)
-                    rawCandidates.push_back({i, angle, score, pocketIdx, power, totalDist, false, cutAngleCos});
-
-                // Bank shots
-                if (bCushionShot) {
-                    constexpr double TBL_HW = 130.8, TBL_HH = 72.0;
-                    struct Cushion { bool horizontal; double pos; };
-                    Cushion cushions[] = {{true,-TBL_HH},{true,TBL_HH},{false,-TBL_HW},{false,TBL_HW}};
-                    for (const auto& c : cushions) {
-                        Point2D mirrorPocket;
-                        if (c.horizontal) { mirrorPocket.x=pocket.x; mirrorPocket.y=2.0*c.pos-pocket.y; }
-                        else { mirrorPocket.x=2.0*c.pos-pocket.x; mirrorPocket.y=pocket.y; }
-                        Point2D toMirror = mirrorPocket - ball.initialPosition;
-                        double distMirror = sqrt(toMirror.square());
-                        if (distMirror < 0.1) continue;
-                        Point2D ghostBank = ball.initialPosition - toMirror*(1.0/distMirror)*(2.0*BALL_RADIUS);
-                        Point2D cueToGhost = ghostBank - cueBall.initialPosition;
-                        if (cueToGhost.square() < 0.01) continue;
-                        Point2D reflPoint; bool validRefl = false;
-                        if (c.horizontal) {
-                            if (cueToGhost.y == 0.0) continue;
-                            double t = (c.pos - cueBall.initialPosition.y) / cueToGhost.y;
-                            if (t < 0.05 || t > 0.95) continue;
-                            reflPoint = {cueBall.initialPosition.x + cueToGhost.x*t, c.pos};
-                            if (reflPoint.x < -TBL_HW || reflPoint.x > TBL_HW) continue;
-                            validRefl = true;
-                        } else {
-                            if (cueToGhost.x == 0.0) continue;
-                            double t = (c.pos - cueBall.initialPosition.x) / cueToGhost.x;
-                            if (t < 0.05 || t > 0.95) continue;
-                            reflPoint = {c.pos, cueBall.initialPosition.y + cueToGhost.y*t};
-                            if (reflPoint.y < -TBL_HH || reflPoint.y > TBL_HH) continue;
-                            validRefl = true;
-                        }
-                        if (!validRefl) continue;
-                        double bankAngle = atan2((reflPoint-cueBall.initialPosition).y,(reflPoint-cueBall.initialPosition).x);
-                        if (bankAngle < 0) bankAngle += 2*M_PI;
-                        double bankTotal = sqrt((reflPoint-cueBall.initialPosition).square()) + sqrt((reflPoint-ball.initialPosition).square()) + distTP;
-                        double bankPower = sqrt(2.0*slidingDeceleration*bankTotal);
-                        if (bankPower > 666.0) bankPower = 666.0;
-                        rawCandidates.push_back({i, bankAngle, bankTotal+80.0, pocketIdx, bankPower, bankTotal, true, 0.0});
-                    }
-                }
-
-                // Combo shots
-                if (!isBreak) {
-                    for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
-                        if (j == i) continue;
-                        auto& bB = gPrediction->guiData.balls[j];
-                        if (!bB.originalOnTable) continue;
-                        Point2D toPocketB = pocket - bB.initialPosition;
-                        double distBTP = sqrt(toPocketB.square());
-                        if (distBTP < 0.1) continue;
-                        Point2D ghostB = bB.initialPosition - toPocketB*(1.0/distBTP)*(2.0*BALL_RADIUS);
-                        Point2D aToGhostB = ghostB - ball.initialPosition;
-                        double distAGB = sqrt(aToGhostB.square());
-                        if (distAGB < 0.1) continue;
-                        Point2D ghostA = ball.initialPosition - aToGhostB*(1.0/distAGB)*(2.0*BALL_RADIUS);
-                        Point2D comboLine = ghostA - cueBall.initialPosition;
-                        double distCueA = sqrt(comboLine.square());
-                        if (distCueA < 0.1) continue;
-                        double comboAngle = atan2(comboLine.y, comboLine.x);
-                        if (comboAngle < 0) comboAngle += 2*M_PI;
-                        double comboTotal = distCueA + distAGB + distBTP;
-                        double comboPower = sqrt(2.0*196.0*comboTotal);
-                        if (comboPower > 666.0) comboPower = 666.0;
-                        rawCandidates.push_back({i, comboAngle, comboTotal+200.0, pocketIdx, comboPower, comboTotal, true, 0.0});
-                    }
-                }
+                // Auto-adaptive power: reduces near-ball overshoot, boosts long shots
+                double power = calcAdaptivePower(distCG, distCG + distTP);
+                
+                candidates.push_back({i, angle, score, pocketIdx, power});
             }
         }
+        
+        std::sort(candidates.begin(), candidates.end());
 
-        std::sort(rawCandidates.begin(), rawCandidates.end());
-        if (rawCandidates.size() > 150) rawCandidates.resize(150);
-
+        // Simpan state meja sebelum simulasi untuk hitung cluster improvement
         Prediction::SceneData savedGuiData = gPrediction->guiData;
         double initialClusterScore = CalculateTableClusterScore(savedGuiData);
 
@@ -948,23 +741,23 @@ namespace AutoPlay {
         Candidate bestClusterCand;
         int bestClusterScore = INT_MIN;
         bool hasBestCluster = false;
-
-        for (const auto& raw : rawCandidates) {
-            Candidate cand = {raw.idx, raw.angle, raw.score, (uint)raw.pocketIdx, raw.power};
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(raw.angle));
-            gPrediction->determineShotResult(true, angle, raw.power, sharedGameManager.getShotSpin(), cand);
+        for (const auto& cand : candidates) {
+            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+            gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
+            if (!gPrediction->firstHitIsTarget) continue;
             if (!gPrediction->guiData.balls[0].onTable) continue;
 
             if (isNineBallGame) {
                 auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                if (!firstHit || firstHit->index != raw.idx) continue;
+                if (!firstHit || firstHit->index != cand.idx) continue;
+
                 int bestPottedIdx = -1;
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& ball = gPrediction->guiData.balls[i];
                     if (ball.originalOnTable && !ball.onTable) {
                         if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
                         if (i == 9) { bestPottedIdx = 9; break; }
-                        if (bestPottedIdx == -1 || i == raw.idx) bestPottedIdx = i;
+                        if (bestPottedIdx == -1 || i == cand.idx) bestPottedIdx = i;
                     }
                 }
                 if (bestPottedIdx == -1) continue;
@@ -972,33 +765,49 @@ namespace AutoPlay {
                 g_CurrentCandidate.idx = bestPottedIdx;
                 g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
                 foundShot = true;
-                Shoot(angle, raw.power);
+                Shoot(angle, cand.power);
                 break;
             }
 
-            if (!gPrediction->firstHitIsTarget && !raw.isBandShot) continue;
-            if (gPrediction->guiData.balls[raw.idx].onTable) continue;
-            if (!raw.isBandShot && gPrediction->guiData.balls[raw.idx].pocketIndex != raw.pocketIdx) continue;
+            if (gPrediction->guiData.balls[cand.idx].onTable) continue;
+            if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
 
-            auto validation = ValidateShotSimulation(myclass, nominatedPocket, false, raw.idx);
-            if (!validation.valid) continue;
+            bool isAngleGood = false;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                Prediction::Ball& ball = gPrediction->guiData.balls[i];
+                bool match = (myclass == Ball::Classification::ANY) ? (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL) : (ball.classification == myclass);
+                if (match && ball.originalOnTable && !ball.onTable) isAngleGood = true;
+            }
 
-            double finalClusterScore = CalculateTableClusterScore(gPrediction->guiData);
-            int openingBonus = (initialClusterScore > finalClusterScore) ? (int)((initialClusterScore - finalClusterScore) * 50) : 0;
-            int bandPenalty = raw.isBandShot ? -20 : 0;
-            int totalScore = openingBonus + bandPenalty;
+            if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
+                 auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                 if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) isAngleGood = false;
+                 else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
+            }
 
-            if (!hasBestCluster || totalScore > bestClusterScore) {
-                bestClusterScore = totalScore;
-                bestClusterCand = cand;
-                bestClusterCand.idx = validation.targetIdx;
-                bestClusterCand.pocketIndex = validation.pocketIndex;
-                hasBestCluster = true;
+            if (isAngleGood && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
+            
+            auto& eightBallRef = gPrediction->guiData.balls[8];
+            if (isAngleGood && (eightBallRef.originalOnTable && !eightBallRef.onTable) && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
+            
+            if (isAngleGood) {
+                double finalClusterScore = CalculateTableClusterScore(gPrediction->guiData);
+                double clusterImprovement = initialClusterScore - finalClusterScore;
+                int openingBonus = (clusterImprovement > 0) ? (int)(clusterImprovement * 50) : 0;
+                int totalScore = openingBonus;
+
+                if (!hasBestCluster || totalScore > bestClusterScore) {
+                    bestClusterScore = totalScore;
+                    bestClusterCand = cand;
+                    hasBestCluster = true;
+                }
+                // Tidak break — terus scan semua kandidat untuk cari yang terbaik
             }
         }
 
         if (hasBestCluster) {
             double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(bestClusterCand.angle));
+            LOGI("AutoPlay: Found best angle %f power %f clusterScore=%d", angle, bestClusterCand.power, bestClusterScore);
             g_CurrentCandidate = bestClusterCand;
             foundShot = true;
             Shoot(angle, bestClusterCand.power);
@@ -1009,7 +818,6 @@ namespace AutoPlay {
             scan = SLOW;
         }
     }
-
 
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
